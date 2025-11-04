@@ -22,31 +22,29 @@ const SignUp = new mongoose.Schema({
     isAdmin:{
         type: Boolean,
         default: false
+    },
+    isVerified: {
+        type: Boolean,
+        default: false
+    },
+    twoFactorEnabled: {
+        type: Boolean,
+        default: false
     }
 });
 
 
 
-SignUp.pre('save',async function(){
+SignUp.pre('save', async function () {
+    const user = this;
 
-    
-    const user=this;
+    // If password is not modified, move on
+    if (!user.isModified('password')) return;
 
-
-    if(!user.isModified("password")){
-        next();
-    }
-
-    try {
-        
-       const saltRound =await bcrypt.genSalt(10);
-       const hash_password = await bcrypt.hash(user.password,saltRound);
-        user.password=hash_password; 
-
-    } catch (error) {
-        next(error);
-    }
-    });
+    const saltRound = await bcrypt.genSalt(10);
+    const hash_password = await bcrypt.hash(user.password, saltRound);
+    user.password = hash_password;
+});
 
     SignUp.methods.comparePassword = async function(password){
         return  bcrypt.compare(password,this.password);

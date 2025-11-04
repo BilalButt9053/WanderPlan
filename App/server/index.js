@@ -6,6 +6,7 @@ const ConnectDb =require("./db");
 const errorMiddleware=require("./middleware/error-middleware");
 const cors = require("cors");
 const adminRoute = require("./router/admin-router");
+const otpRoute = require("./router/otp-router");
 
 
 // const corsOptions={
@@ -20,6 +21,7 @@ app.use(express.json());
 
 app.use("/api/auth",authRoute);
 app.use("/api/admin",adminRoute);
+app.use("/api/otp",otpRoute);
 app.use(errorMiddleware);
 
 const port=5000;
