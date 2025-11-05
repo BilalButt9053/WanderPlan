@@ -1,158 +1,183 @@
+// LoginScreen.js
 import React, { useState } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  StyleSheet,
+  Image,
 } from 'react-native';
-import { MapPin, Mail, Lock } from 'lucide-react-native';
-import Animated, { FadeInDown, FadeInUp, FadeOutDown } from 'react-native-reanimated';
-import { useTailwind } from 'nativewind';
+import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 
-export function AuthScreen({ onForgotPassword, onSuccess }) {
-  const { tw } = useTailwind();
-  const [isSignUp, setIsSignUp] = useState(false);
+export default function LoginScreen() {
+  const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
 
-  const handleSubmit = () => {
-    // mock API call
-    onSuccess();
+  // Handle Google Sign In (placeholder — real logic can be added later)
+  const handleGoogleSignIn = async () => {
+    await WebBrowser.openBrowserAsync('https://accounts.google.com/');
   };
 
-  const handleSocialLogin = (provider) => {
-    console.log(`Login with ${provider}`);
-    onSuccess();
+  const handleAppleSignIn = async () => {
+    await WebBrowser.openBrowserAsync('https://appleid.apple.com/');
+  };
+
+  const handleAuth = () => {
+    console.log(isSignup ? 'Signup pressed' : 'Login pressed', { email, password });
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={tw`flex-1 bg-white`}
-    >
-      <ScrollView contentContainerStyle={tw`flex-grow`}>
-        <View style={tw`flex-1 justify-center items-center p-6`}>
-          {/* Header */}
-          <Animated.View entering={FadeInDown.duration(500)} style={tw`items-center mb-6`}>
-            <View style={tw`w-16 h-16 bg-blue-500 rounded-2xl items-center justify-center shadow-lg mb-4`}>
-              <MapPin color="white" size={32} strokeWidth={2.5} />
-            </View>
-            <Text style={tw`text-2xl font-bold`}>
-              {isSignUp ? 'Create Account' : 'Welcome Back'}
-            </Text>
-            <Text style={tw`text-gray-500 mt-1 text-sm text-center`}>
-              {isSignUp
-                ? 'Start your journey with WanderPlan'
-                : 'Sign in to continue your adventure'}
-            </Text>
-          </Animated.View>
+    <View style={styles.container}>
+      {/* App Logo */}
+      <Image
+        source={require('../assets/logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
 
-          {/* Form */}
-          <Animated.View
-            entering={FadeInUp.duration(500)}
-            exiting={FadeOutDown.duration(300)}
-            style={tw`w-full max-w-sm`}
-          >
-            {isSignUp && (
-              <View style={tw`mb-4`}>
-                <Text style={tw`text-sm font-medium mb-1`}>Full Name</Text>
-                <TextInput
-                  placeholder="John Doe"
-                  style={tw`border border-gray-300 rounded-lg px-4 py-3`}
-                  value={name}
-                  onChangeText={setName}
-                />
-              </View>
-            )}
+      {/* Header */}
+      <Text style={styles.heading}>
+        {isSignup ? 'Create Account' : 'Welcome Back'}
+      </Text>
+      <Text style={styles.subtext}>
+        {isSignup
+          ? 'Sign up to get started with MyApp'
+          : 'Sign in to continue your journey'}
+      </Text>
 
-            <View style={tw`mb-4`}>
-              <Text style={tw`text-sm font-medium mb-1`}>Email</Text>
-              <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                <Mail size={20} color="#6b7280" />
-                <TextInput
-                  placeholder="you@example.com"
-                  style={tw`flex-1 ml-2 py-3`}
-                  keyboardType="email-address"
-                  value={email}
-                  onChangeText={setEmail}
-                />
-              </View>
-            </View>
+      {/* Input Fields */}
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        placeholderTextColor="#888"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Password"
+        placeholderTextColor="#888"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
 
-            <View style={tw`mb-4`}>
-              <Text style={tw`text-sm font-medium mb-1`}>Password</Text>
-              <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                <Lock size={20} color="#6b7280" />
-                <TextInput
-                  placeholder="••••••••"
-                  style={tw`flex-1 ml-2 py-3`}
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
-              </View>
-            </View>
+      {/* Sign In / Sign Up Button */}
+      <TouchableOpacity style={styles.mainButton} onPress={handleAuth}>
+        <Text style={styles.mainButtonText}>
+          {isSignup ? 'Sign Up' : 'Sign In'}
+        </Text>
+      </TouchableOpacity>
 
-            {!isSignUp && (
-              <TouchableOpacity onPress={onForgotPassword} style={tw`self-end mb-4`}>
-                <Text style={tw`text-blue-600 text-sm`}>Forgot password?</Text>
-              </TouchableOpacity>
-            )}
+      {/* Continue With */}
+      <Text style={styles.continueText}>or continue with</Text>
 
-            <TouchableOpacity
-              onPress={handleSubmit}
-              style={tw`bg-blue-600 py-3 rounded-lg`}
-            >
-              <Text style={tw`text-white text-center font-medium`}>
-                {isSignUp ? 'Sign Up' : 'Sign In'}
-              </Text>
-            </TouchableOpacity>
+      {/* Google and Apple Buttons */}
+      <View style={styles.socialContainer}>
+        <TouchableOpacity style={styles.socialButton} onPress={handleGoogleSignIn}>
+          <Ionicons name="logo-google" size={22} color="#DB4437" />
+          <Text style={styles.socialText}>Continue with Google</Text>
+        </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={tw`flex-row items-center my-6`}>
-              <View style={tw`flex-1 h-px bg-gray-300`} />
-              <Text style={tw`mx-2 text-gray-400 text-sm`}>or continue with</Text>
-              <View style={tw`flex-1 h-px bg-gray-300`} />
-            </View>
+        <TouchableOpacity style={styles.socialButton} onPress={handleAppleSignIn}>
+          <Ionicons name="logo-apple" size={22} color="#000" />
+          <Text style={styles.socialText}>Continue with Apple</Text>
+        </TouchableOpacity>
+      </View>
 
-            {/* Social Login */}
-            <View style={tw`gap-3`}>
-              <TouchableOpacity
-                style={tw`flex-row items-center justify-center border border-gray-300 py-3 rounded-lg`}
-                onPress={() => handleSocialLogin('Google')}
-              >
-                <Text style={tw`text-gray-700 font-medium`}>Continue with Google</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={tw`flex-row items-center justify-center border border-gray-300 py-3 rounded-lg`}
-                onPress={() => handleSocialLogin('Apple')}
-              >
-                <Text style={tw`text-gray-700 font-medium`}>Continue with Apple</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Toggle sign in/up */}
-            <View style={tw`items-center mt-6`}>
-              <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
-                <Text style={tw`text-gray-500 text-sm`}>
-                  {isSignUp
-                    ? 'Already have an account? '
-                    : "Don’t have an account? "}
-                  <Text style={tw`text-blue-600`}>
-                    {isSignUp ? 'Sign In' : 'Sign Up'}
-                  </Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      {/* Switch between SignIn and SignUp */}
+      <TouchableOpacity onPress={() => setIsSignup(!isSignup)}>
+        <Text style={styles.toggleText}>
+          {isSignup
+            ? 'Already have an account? Sign In'
+            : "Don't have an account? Sign Up"}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 }
- 
+
+// 💅 Styles
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f8f9fb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 25,
+  },
+  logo: {
+    width: 100,
+    height: 100,
+    marginBottom: 20,
+  },
+  heading: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#111',
+    marginBottom: 6,
+  },
+  subtext: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 25,
+  },
+  input: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  mainButton: {
+    width: '100%',
+    backgroundColor: '#00bfff',
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  mainButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  continueText: {
+    color: '#777',
+    fontSize: 14,
+    marginVertical: 20,
+  },
+  socialContainer: {
+    width: '100%',
+    gap: 10,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  socialText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#333',
+  },
+  toggleText: {
+    marginTop: 25,
+    fontSize: 14,
+    color: '#00bfff',
+    fontWeight: '500',
+  },
+});

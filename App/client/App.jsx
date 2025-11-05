@@ -4,6 +4,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import SplashScreen from './screens/SplashScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import LoginScreen from './screens/LoginScreen';
+import "./global.css"
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('splash');
@@ -22,7 +23,7 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Text>Something went wrong!</Text>
+      <Text >Something went wrong!</Text>
     </View>
   );
 }

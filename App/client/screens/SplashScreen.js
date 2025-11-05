@@ -48,13 +48,13 @@ export default function SplashScreen({ onFinish }) {
         </Animated.View>
 
         <Image
-          source={require('./assets/logo.png')} // 👈 your logo
+          source={require('../assets/logo.png')} // 👈 your logo
           style={styles.logo}
           resizeMode="contain"
         />
       </View>
 
-      <Text style={styles.title}>MyApp</Text>
+      <Text style={styles.title}>Wander Plan</Text>
       <Text style={styles.subtitle}>Empowering your experience</Text>
       <StatusBar style="light" />
     </View>

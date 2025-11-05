@@ -7,17 +7,17 @@ export default function OnboardingScreen({ onFinish }) {
 
   const screens = [
     {
-      image: require('./assets/logo.png'),
+      image: require('../assets/logo.png'),
       title: 'Welcome to MyApp',
       subtitle: 'Your personalized journey starts here.',
     },
     {
-      image: require('./assets/logo.png'),
+      image: require('../assets/logo.png'),
       title: 'Track Your Progress',
       subtitle: 'Stay on top of your goals effortlessly.',
     },
     {
-      image: require('./assets/logo.png'),
+      image: require('../assets/logo.png'),
       title: 'Achieve More',
       subtitle: 'Unlock success with smart tools and insights.',
     },
