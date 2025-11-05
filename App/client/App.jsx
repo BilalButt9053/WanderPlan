@@ -1,12 +1,14 @@
 // App.js
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Provider } from 'react-redux';
+import { store } from './redux/store';
 import SplashScreen from './screens/SplashScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import LoginScreen from './screens/LoginScreen';
-import "./global.css"
+import "./global.css";
 
-export default function App() {
+function AppContent() {
   const [currentScreen, setCurrentScreen] = useState('splash');
 
   if (currentScreen === 'splash') {
@@ -23,8 +25,17 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Text >Something went wrong!</Text>
+      <Text>Something went wrong!</Text>
+      {/* <NativewindTest/> */}
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <Provider store={store}>
+      <AppContent />
+    </Provider>
   );
 }
 
