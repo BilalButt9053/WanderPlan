@@ -66,7 +66,15 @@ const register = async(req,res,next)=>{
        const userExist =await Signup.findOne({email });
 
        if(userExist){
-        return res.status(400).json({message:"email already exists"});
+        // If user exists but is not verified, allow re-registration
+        if(!userExist.isVerified){
+            // Delete old unverified user and their tokens
+            await EmailVerificationToken.deleteMany({ owner: userExist._id });
+            await Signup.deleteOne({ _id: userExist._id });
+            console.log('Deleted unverified user for re-registration');
+        } else {
+            return res.status(400).json({message:"email already exists"});
+        }
        }
        
        const UserCreated =await Signup.create({
@@ -93,8 +101,6 @@ const register = async(req,res,next)=>{
 
        res.status(200).json({
         msg:"Registration successful! Please check your email for verification OTP",
-        token:await UserCreated.generateToken(),
-        userId:UserCreated._id.toString(),
         requiresVerification: true,
         email: email
     });
@@ -126,27 +132,50 @@ const login = async (req, res, next) => {
         if (match) {
             // Check if email is verified
             if (!userExist.isVerified) {
+                // Generate and send OTP for unverified users
+                const OTP = generateOTP();
+                
+                // Delete any existing tokens
+                await EmailVerificationToken.deleteMany({ owner: userExist._id });
+                
+                // Save OTP to database
+                const emailVerificationToken = new EmailVerificationToken({
+                    owner: userExist._id,
+                    token: OTP,
+                });
+                await emailVerificationToken.save();
+                
+                // Send OTP via email
+                await sendOTPEmail(email, OTP);
+                
                 return res.status(403).json({
-                    message: "Please verify your email before logging in",
+                    message: "Please verify your email before logging in. OTP sent to your email.",
                     requiresVerification: true,
                     email: userExist.email
                 });
             }
 
-            // Check if 2FA is enabled
-            if (userExist.twoFactorEnabled) {
-                return res.status(200).json({
-                    msg: "2FA required",
-                    requires2FA: true,
-                    email: userExist.email,
-                });
-            }
+            // For verified users, also send OTP for login verification
+            const OTP = generateOTP();
+            
+            // Delete any existing tokens
+            await EmailVerificationToken.deleteMany({ owner: userExist._id });
+            
+            // Save OTP to database
+            const loginOtpToken = new EmailVerificationToken({
+                owner: userExist._id,
+                token: OTP,
+            });
+            await loginOtpToken.save();
+            
+            // Send OTP via email
+            await sendOTPEmail(email, OTP);
 
-            // Password matches and no 2FA, send success response
+            // Return response requiring OTP verification
             return res.status(200).json({
-                msg: "Login successful",
-                token: await userExist.generateToken(),
-                userId: userExist._id.toString(),
+                msg: "OTP sent to your email for login verification",
+                requiresLoginOtp: true,
+                email: userExist.email,
             });
         } else {
             // Password does not match, send error response
@@ -155,6 +184,7 @@ const login = async (req, res, next) => {
 
     } catch (error) {
         // Catch any other errors and send a 500 response
+        console.error("Login error:", error);
         res.status(500).json("internal server error");
         next(error); // Make sure this is the last thing called in the catch block
     }
@@ -244,9 +274,9 @@ const resetPassword = async (req, res, next) => {
     try {
         const { email, otp, newPassword } = req.body;
 
-        if (!email || !otp || !newPassword) {
+        if (!email || !newPassword) {
             return res.status(400).json({ 
-                message: "Email, OTP, and new password are required" 
+                message: "Email and new password are required" 
             });
         }
 
@@ -256,28 +286,31 @@ const resetPassword = async (req, res, next) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // Find the reset token
-        const token = await EmailVerificationToken.findOne({ owner: userExist._id });
+        // If OTP is provided, verify it
+        if (otp) {
+            // Find the reset token
+            const token = await EmailVerificationToken.findOne({ owner: userExist._id });
 
-        if (!token) {
-            return res.status(400).json({ 
-                message: "Invalid or expired OTP. Please request a new one." 
-            });
-        }
+            if (!token) {
+                return res.status(400).json({ 
+                    message: "Invalid or expired OTP. Please request a new one." 
+                });
+            }
 
-        // Verify OTP
-        const isValid = await token.compareToken(otp);
+            // Verify OTP
+            const isValid = await token.compareToken(otp);
 
-        if (!isValid) {
-            return res.status(400).json({ message: "Invalid OTP" });
+            if (!isValid) {
+                return res.status(400).json({ message: "Invalid OTP" });
+            }
+
+            // Delete the used token
+            await EmailVerificationToken.deleteOne({ _id: token._id });
         }
 
         // Update password
         userExist.password = newPassword;
         await userExist.save();
-
-        // Delete the used token
-        await EmailVerificationToken.deleteOne({ _id: token._id });
 
         res.status(200).json({
             message: "Password reset successful. You can now login with your new password.",

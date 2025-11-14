@@ -148,9 +148,18 @@ const verifyOTP = async (req, res, next) => {
     // Delete the used token
     await EmailVerificationToken.deleteOne({ _id: token._id });
 
+    // Return token and basic user info so client can sign the user in
     res.status(200).json({
       message: "Email verified successfully",
       success: true,
+      token: await userExist.generateToken(),
+      user: {
+        _id: userExist._id.toString(),
+        fullName: userExist.fullName,
+        email: userExist.email,
+        isAdmin: userExist.isAdmin,
+        isVerified: userExist.isVerified,
+      },
     });
   } catch (error) {
     next(error);
