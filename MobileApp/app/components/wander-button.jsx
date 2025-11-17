@@ -1,6 +1,5 @@
 import React from 'react';
 import { TouchableOpacity, Text } from 'react-native';
-import { styled } from 'nativewind';
 
 export default function WanderButton({
   variant = 'primary',
@@ -30,14 +29,11 @@ export default function WanderButton({
   // Combine all styles
   const buttonClasses = `${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${widthStyles} ${className}`;
 
-  // Use styled wrapper for NativeWind
-  const StyledTouchable = styled(TouchableOpacity);
-
   return (
-    <StyledTouchable className={buttonClasses} {...props}>
+    <TouchableOpacity className={buttonClasses} {...props}>
       <Text className={`text-center ${variant === 'primary' ? 'text-white' : 'text-black'}`}>
         {children}
       </Text>
-    </StyledTouchable>
+    </TouchableOpacity>
   );
 }
