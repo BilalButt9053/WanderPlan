@@ -1,20 +1,24 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { Platform } from "react-native";
 
-// Use a host that works from the Android emulator. On Android emulators
-// localhost resolves to the emulator itself, so use 10.0.2.2 to reach the host
-// machine where the backend runs. For iOS/simulators and web, localhost is fine.
-// If using a physical device or Expo Go, replace with your machine's LAN IP
-// (e.g. http://192.168.1.100:5000) or use an ngrok tunnel.
-const BASE_URL = Platform.OS === "android"
-  ? "http://192.168.0.105:5000/api"
-  : "http://localhost:5000/api";
+// SIMPLIFIED HOST SELECTION
+// - Set `OVERRIDE_HOST` to your machine LAN IP (e.g. "192.168.1.100") when
+//   testing from a physical device (Expo Go scanned QR). Leave empty to use
+//   sensible defaults for simulators/emulators.
+// - Android emulator (Android Studio) -> 10.0.2.2
+// - iOS simulator / macOS -> localhost
+// - Physical device -> set OVERRIDE_HOST to your PC IPv4
+const OVERRIDE_HOST = "192.168.0.111"; // <-- replace with your PC LAN IP when needed
+
+const BASE_HOST =
+  OVERRIDE_HOST || (Platform.OS === "android" ? "10.0.2.2" : "localhost");
+
+export const BASE_URL = `http://${BASE_HOST}:5000/api`;
 
 export const authApi = createApi({
   reducerPath: "authApi",
   baseQuery: fetchBaseQuery({ baseUrl: BASE_URL }),
   endpoints: (builder) => ({
-    // --- Register ---
     registerUser: builder.mutation({
       query: (userData) => ({
         url: "/auth/register",
@@ -23,7 +27,6 @@ export const authApi = createApi({
         headers: { "Content-Type": "application/json" },
       }),
     }),
-    // --- Login ---
     loginUser: builder.mutation({
       query: (userData) => ({
         url: "/auth/login",
@@ -32,9 +35,7 @@ export const authApi = createApi({
         headers: { "Content-Type": "application/json" },
       }),
     }),
-    // --- OTP Verify ---
     verifyOtp: builder.mutation({
-      // server expects { email, otp }
       query: ({ email, otp }) => ({
         url: "/otp/verify",
         method: "POST",
@@ -42,7 +43,6 @@ export const authApi = createApi({
         headers: { "Content-Type": "application/json" },
       }),
     }),
-    // --- Resend OTP ---
     resendOtp: builder.mutation({
       query: ({ email }) => ({
         url: "/otp/resend",
@@ -51,7 +51,6 @@ export const authApi = createApi({
         headers: { "Content-Type": "application/json" },
       }),
     }),
-    // --- Forgot Password ---
     forgotPassword: builder.mutation({
       query: ({ email }) => ({
         url: "/auth/forgot-password",
@@ -60,8 +59,6 @@ export const authApi = createApi({
         headers: { "Content-Type": "application/json" },
       }),
     }),
-    // --- Reset Password ---
-    // server expects { email, otp, newPassword }
     resetPassword: builder.mutation({
       query: ({ email, otp, newPassword }) => ({
         url: "/auth/reset-password",
