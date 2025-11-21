@@ -2,10 +2,16 @@ import React from "react";
 import { View, Text } from "react-native";
 import { MapPin, UtensilsCrossed, Plane } from "lucide-react-native";
 import { MotiView, MotiText } from "moti";
+import { LinearGradient } from "expo-linear-gradient";
 
 export default function SplashScreen() {
   return (
-    <View className="flex-1 w-full bg-gradient-to-br from-[#2F80ED] to-[#27AE60] items-center justify-center p-4">
+    <LinearGradient
+      colors={["#2F80ED", "#27AE60"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      className="flex-1 w-full items-center justify-center p-4"
+    >
       {/* Animated Plane */}
       <MotiView
         from={{ translateX: -100, opacity: 0 }}
@@ -79,6 +85,6 @@ export default function SplashScreen() {
           />
         ))}
       </MotiView>
-    </View>
+    </LinearGradient>
   );
 }
