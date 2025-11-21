@@ -26,12 +26,18 @@ export default function WanderButton({
 
   const widthStyles = fullWidth ? 'w-full' : '';
 
-  // Combine all styles
-  const buttonClasses = `${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${widthStyles} ${className}`;
 
   return (
-    <TouchableOpacity className={buttonClasses} {...props}>
-      <Text className={`text-center ${variant === 'primary' ? 'text-white' : 'text-black'}`}>
+    <TouchableOpacity 
+      className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${widthStyles} ${className}`}
+      onPress={onPress}
+      {...props}
+    >
+      <Text className={`text-center font-semibold ${
+        variant === 'primary' ? 'text-white text-lg' : 
+        variant === 'outline' ? 'text-blue-600 text-lg' :
+        'text-gray-800 text-lg'
+      }`}>
         {children}
       </Text>
     </TouchableOpacity>

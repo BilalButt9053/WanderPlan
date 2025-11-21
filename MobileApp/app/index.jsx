@@ -1,9 +1,10 @@
 
-import React, { useEffect,useState } from "react";
+import React, { useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { router } from "expo-router";
-import SplashScreen from "./screens/SplashScreen";
-import OnboardingScreen from "./screens/OnboardingScreen";
+// import SplashScreen from "./screens/SplashScreen";
+// import OnboardingScreen from "./screens/OnboardingScreen";
+
 
 export default function Index() {
   // const [isSplash, setIsSplash] = useState(true);
@@ -21,7 +22,6 @@ export default function Index() {
 
     return () => clearTimeout(timer);
   }, []);
-
 
   // const handleOnboardingComplete = () => {
   //   // Navigate to sign-in or home after onboarding
