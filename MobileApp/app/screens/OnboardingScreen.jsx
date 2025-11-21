@@ -5,7 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView, MotiText } from "moti";
 import { AnimatePresence } from "moti";
 import { Map, UtensilsCrossed, Plane } from "lucide-react-native";
-import { WanderButton } from "../components/wander-button";
+import { SafeAreaView } from "react-native-safe-area-context";
+import WanderButton from "../components/wander-button";
+import { useRouter } from "expo-router";
 
 const { width } = Dimensions.get("window");
 
@@ -33,15 +35,15 @@ const slides = [
   },
 ];
 
-function OnboardingScreen({ onComplete }) {
+export default function OnboardingScreen() {
+  const router = useRouter();
   const [currentSlide, setCurrentSlide] = useState(0);
-  const carouselRef = useRef(null);
 
   const handleNext = () => {
     if (currentSlide < slides.length - 1) {
-      carouselRef.current?.scrollTo({ index: currentSlide + 1, animated: true });
+      setCurrentSlide((s) => s + 1);
     } else {
-      onComplete();
+      router.push("/(auth)/sign-in");
     }
   };
 
@@ -119,5 +121,3 @@ function OnboardingScreen({ onComplete }) {
     </SafeAreaView>
   );
 }
-
-export default OnboardingScreen;
