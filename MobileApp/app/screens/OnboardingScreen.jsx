@@ -1,20 +1,15 @@
-
 import React, { useRef, useState } from "react";
 import { View, Text, Dimensions, TouchableOpacity, StyleSheet } from "react-native";
 import Carousel from "react-native-reanimated-carousel";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MotiView, MotiText } from "moti";
-import { AnimatePresence } from "moti";
+import { MotiView } from "moti";
 import { Map, UtensilsCrossed, Plane } from "lucide-react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import WanderButton from "../components/wander-button";
-import { useRouter } from "expo-router";
+import { WanderButton } from "../components/wander-button";
 
 const { width } = Dimensions.get("window");
 
 const slides = [
   {
-
     icon: Map,
     title: "Plan Your Journey",
     description:
@@ -22,7 +17,6 @@ const slides = [
     color: "#2F80ED",
   },
   {
-
     icon: UtensilsCrossed,
     title: "Explore Local Cuisine",
     description:
@@ -30,7 +24,6 @@ const slides = [
     color: "#27AE60",
   },
   {
-
     icon: Plane,
     title: "Budget Like a Pro",
     description:
@@ -39,18 +32,17 @@ const slides = [
   },
 ];
 
-export default function OnboardingScreen() {
-  const router = useRouter();
+function OnboardingScreen({ onComplete }) {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const carouselRef = useRef(null);
 
   const handleNext = () => {
     if (currentSlide < slides.length - 1) {
-      setCurrentSlide((s) => s + 1);
+      carouselRef.current?.scrollTo({ index: currentSlide + 1, animated: true });
     } else {
-      router.push("/(auth)/sign-in");
+      onComplete();
     }
   };
-
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -106,7 +98,6 @@ export default function OnboardingScreen() {
           />
         </View>
 
-
         {/* Pagination dots */}
         <View className="flex-row justify-center gap-2 mb-8">
           {slides.map((_, index) => (
@@ -127,3 +118,5 @@ export default function OnboardingScreen() {
     </SafeAreaView>
   );
 }
+
+export default OnboardingScreen;

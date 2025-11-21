@@ -3,12 +3,10 @@ import { View } from "react-native";
 import { MapPin, UtensilsCrossed, Plane } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MotiView, MotiText } from "moti";
-import { LinearGradient } from "expo-linear-gradient";
 
 export default function SplashScreen() {
   return (
     <LinearGradient
-
       colors={["#2F80ED", "#27AE60"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
