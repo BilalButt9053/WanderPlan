@@ -17,12 +17,12 @@ export default function ReusableModal({
         {/* MODAL BOX */}
         <View
           className="bg-white rounded-2xl p-6"
-          style={{ width }}
+          style={{ width, maxHeight: '80%' }}
         >
           {/* CLOSE BUTTON */}
           {showClose && (
             <TouchableOpacity
-              className="absolute right-4 top-4"
+              className="absolute right-4 top-4 z-10"
               onPress={onClose}
             >
               <X size={22} color="#333" />
@@ -37,7 +37,7 @@ export default function ReusableModal({
           )}
 
           {/* CHILD CONTENT */}
-          <View>{children}</View>
+          {children}
         </View>
       </View>
     </RNModal>

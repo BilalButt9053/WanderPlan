@@ -9,7 +9,6 @@ import {
   Image,
   Dimensions
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../../redux/slices/authSlice';
@@ -24,6 +23,7 @@ import {
   Navigation
 } from 'lucide-react-native';
 import ImageWithFallback from '../components/ImageWithFallback';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import WanderCard from '../components/wander-card';
 import WanderChip from '../components/wander-chip';
 import { WanderButton } from '../components/wander-button';
@@ -34,43 +34,43 @@ const { width } = Dimensions.get('window');
 const experiences = [
   {
     id: 1,
-    title: 'Tropical Paradise',
-    location: 'Bali, Indonesia',
-    image: 'https://images.unsplash.com/photo-1752436632465-57f537d386f8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0cmF2ZWwlMjBkZXN0aW5hdGlvbiUyMGJlYWNofGVufDF8fHx8MTc2MDM2ODU4Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-    rating: 4.8,
-    reviews: 1234,
+    title: 'Hunza Valley Beauty',
+    location: 'Hunza, Gilgit-Baltistan',
+    image: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxodW56YSUyMHZhbGxleSUyMHBha2lzdGFufGVufDF8fHx8MTczMjYxMjAwMHww&ixlib=rb-4.1.0&q=80&w=1080',
+    rating: 4.9,
+    reviews: 2834,
   },
   {
     id: 2,
-    title: 'Mountain Adventure',
-    location: 'Swiss Alps',
-    image: 'https://images.unsplash.com/photo-1543169564-be8896b30cdb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb3VudGFpbiUyMGFkdmVudHVyZSUyMGhpa2luZ3xlbnwxfHx8fDE3NjAzMzI2ODB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    rating: 4.9,
-    reviews: 856,
+    title: 'Fairy Meadows Trek',
+    location: 'Nanga Parbat, KPK',
+    image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYWlyeSUyMG1lYWRvd3MlMjBwYWtpc3RhbnxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
+    rating: 4.8,
+    reviews: 1567,
   },
   {
     id: 3,
-    title: 'Urban Explorer',
-    location: 'New York, USA',
-    image: 'https://images.unsplash.com/photo-1641303125338-72cd1d3e1e2b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaXR5JTIwdHJhdmVsJTIwYXJjaGl0ZWN0dXJlfGVufDF8fHx8MTc2MDI3NzU1M3ww&ixlib=rb-4.1.0&q=80&w=1080',
+    title: 'Lahore Fort Heritage',
+    location: 'Lahore, Punjab',
+    image: 'https://images.unsplash.com/photo-1571847027516-1df28ffc1e29?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYWhvcmUlMjBmb3J0JTIwcGFraXN0YW58ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
     rating: 4.7,
-    reviews: 2105,
+    reviews: 3245,
   },
 ];
 
 const deals = [
   {
     id: 1,
-    title: 'La Bella Vista',
-    discount: '30% OFF',
-    image: 'https://images.unsplash.com/photo-1676471932681-45fa972d848a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwZm9vZCUyMGRpbmluZ3xlbnwxfHx8fDE3NjAyNTkyMzd8MA&ixlib=rb-4.1.0&q=80&w=1080',
+    title: 'Khan Baba Restaurant',
+    discount: '25% OFF',
+    image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwYWtpc3RhbmklMjBmb29kJTIwYmlyeWFuaXxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
     type: 'restaurant',
   },
   {
     id: 2,
-    title: 'Grand Resort & Spa',
-    discount: '40% OFF',
-    image: 'https://images.unsplash.com/photo-1729605411476-defbdab14c54?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxob3RlbCUyMGx1eHVyeSUyMHJvb218ZW58MXx8fHwxNzYwMzc0MzI0fDA&ixlib=rb-4.1.0&q=80&w=1080',
+    title: 'Pearl Continental Hotel',
+    discount: '35% OFF',
+    image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxob3RlbCUyMGx1eHVyeSUyMHJvb218ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
     type: 'hotel',
   },
 ];
@@ -78,27 +78,27 @@ const deals = [
 const hiddenGems = [
   {
     id: 1,
-    name: 'Secret Garden Cafe',
-    rating: 4.6,
-    distance: '0.8 km',
+    name: 'Dilpasand Cafe',
+    rating: 4.7,
+    distance: '1.2 km',
     category: 'Cafe',
-    image: 'https://images.unsplash.com/photo-1628565350863-533a3c174b85?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2ZmZWUlMjBzaG9wJTIwY2FmZXxlbnwxfHx8fDE3NjAzMzg3OTd8MA&ixlib=rb-4.1.0&q=80&w=1080',
+    image: 'https://images.unsplash.com/photo-1559305616-3b2b9c8e6e3c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYWZlJTIwaW50ZXJpb3J8ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
   },
   {
     id: 2,
-    name: 'The Hidden Gem',
+    name: 'Haveli Restaurant',
     rating: 4.8,
-    distance: '1.2 km',
+    distance: '2.3 km',
     category: 'Restaurant',
-    image: 'https://images.unsplash.com/photo-1676471932681-45fa972d848a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwZm9vZCUyMGRpbmluZ3xlbnwxfHx8fDE3NjAyNTkyMzd8MA&ixlib=rb-4.1.0&q=80&w=1080',
+    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwaW50ZXJpb3J8ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
   },
   {
     id: 3,
-    name: 'Local Artisan Market',
-    rating: 4.5,
-    distance: '2.1 km',
+    name: 'Liberty Market',
+    rating: 4.6,
+    distance: '3.5 km',
     category: 'Shopping',
-    image: 'https://images.unsplash.com/photo-1641303125338-72cd1d3e1e2b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaXR5JTIwdHJhdmVsJTIwYXJjaGl0ZWN0dXJlfGVufDF8fHx8MTc2MDI3NzU1M3ww&ixlib=rb-4.1.0&q=80&w=1080',
+    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtYXJrZXQlMjBzaG9wcGluZ3xlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
   },
 ];
 
@@ -108,18 +108,14 @@ export default function Page() {
   const user = useSelector((state) => state.auth?.user || null);
   const reviewProgress = 60;
 
-  const handleLogout = () => {
-    dispatch(logout());
-    router.replace('/sign-in');
-  };
+  
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-background">
       <ScrollView className="flex-1">
         {/* Header with Search Bar */}
         <View className="bg-background border-b border-gray-200">
-          <View className="p-4">
-          <View className="flex-row items-center gap-3">
+          <View className="flex-row items-center gap-3 p-4">
             {/* Search Bar */}
             <View className="flex-1 flex-row items-center gap-3 bg-gray-100 rounded-2xl px-4 py-3">
               <Search size={20} color="#6B7280" />
@@ -133,16 +129,28 @@ export default function Page() {
             
             {/* Profile Avatar */}
             <TouchableOpacity 
-              onPress={handleLogout}
-              className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-green-500 items-center justify-center"
-              style={{ backgroundColor: '#2563EB' }}
+              onPress={() => router.push('/(tabs)/profile')}
+              className="w-12 h-12 rounded-full items-center justify-center overflow-hidden"
+              style={{ 
+                backgroundColor: user?.profilePhoto ? 'transparent' : '#3B82F6',
+                borderWidth: user?.profilePhoto ? 2 : 0,
+                borderColor: '#3B82F6'
+              }}
             >
-              <Text className="text-white font-semibold">
-                {user?.fullName?.charAt(0) || 'U'}
-              </Text>
+              {user?.profilePhoto ? (
+                <Image
+                  source={{ uri: user.profilePhoto }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-white font-semibold text-lg">
+                  {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
-        </View>
+     
       </View>
 
       {/* Main Content */}
@@ -259,6 +267,7 @@ export default function Page() {
                 <TouchableOpacity 
                   className="bg-white rounded-full px-5 py-2.5 self-start"
                   activeOpacity={0.8}
+                  onPress={router.push('./trips')}
                 >
                   <Text style={{ color: '#3B82F6' }} className="text-sm font-semibold">Generate Plan</Text>
                 </TouchableOpacity>

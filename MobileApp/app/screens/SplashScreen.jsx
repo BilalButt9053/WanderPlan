@@ -3,7 +3,6 @@ import { View } from "react-native";
 import { MapPin, UtensilsCrossed, Plane } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MotiView, MotiText } from "moti";
-import { LinearGradient } from "expo-linear-gradient";
 
 export default function SplashScreen() {
   return (
