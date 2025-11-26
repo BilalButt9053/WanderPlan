@@ -1,6 +1,6 @@
 
-import React, { useEffect } from "react";
-import { View, ActivityIndicator } from "react-native";
+import React, { useEffect,useState } from "react";
+import { View,ActivityIndicator } from "react-native";
 import { router } from "expo-router";
 // import SplashScreen from "./screens/SplashScreen";
 // import OnboardingScreen from "./screens/OnboardingScreen";

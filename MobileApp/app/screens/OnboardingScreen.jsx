@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { View, Text, Dimensions, TouchableOpacity, StyleSheet } from "react-native";
 import Carousel from "react-native-reanimated-carousel";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MotiView } from "moti";
 import { Map, UtensilsCrossed, Plane } from "lucide-react-native";
 import { WanderButton } from "../components/wander-button";
 

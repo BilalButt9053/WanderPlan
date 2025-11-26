@@ -18,9 +18,9 @@ import {
   Bookmark
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WanderButton } from '../wander-button';
-import { WanderCard } from '../wander-card';
-import { WanderChip } from '../wander-chip';
+import { WanderButton } from '../components/wander-button';
+import { WanderCard } from '../components/wander-card';
+import { WanderChip } from '../components/wander-chip';
 
 const budgetAllocation = [
   { name: 'Travel', value: 30, color: '#2F80ED' },
@@ -111,7 +111,7 @@ const itineraryDays = [
   },
 ];
 
-export function GeneratedPlanScreen({ budgetData, onBack, onSave }) {
+export default function GeneratedPlanScreen({ budgetData, onBack, onSave }) {
   const handleShare = async () => {
     try {
       await Share.share({
@@ -124,7 +124,7 @@ export function GeneratedPlanScreen({ budgetData, onBack, onSave }) {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#ffffff' }}>
+   <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
       <View style={{ 
         backgroundColor: '#ffffff',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity,onPress } from 'react-native';
 
 export default function WanderCard({
   children,

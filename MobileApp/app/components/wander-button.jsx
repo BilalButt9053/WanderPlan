@@ -1,12 +1,13 @@
 import React from 'react';
 import { TouchableOpacity, Text } from 'react-native';
 
-export default function WanderButton({
+export function WanderButton({
   variant = 'primary',
   size = 'md',
   fullWidth = false,
   children,
   className = '',
+  onPress,
   ...props
 }) {
   const baseStyles = 'rounded-2xl flex items-center justify-center gap-2 transition-transform';
@@ -43,3 +44,5 @@ export default function WanderButton({
     </TouchableOpacity>
   );
 }
+
+export default WanderButton;

@@ -18,11 +18,11 @@ import {
   Bookmark,
   GripVertical
 } from 'lucide-react-native';
+import { WanderButton } from '../components/wander-button';
+import { WanderCard } from '../components/wander-card';
+import { WanderChip } from '../components/wander-chip';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WanderButton } from '../wander-button';
-import { WanderCard } from '../wander-card';
-import { WanderChip } from '../wander-chip';
-import ImageWithFallback from '../ImageWithFallback';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 const availableItems = [
   {
@@ -94,7 +94,7 @@ const getIcon = (type) => {
   }
 };
 
-export function ManualTripBuilderScreen({ onBack, onSave }) {
+export default function ManualTripBuilderScreen({ onBack, onSave }) {
   const [selectedItems, setSelectedItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
@@ -126,7 +126,7 @@ export function ManualTripBuilderScreen({ onBack, onSave }) {
   const totalCost = selectedItems.reduce((sum, item) => sum + item.price, 0);
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#ffffff' }}>
+    <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
       <View style={{ 
         backgroundColor: '#ffffff',

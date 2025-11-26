@@ -15,9 +15,9 @@ import {
   Sparkles,
   Edit3
 } from 'lucide-react-native';
+import  WanderButton  from '../components/wander-button';
+import  WanderCard  from '../components/wander-card';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WanderButton } from '../wander-button';
-import { WanderCard } from '../wander-card';
 
 const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'INR'];
 const popularDestinations = [
@@ -50,7 +50,7 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
     : popularDestinations;
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#ffffff' }}>
+    <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
       <View style={{ 
         backgroundColor: '#ffffff',
@@ -121,7 +121,8 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 8,
-                    minWidth: 96
+                    minWidth: 96,
+                    zIndex:500,
                   }}
                 >
                   <Text style={{ fontSize: 16 }}>{currency}</Text>
@@ -208,7 +209,7 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
                   shadowRadius: 8,
                   elevation: 5,
                   maxHeight: 192,
-                  zIndex: 50
+                  zIndex: 500
                 }}>
                   <ScrollView>
                     {filteredDestinations.map((dest) => (

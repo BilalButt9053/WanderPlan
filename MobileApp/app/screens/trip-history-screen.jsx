@@ -14,55 +14,55 @@ import {
   ChevronRight,
   Clock
 } from 'lucide-react-native';
+import { WanderButton } from '../components/wander-button';
+import { WanderCard } from '../components/wander-card';
+import { WanderChip } from '../components/wander-chip';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WanderButton } from '../wander-button';
-import { WanderCard } from '../wander-card';
-import { WanderChip } from '../wander-chip';
-import ImageWithFallback from '../ImageWithFallback';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 const trips = [
   {
     id: '1',
-    destination: 'Paris, France',
+    destination: 'Hunza Valley, Gilgit-Baltistan',
     dates: 'Jun 15 - Jun 22, 2024',
     duration: '7 days',
-    budget: '3500',
-    spent: '3200',
-    currency: 'USD',
-    image: 'https://images.unsplash.com/photo-1431274172761-fca41d930114?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwYXJpcyUyMGVpZmZlbCUyMHRvd2VyfGVufDF8fHx8MTc2MDMyODIyMnww&ixlib=rb-4.1.0&q=80&w=1080',
+    budget: '150000',
+    spent: '135000',
+    currency: 'PKR',
+    image: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxodW56YSUyMHZhbGxleSUyMHBha2lzdGFufGVufDF8fHx8MTczMjYxMjAwMHww&ixlib=rb-4.1.0&q=80&w=1080',
     status: 'completed',
   },
   {
     id: '2',
-    destination: 'Tokyo, Japan',
+    destination: 'Lahore, Punjab',
     dates: 'Aug 10 - Aug 17, 2024',
     duration: '7 days',
-    budget: '4000',
-    spent: '3850',
-    currency: 'USD',
-    image: 'https://images.unsplash.com/photo-1602283662099-1c6c158ee94d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0b2t5byUyMGphcGFuJTIwY2l0eXxlbnwxfHx8fDE3NjAzMjgyMjJ8MA&ixlib=rb-4.1.0&q=80&w=1080',
+    budget: '120000',
+    spent: '115000',
+    currency: 'PKR',
+    image: 'https://images.unsplash.com/photo-1571847027516-1df28ffc1e29?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYWhvcmUlMjBmb3J0JTIwcGFraXN0YW58ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
     status: 'completed',
   },
   {
     id: '3',
-    destination: 'Bali, Indonesia',
+    destination: 'Skardu, Gilgit-Baltistan',
     dates: 'Dec 20 - Dec 30, 2024',
     duration: '10 days',
-    budget: '2500',
+    budget: '180000',
     spent: '0',
-    currency: 'USD',
-    image: 'https://images.unsplash.com/photo-1604394089666-6d365c060c6c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiYWxpJTIwdGVtcGxlJTIwaW5kb25lc2lhfGVufDF8fHx8MTc2MDM3MDYxOXww&ixlib=rb-4.1.0&q=80&w=1080',
+    currency: 'PKR',
+    image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYWlyeSUyMG1lYWRvd3MlMjBwYWtpc3RhbnxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
     status: 'upcoming',
   },
   {
     id: '4',
-    destination: 'Barcelona, Spain',
+    destination: 'Murree, Punjab',
     dates: 'Not scheduled',
     duration: '5 days',
-    budget: '2000',
+    budget: '80000',
     spent: '0',
-    currency: 'EUR',
-    image: 'https://images.unsplash.com/photo-1641303125338-72cd1d3e1e2b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaXR5JTIwdHJhdmVsJTIwYXJjaGl0ZWN0dXJlfGVufDF8fHx8MTc2MDI3NzU1M3ww&ixlib=rb-4.1.0&q=80&w=1080',
+    currency: 'PKR',
+    image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwYWtpc3RhbmklMjBmb29kJTIwYmlyeWFuaXxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
     status: 'draft',
   },
 ];
@@ -195,13 +195,13 @@ function TripCard({ trip, onReopen }) {
   );
 }
 
-export function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
+export default function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
   const completedTrips = trips.filter(t => t.status === 'completed');
   const upcomingTrips = trips.filter(t => t.status === 'upcoming');
   const draftTrips = trips.filter(t => t.status === 'draft');
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#ffffff' }}>
+    <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
       <View style={{ 
         backgroundColor: '#ffffff',

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Alert } from 'react-native';
-import { TripHistoryScreen } from '../components/trip-screens/trip-history-screen';
-import { BudgetInputScreen } from '../components/trip-screens/budget-input-screen';
-import { GeneratedPlanScreen } from '../components/trip-screens/generated-plan-screen';
-import { ManualTripBuilderScreen } from '../components/trip-screens/manual-trip-builder-screen';
-
+import { Alert, View } from 'react-native';
+import  TripHistoryScreen  from '../screens/trip-history-screen';
+import  BudgetInputScreen  from '../screens/budget-input-screen';
+import  GeneratedPlanScreen  from '../screens/generated-plan-screen';
+import  ManualTripBuilderScreen  from '../screens/manual-trip-builder-screen';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const trips = () => {
   const [currentScreen, setCurrentScreen] = useState('history');
   const [budgetData, setBudgetData] = useState(null);
@@ -46,7 +46,7 @@ const trips = () => {
   };
 
   return (
-    <>
+    <SafeAreaView className="flex-1 bg-background">
       {currentScreen === 'history' && (
         <TripHistoryScreen
           onCreateNew={handleCreateNew}
@@ -76,7 +76,7 @@ const trips = () => {
           onSave={handleSaveTrip}
         />
       )}
-    </>
+    </SafeAreaView>
   );
 };
 
