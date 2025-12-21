@@ -10,5 +10,6 @@ router.route("/login").post(validate(validator.Login),authControllers.login);
 router.route("/user").get(authMiddleware,authControllers.user);
 router.route("/forgot-password").post(authControllers.forgotPassword);
 router.route("/reset-password").post(authControllers.resetPassword);
+router.route("/social-login").post(authControllers.socialLogin);
 
 module.exports = router;

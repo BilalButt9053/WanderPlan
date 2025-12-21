@@ -267,7 +267,7 @@ export default function Page() {
                 <TouchableOpacity 
                   className="bg-white rounded-full px-5 py-2.5 self-start"
                   activeOpacity={0.8}
-                  onPress={router.push('./trips')}
+                  onPress={() => router.push('./trips')}
                 >
                   <Text style={{ color: '#3B82F6' }} className="text-sm font-semibold">Generate Plan</Text>
                 </TouchableOpacity>

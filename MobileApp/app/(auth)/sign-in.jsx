@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   ScrollView,
-  Alert,
+  StyleSheet,
 } from "react-native";
+import Toast from "react-native-toast-message";
 import { Plane, MapPin, UtensilsCrossed, Mail, Lock, Eye, EyeOff } from "lucide-react-native";
 import Animated, {
   useAnimatedStyle,
@@ -20,7 +20,10 @@ import { setCredentials } from "../../redux/slices/authSlice";
 import {
   useLoginUserMutation,
   useResendOtpMutation,
+  useSocialLoginMutation,
 } from "../../redux/api/authApi";
+import WanderInput from "../components/wander-input";
+import { useGoogleAuth, useFacebookAuth, handleGoogleSignIn, handleFacebookSignIn } from "../utils/socialAuth";
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -28,9 +31,34 @@ export default function SignInScreen() {
   const [secureText, setSecureText] = useState(true);
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
+  
+  // Validation errors
+  const [errors, setErrors] = useState({
+    email: "",
+    password: ""
+  });
 
   const [loginUser, { isLoading: isLoggingIn }] = useLoginUserMutation();
   const [resendOtp] = useResendOtpMutation();
+  const [socialLogin, { isLoading: isSocialLoading }] = useSocialLoginMutation();
+  
+  // Social auth hooks
+  const { request: googleRequest, response: googleResponse, promptAsync: googlePromptAsync } = useGoogleAuth();
+  const { request: facebookRequest, response: facebookResponse, promptAsync: facebookPromptAsync } = useFacebookAuth();
+
+  // Handle Google OAuth response
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      handleGoogleAuth();
+    }
+  }, [googleResponse]);
+
+  // Handle Facebook OAuth response
+  useEffect(() => {
+    if (facebookResponse?.type === 'success') {
+      handleFacebookAuth();
+    }
+  }, [facebookResponse]);
 
   // --- Animations ---
   const planeStyle = useAnimatedStyle(() => ({
@@ -79,10 +107,40 @@ export default function SignInScreen() {
     ],
   }));
 
+  // --- Validation Functions ---
+  const validateEmail = (email) => {
+    if (!email.trim()) {
+      return "Email is required";
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return "Please enter a valid email address";
+    }
+    return "";
+  };
+
+  const validatePassword = (pwd) => {
+    if (!pwd) {
+      return "Password is required";
+    }
+    if (pwd.length < 8) {
+      return "Password must be at least 8 characters";
+    }
+    return "";
+  };
+
   // --- Handle Sign In ---
   const handleSignIn = async () => {
-    if (!emailAddress || !password) {
-      Alert.alert("Error", "Please fill in all fields.");
+    // Validate all fields
+    const emailError = validateEmail(emailAddress);
+    const passwordError = validatePassword(password);
+
+    setErrors({
+      email: emailError,
+      password: passwordError
+    });
+
+    if (emailError || passwordError) {
       return;
     }
 
@@ -91,33 +149,182 @@ export default function SignInScreen() {
       
       // Check if OTP verification is required for login
       if (res.requiresLoginOtp || res.requiresVerification) {
-        Alert.alert("OTP Sent", res.msg || res.message || "Please check your email for the verification code.");
+        Toast.show({
+          type: 'info',
+          text1: 'OTP Sent',
+          text2: res.msg || res.message || 'Please check your email for the verification code.',
+          position: 'top',
+          visibilityTime: 3000,
+        });
         router.push({ pathname: "/verify-email", params: { email: emailAddress, from: "login" } });
         return;
       }
 
       // Check if 2FA is required
       if (res.requires2FA) {
-        Alert.alert("2FA Required", "Please enter your 2FA code.");
+        Toast.show({
+          type: 'info',
+          text1: '2FA Required',
+          text2: 'Please enter your 2FA code.',
+          position: 'top',
+          visibilityTime: 3000,
+        });
         router.push({ pathname: "/verify-email", params: { email: emailAddress, from: "2fa" } });
         return;
       }
 
-      // Direct login successful (shouldn't reach here with new flow)
+      // Direct login successful
       dispatch(setCredentials(res));
-      Alert.alert("Success", "Welcome back!");
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Welcome back!',
+        position: 'top',
+        visibilityTime: 2000,
+      });
       router.replace("/(tabs)");
     } catch (error) {
       console.error("Login error:", error);
       
       // Check if error is due to unverified email
       if (error?.data?.requiresVerification) {
-        Alert.alert("Email Not Verified", error?.data?.message || "Please verify your email. An OTP has been sent.");
+        Toast.show({
+          type: 'error',
+          text1: 'Email Not Verified',
+          text2: error?.data?.message || 'Please verify your email. An OTP has been sent.',
+          position: 'top',
+          visibilityTime: 4000,
+        });
         router.push({ pathname: "/verify-email", params: { email: emailAddress, from: "login" } });
         return;
       }
       
-      Alert.alert("Login Failed", error?.data?.message || "Invalid credentials.");
+      Toast.show({
+        type: 'error',
+        text1: 'Login Failed',
+        text2: error?.data?.message || 'Invalid credentials.',
+        position: 'top',
+        visibilityTime: 3000,
+      });
+    }
+  };
+
+  // --- Handle Google Authentication ---
+  const handleGoogleAuth = async () => {
+    try {
+      const result = await handleGoogleSignIn(googlePromptAsync);
+      
+      if (result.success) {
+        // Send to backend
+        const response = await socialLogin({
+          email: result.user.email,
+          fullName: result.user.fullName,
+          profilePhoto: result.user.profilePhoto,
+          provider: result.user.provider,
+          providerId: result.user.providerId,
+          accessToken: result.accessToken,
+        }).unwrap();
+
+        dispatch(setCredentials(response));
+        
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Signed in with Google successfully!',
+          position: 'top',
+          visibilityTime: 2000,
+        });
+        
+        router.replace("/(tabs)");
+      } else if (result.cancelled) {
+        Toast.show({
+          type: 'info',
+          text1: 'Cancelled',
+          text2: 'Google sign in was cancelled',
+          position: 'top',
+          visibilityTime: 2000,
+        });
+      } else {
+        throw new Error(result.error || 'Google authentication failed');
+      }
+    } catch (error) {
+      console.error('Google auth error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error?.data?.message || 'Failed to sign in with Google',
+        position: 'top',
+        visibilityTime: 3000,
+      });
+    }
+  };
+
+  // --- Handle Facebook Authentication ---
+  const handleFacebookAuth = async () => {
+    try {
+      const result = await handleFacebookSignIn(facebookPromptAsync);
+      
+      if (result.success) {
+        // Send to backend
+        const response = await socialLogin({
+          email: result.user.email,
+          fullName: result.user.fullName,
+          profilePhoto: result.user.profilePhoto,
+          provider: result.user.provider,
+          providerId: result.user.providerId,
+          accessToken: result.accessToken,
+        }).unwrap();
+
+        dispatch(setCredentials(response));
+        
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Signed in with Facebook successfully!',
+          position: 'top',
+          visibilityTime: 2000,
+        });
+        
+        router.replace("/(tabs)");
+      } else if (result.cancelled) {
+        Toast.show({
+          type: 'info',
+          text1: 'Cancelled',
+          text2: 'Facebook sign in was cancelled',
+          position: 'top',
+          visibilityTime: 2000,
+        });
+      } else {
+        throw new Error(result.error || 'Facebook authentication failed');
+      }
+    } catch (error) {
+      console.error('Facebook auth error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error?.data?.message || 'Failed to sign in with Facebook',
+        position: 'top',
+        visibilityTime: 3000,
+      });
+    }
+  };
+
+  // --- Handle Social Login Button Press ---
+  const handleSocialLogin = async (provider) => {
+    try {
+      if (provider === 'Google') {
+        await googlePromptAsync();
+      } else if (provider === 'Facebook') {
+        await facebookPromptAsync();
+      }
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: `Failed to connect with ${provider}`,
+        position: 'top',
+        visibilityTime: 3000,
+      });
     }
   };
 
@@ -152,32 +359,46 @@ export default function SignInScreen() {
 
         {/* Form */}
         <View className="space-y-4">
-          <View className="mb-3">
-            <Text className="text-gray-700 mb-2">Email</Text>
-            <View className="flex-row items-center border border-gray-300 rounded-xl px-3 py-2">
-              <Mail size={20} color="#6B7280" />
-              <TextInput
-                placeholder="you@example.com"
-                value={emailAddress}
-                onChangeText={setEmailAddress}
-                autoCapitalize="none"
-                className="flex-1 ml-2 text-base text-gray-700"
-              />
-            </View>
-          </View>
+          <WanderInput
+            label="Email"
+            placeholder="you@example.com"
+            value={emailAddress}
+            onChangeText={(text) => {
+              setEmailAddress(text);
+              if (errors.email) {
+                setErrors({ ...errors, email: validateEmail(text) });
+              }
+            }}
+            onBlur={() => setErrors({ ...errors, email: validateEmail(emailAddress) })}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            maxLength={50}
+            icon={<Mail size={20} color="#6B7280" />}
+            error={errors.email}
+          />
 
           <View className="mb-3">
             <Text className="text-gray-700 mb-2">Password</Text>
-            <View className="flex-row items-center border border-gray-300 rounded-xl px-3 py-2">
-              <Lock size={20} color="#6B7280" />
-              <TextInput
+            <View className="relative">
+              <WanderInput
                 placeholder="••••••••"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (errors.password) {
+                    setErrors({ ...errors, password: validatePassword(text) });
+                  }
+                }}
+                onBlur={() => setErrors({ ...errors, password: validatePassword(password) })}
                 secureTextEntry={secureText}
-                className="flex-1 ml-2 text-base text-gray-700"
+                maxLength={50}
+                icon={<Lock size={20} color="#6B7280" />}
+                error={errors.password}
               />
-              <TouchableOpacity onPress={() => setSecureText(!secureText)}>
+              <TouchableOpacity 
+                onPress={() => setSecureText(!secureText)}
+                className="absolute right-3 top-3"
+              >
                 {secureText ? (
                   <Eye size={20} color="#6B7280" />
                 ) : (
@@ -205,8 +426,43 @@ export default function SignInScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Divider */}
+        <View className="flex-row items-center gap-4 my-6">
+          <View className="flex-1 h-px bg-gray-300" />
+          <Text className="text-sm text-gray-500">or continue with</Text>
+          <View className="flex-1 h-px bg-gray-300" />
+        </View>
+
+        {/* Social Login Buttons */}
+        <View className="space-y-3 mb-6">
+          {/* Google Login */}
+          <TouchableOpacity
+            onPress={() => handleSocialLogin('Google')}
+            className="flex-row items-center justify-center gap-3 py-3 border border-gray-300 rounded-xl bg-white"
+            activeOpacity={0.7}
+          >
+            <View style={styles.googleIcon}>
+              <Text style={styles.googleG}>G</Text>
+            </View>
+            <Text className="text-gray-700 font-semibold">Continue with Google</Text>
+          </TouchableOpacity>
+
+          {/* Facebook Login */}
+          <TouchableOpacity
+            onPress={() => handleSocialLogin('Facebook')}
+            className="flex-row items-center justify-center gap-3 py-3 rounded-xl"
+            style={{ backgroundColor: '#1877F2' }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.facebookIcon}>
+              <Text style={styles.facebookF}>f</Text>
+            </View>
+            <Text className="text-white font-semibold">Continue with Facebook</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Navigate to Sign Up */}
-        <View className="mt-8 items-center">
+        <View className="mt-2 items-center">
           <TouchableOpacity onPress={() => router.push("/sign-up")}>
             <Text className="text-gray-500 text-sm">
               Don't have an account?{" "}
@@ -215,6 +471,37 @@ export default function SignInScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      <Toast />
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  googleIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    backgroundColor: '#4285F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleG: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  facebookIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  facebookF: {
+    color: '#1877F2',
+    fontSize: 18,
+    fontWeight: 'bold',
+    fontFamily: 'serif',
+  },
+});

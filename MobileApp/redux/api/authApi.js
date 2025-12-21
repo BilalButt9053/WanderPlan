@@ -8,7 +8,7 @@ import { Platform } from "react-native";
 // - Android emulator (Android Studio) -> 10.0.2.2
 // - iOS simulator / macOS -> localhost
 // - Physical device -> set OVERRIDE_HOST to your PC IPv4
-const OVERRIDE_HOST = "192.168.0.108"; // <-- replace with your PC LAN IP when needed
+const OVERRIDE_HOST = "192.168.0.110"; // <-- replace with your PC LAN IP when needed
 
 const BASE_HOST =
   OVERRIDE_HOST || (Platform.OS === "android" ? "10.0.2.2" : "localhost");
@@ -67,6 +67,14 @@ export const authApi = createApi({
         headers: { "Content-Type": "application/json" },
       }),
     }),
+    socialLogin: builder.mutation({
+      query: (socialData) => ({
+        url: "/auth/social-login",
+        method: "POST",
+        body: socialData,
+        headers: { "Content-Type": "application/json" },
+      }),
+    }),
   }),
 });
 
@@ -77,4 +85,5 @@ export const {
   useResendOtpMutation,
   useForgotPasswordMutation,
   useResetPasswordMutation,
+  useSocialLoginMutation,
 } = authApi;
