@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSelector, useDispatch } from "react-redux";
 import { setCredentials } from "../../redux/slices/authSlice";
 import { Mail, CheckCircle } from "lucide-react-native";
 import { useVerifyOtpMutation, useResendOtpMutation } from "../../redux/api/authApi";
+import WanderInput from "../components/wander-input";
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
@@ -21,15 +22,33 @@ export default function VerifyEmailScreen() {
   const finalEmail = emailParam || pendingEmail || null;
 
   const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [verifyOtp] = useVerifyOtpMutation();
   const [resendOtp, { isLoading: isResending }] = useResendOtpMutation();
 
+  // --- OTP Validation ---
+  const validateOtp = (otp) => {
+    if (!otp.trim()) {
+      return "Verification code is required";
+    }
+    const otpRegex = /^\d{6}$/;
+    if (!otpRegex.test(otp)) {
+      return "OTP must be exactly 6 digits";
+    }
+    return "";
+  };
+
   // --- Handle OTP Verification ---
   const handleVerify = async () => {
-    if (!finalEmail || !code.trim()) {
-      Alert.alert("Error", "Verification code or email missing.");
+    const error = validateOtp(code);
+    setCodeError(error);
+    
+    if (error || !finalEmail) {
+      if (!finalEmail) {
+        Alert.alert("Error", "Email missing.");
+      }
       return;
     }
 
@@ -89,20 +108,29 @@ export default function VerifyEmailScreen() {
       </View>
 
       <View className="mb-6">
-        <Text className="text-gray-700 mb-2">Verification Code</Text>
+        <WanderInput
+          label="Verification Code"
+          placeholder="Enter 6-digit code"
+          value={code}
+          onChangeText={(text) => {
+            // Only allow digits
+            const digitsOnly = text.replace(/[^0-9]/g, '');
+            // Limit to 6 digits
+            const limitedText = digitsOnly.slice(0, 6);
+            setCode(limitedText);
+            if (codeError) {
+              setCodeError(validateOtp(limitedText));
+            }
+          }}
+          onBlur={() => setCodeError(validateOtp(code))}
+          keyboardType="number-pad"
+          maxLength={6}
+          icon={<CheckCircle size={20} color="#6B7280" />}
+          error={codeError}
+          className="tracking-widest"
+        />
 
-        <View className="flex-row items-center border border-gray-300 rounded-xl px-3 py-2">
-          <CheckCircle size={20} color="#6B7280" />
-          <TextInput
-            placeholder="Enter code"
-            value={code}
-            onChangeText={setCode}
-            keyboardType="number-pad"
-            className="flex-1 ml-2 text-base text-gray-700 tracking-widest"
-          />
-        </View>
-
-        <Text className="text-gray-500 text-sm mt-3">
+        <Text className="text-gray-500 text-sm mt-1">
           Code sent to: {finalEmail ?? "Unknown Email"}
         </Text>
       </View>

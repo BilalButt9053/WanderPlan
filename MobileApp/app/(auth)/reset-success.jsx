@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Lock, Eye, EyeOff } from "lucide-react-native";
 import { useResetPasswordMutation } from "../../redux/api/authApi";
 import ReusableModal from "../components/Modal";
+import WanderInput from "../components/wander-input";
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -14,23 +15,61 @@ export default function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Validation errors
+  const [errors, setErrors] = useState({
+    newPassword: "",
+    confirmPassword: ""
+  });
 
   const [resetPassword, { isLoading }] = useResetPasswordMutation();
 
+  // --- Validation Functions ---
+  const validatePassword = (pwd) => {
+    if (!pwd) {
+      return "Password is required";
+    }
+    if (pwd.length < 8) {
+      return "Password must be at least 8 characters";
+    }
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(pwd);
+    const hasUpperCase = /[A-Z]/.test(pwd);
+    const hasLowerCase = /[a-z]/.test(pwd);
+    const hasNumber = /[0-9]/.test(pwd);
+    
+    if (!hasSpecialChar) {
+      return "Password must include a special character";
+    }
+    if (!hasUpperCase || !hasLowerCase) {
+      return "Password must include uppercase and lowercase letters";
+    }
+    if (!hasNumber) {
+      return "Password must include at least one number";
+    }
+    return "";
+  };
+
+  const validateConfirmPassword = (pwd, confirmPwd) => {
+    if (!confirmPwd) {
+      return "Please confirm your password";
+    }
+    if (pwd !== confirmPwd) {
+      return "Passwords do not match";
+    }
+    return "";
+  };
+
   const handleResetPassword = async () => {
     // Validation
-    if (!newPassword || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields.");
-      return;
-    }
+    const passwordError = validatePassword(newPassword);
+    const confirmError = validateConfirmPassword(newPassword, confirmPassword);
 
-    if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match.");
-      return;
-    }
+    setErrors({
+      newPassword: passwordError,
+      confirmPassword: confirmError
+    });
 
-    if (newPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters long.");
+    if (passwordError || confirmError) {
       return;
     }
 
@@ -69,16 +108,26 @@ export default function ResetPasswordScreen() {
       {/* New Password */}
       <View className="mb-3">
         <Text className="text-gray-700 mb-2">New Password</Text>
-        <View className="flex-row items-center border border-gray-300 rounded-xl px-3 py-2">
-          <Lock size={20} color="#6B7280" />
-          <TextInput
+        <View className="relative">
+          <WanderInput
             placeholder="Enter new password"
             value={newPassword}
-            onChangeText={setNewPassword}
+            onChangeText={(text) => {
+              setNewPassword(text);
+              if (errors.newPassword) {
+                setErrors({ ...errors, newPassword: validatePassword(text) });
+              }
+            }}
+            onBlur={() => setErrors({ ...errors, newPassword: validatePassword(newPassword) })}
             secureTextEntry={!showPassword}
-            className="flex-1 ml-2 text-base text-gray-700"
+            maxLength={50}
+            icon={<Lock size={20} color="#6B7280" />}
+            error={errors.newPassword}
           />
-          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+          <TouchableOpacity 
+            onPress={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-3"
+          >
             {showPassword ? (
               <EyeOff size={20} color="#6B7280" />
             ) : (
@@ -91,16 +140,26 @@ export default function ResetPasswordScreen() {
       {/* Confirm Password */}
       <View className="mb-4">
         <Text className="text-gray-700 mb-2">Confirm Password</Text>
-        <View className="flex-row items-center border border-gray-300 rounded-xl px-3 py-2">
-          <Lock size={20} color="#6B7280" />
-          <TextInput
+        <View className="relative">
+          <WanderInput
             placeholder="Confirm new password"
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              if (errors.confirmPassword) {
+                setErrors({ ...errors, confirmPassword: validateConfirmPassword(newPassword, text) });
+              }
+            }}
+            onBlur={() => setErrors({ ...errors, confirmPassword: validateConfirmPassword(newPassword, confirmPassword) })}
             secureTextEntry={!showConfirmPassword}
-            className="flex-1 ml-2 text-base text-gray-700"
+            maxLength={50}
+            icon={<Lock size={20} color="#6B7280" />}
+            error={errors.confirmPassword}
           />
-          <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+          <TouchableOpacity 
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-3 top-3"
+          >
             {showConfirmPassword ? (
               <EyeOff size={20} color="#6B7280" />
             ) : (

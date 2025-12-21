@@ -322,4 +322,79 @@ const resetPassword = async (req, res, next) => {
     }
 };
 
-module.exports={register,login,user,forgotPassword,resetPassword}; 
+// Social Login - Google/Facebook
+const socialLogin = async (req, res, next) => {
+    try {
+        const { email, fullName, profilePhoto, provider, providerId, accessToken } = req.body;
+
+        if (!email || !provider || !providerId) {
+            return res.status(400).json({ 
+                message: "Email, provider, and providerId are required" 
+            });
+        }
+
+        // Check if user already exists
+        let user = await Signup.findOne({ email });
+
+        if (user) {
+            // Update social login info if not already set
+            if (!user.socialLogins) {
+                user.socialLogins = [];
+            }
+
+            const existingSocial = user.socialLogins.find(s => s.provider === provider);
+            
+            if (!existingSocial) {
+                user.socialLogins.push({
+                    provider,
+                    providerId,
+                    connectedAt: new Date()
+                });
+            }
+
+            // Update profile photo if provided and user doesn't have one
+            if (profilePhoto && !user.profilePhoto) {
+                user.profilePhoto = profilePhoto;
+            }
+
+            // Mark as verified since social login confirms email
+            user.isVerified = true;
+            await user.save();
+        } else {
+            // Create new user with social login
+            user = await Signup.create({
+                fullName: fullName || email.split('@')[0],
+                email,
+                password: Math.random().toString(36).slice(-12) + "!" + Math.random().toString(36).slice(-12).toUpperCase(), // Random secure password
+                profilePhoto,
+                isVerified: true, // Social login confirms email
+                socialLogins: [{
+                    provider,
+                    providerId,
+                    connectedAt: new Date()
+                }]
+            });
+        }
+
+        // Generate JWT token
+        const token = await user.jwtToken();
+
+        res.status(200).json({
+            message: "Social login successful",
+            success: true,
+            user: {
+                _id: user._id,
+                fullName: user.fullName,
+                email: user.email,
+                profilePhoto: user.profilePhoto,
+                isVerified: user.isVerified,
+            },
+            token
+        });
+    } catch (error) {
+        console.error("Social login error:", error);
+        next(error);
+    }
+};
+
+module.exports={register,login,user,forgotPassword,resetPassword,socialLogin}; 

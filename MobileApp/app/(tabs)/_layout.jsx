@@ -7,6 +7,7 @@ import { Home, Map, MapPin, MessageSquare, User } from 'lucide-react-native';
 const TabsLayout = () => {
   return (
     <Tabs
+      initialRouteName="index"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {

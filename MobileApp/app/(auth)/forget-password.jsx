@@ -1,18 +1,33 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { Mail } from "lucide-react-native";
 import { useForgotPasswordMutation } from "../../redux/api/authApi";
 import ReusableModal from "../components/Modal";
+import WanderInput from "../components/wander-input";
 
 export default function ForgetPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [forgotPassword, { isLoading }] = useForgotPasswordMutation();
 
+  const validateEmail = (emailValue) => {
+    if (!emailValue.trim()) {
+      return "Email is required";
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailValue)) {
+      return "Please enter a valid email address";
+    }
+    return "";
+  };
+
   const handleSendResetLink = async () => {
-    if (!email.trim()) {
-      Alert.alert("Error", "Please enter your email address.");
+    const error = validateEmail(email);
+    setEmailError(error);
+    
+    if (error) {
       return;
     }
 
@@ -43,18 +58,23 @@ export default function ForgetPasswordScreen() {
 
       {/* Email Input */}
       <View className="mb-4">
-        <Text className="text-gray-700 mb-2">Email Address</Text>
-        <View className="flex-row items-center border border-gray-300 rounded-xl px-3 py-2">
-          <Mail size={20} color="#6B7280" />
-          <TextInput
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            className="flex-1 ml-2 text-base text-gray-700"
-          />
-        </View>
+        <WanderInput
+          label="Email Address"
+          placeholder="you@example.com"
+          value={email}
+          onChangeText={(text) => {
+            setEmail(text);
+            if (emailError) {
+              setEmailError(validateEmail(text));
+            }
+          }}
+          onBlur={() => setEmailError(validateEmail(email))}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          maxLength={50}
+          icon={<Mail size={20} color="#6B7280" />}
+          error={emailError}
+        />
       </View>
 
       {/* Send Button */}

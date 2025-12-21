@@ -19,6 +19,10 @@ const SignUp = new mongoose.Schema({
         type: String,
         required: true
     },
+    profilePhoto: {
+        type: String,
+        default: null
+    },
     isAdmin:{
         type: Boolean,
         default: false
@@ -30,7 +34,20 @@ const SignUp = new mongoose.Schema({
     twoFactorEnabled: {
         type: Boolean,
         default: false
-    }
+    },
+    socialLogins: [{
+        provider: {
+            type: String,
+            enum: ['google', 'facebook'],
+        },
+        providerId: {
+            type: String,
+        },
+        connectedAt: {
+            type: Date,
+            default: Date.now
+        }
+    }]
 });
 
 
@@ -51,6 +68,24 @@ SignUp.pre('save', async function () {
     }
 
     SignUp.methods.generateToken =async function(){
+    try {
+        return jwt.sign({
+            user_id:this._id.toString(),
+            email:this.email,
+            isAdmin:this.isAdmin,
+        },
+        process.env.JWT_SECRET_KEY,
+        {
+            expiresIn:"30d"
+        }
+    );
+    } catch (error) {
+        console.log(error);
+    }
+
+};
+
+    SignUp.methods.jwtToken =async function(){
     try {
         return jwt.sign({
             user_id:this._id.toString(),
