@@ -36,6 +36,8 @@ import  WanderChip  from '../components/wander-chip';
 import  Progress  from '../components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import  ImageWithFallback  from '../components/ImageWithFallback';
+import EditReviewModal from '../components/EditReviewModal';
+import { useGetReviewsQuery, useDeleteReviewMutation, useUpdateReviewMutation } from '../../redux/api/reviewsApi';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -559,50 +561,63 @@ function NotificationsTab({ notifications }) {
 }
 
 function MyReviewsTab() {
-  const myReviews = [
-    {
-      id: '1',
-      place: 'La Bella Cucina',
-      rating: 5,
-      text: 'Amazing pasta! The atmosphere was perfect for a date night.',
-      helpful: 89,
-      timestamp: '1 week ago',
-      image: 'https://images.unsplash.com/photo-1667388968964-4aa652df0a9b?w=400',
-    },
-    {
-      id: '2',
-      place: 'Modern Art Museum',
-      rating: 4.5,
-      text: 'Great collection. Spent hours here exploring.',
-      helpful: 45,
-      timestamp: '2 weeks ago',
-      image: 'https://images.unsplash.com/photo-1631168524494-3711bece9c09?w=400',
-    },
-  ];
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
+  const { data, isFetching } = useGetReviewsQuery({ mine: true, limit: 50 });
+  const [deleteReview] = useDeleteReviewMutation();
+  const [updateReview] = useUpdateReviewMutation();
 
-  const handleEdit = (id) => {
-    Alert.alert('Edit Review', 'Opening edit mode...');
+  const items = (data?.items || []).map(r => ({
+    id: r._id,
+    place: r.place,
+    rating: r.rating,
+    text: r.text,
+    helpful: r.helpful ?? (r.helpfulBy?.length || 0),
+    timestamp: new Date(r.createdAt).toLocaleString(),
+    image: (r.images && r.images.length > 0) ? r.images[0] : undefined,
+  }));
+
+  const handleEdit = (review) => {
+    setEditingReview(review);
+    setShowEditModal(true);
   };
 
   const handleDelete = (id) => {
     Alert.alert('Delete Review', 'Are you sure you want to delete this review?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => Alert.alert('Success', 'Review deleted') },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await deleteReview(id).unwrap();
+          Alert.alert('Success', 'Review deleted');
+        } catch (e) {
+          Alert.alert('Error', 'Could not delete review');
+        }
+      } },
     ]);
   };
 
   return (
     <View style={{ gap: 12 }}>
-      {myReviews.map((review) => (
+      {isFetching && (
+        <Text className="text-gray-600">Loading your reviews...</Text>
+      )}
+      {!isFetching && items.length === 0 && (
+        <View className="items-center py-12">
+          <Text className="text-gray-600">You haven't posted any reviews yet.</Text>
+        </View>
+      )}
+      {items.map((review) => (
         <WanderCard key={review.id} padding="none">
           <View className="flex-row gap-3 p-3">
-            <View className="w-16 h-16 rounded-xl overflow-hidden">
-              <ImageWithFallback
-                source={{ uri: review.image }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="cover"
-              />
-            </View>
+            {!!review.image && (
+              <View className="w-16 h-16 rounded-xl overflow-hidden">
+                <ImageWithFallback
+                  source={{ uri: review.image }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
             <View className="flex-1">
               <Text className="font-semibold mb-1" numberOfLines={1}>{review.place}</Text>
               <View className="flex-row items-center gap-1 mb-2">
@@ -610,8 +625,8 @@ function MyReviewsTab() {
                   <Star
                     key={idx}
                     size={12}
-                    color={idx < review.rating ? '#F59E0B' : '#D1D5DB'}
-                    fill={idx < review.rating ? '#F59E0B' : 'transparent'}
+                    color={idx < Math.floor(review.rating) ? '#F59E0B' : '#D1D5DB'}
+                    fill={idx < Math.floor(review.rating) ? '#F59E0B' : 'transparent'}
                   />
                 ))}
               </View>
@@ -626,7 +641,7 @@ function MyReviewsTab() {
             </View>
           </View>
           <View className="flex-row gap-2 p-3 border-t border-gray-200">
-            <WanderButton variant="outline" onPress={() => handleEdit(review.id)} style={{ flex: 1 }}>
+            <WanderButton variant="outline" onPress={() => handleEdit(review)} style={{ flex: 1 }}>
               <View className="flex-row items-center gap-2">
                 <Edit size={14} color="#3B82F6" />
                 <Text className="text-blue-500 font-medium">Edit</Text>
@@ -641,6 +656,33 @@ function MyReviewsTab() {
           </View>
         </WanderCard>
       ))}
+
+      {showEditModal && editingReview && (
+        <EditReviewModal
+          visible={showEditModal}
+          review={{
+            id: editingReview.id,
+            place: editingReview.place,
+            rating: editingReview.rating,
+            text: editingReview.text,
+            images: editingReview.image ? [editingReview.image] : [],
+          }}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingReview(null);
+          }}
+          onSubmit={async (updatedData) => {
+            try {
+              await updateReview({ id: editingReview.id, ...updatedData }).unwrap();
+              setShowEditModal(false);
+              setEditingReview(null);
+              Alert.alert('Success', 'Review updated!');
+            } catch (e) {
+              Alert.alert('Error', 'Could not update review');
+            }
+          }}
+        />
+      )}
     </View>
   );
 }

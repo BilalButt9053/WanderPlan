@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity,onPress } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
 
 export default function WanderCard({
   children,
@@ -18,13 +18,13 @@ export default function WanderCard({
     lg: 'p-6',
   };
 
-  const Component = onPress || hover ? TouchableOpacity : View;
+  // Only make touchable when an onPress is provided
+  const Component = onPress ? TouchableOpacity : View;
 
   return (
     <Component
       className={`${baseStyles} ${paddingStyles[padding]} ${className}`}
-      onPress={onPress}
-      activeOpacity={hover ? 0.7 : 1}
+      {...(onPress ? { onPress, activeOpacity: hover ? 0.7 : 1 } : {})}
       {...props}
     >
       {children}

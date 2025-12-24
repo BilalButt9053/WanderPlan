@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require("express");
+const path = require("path");
 const os = require("os");
 const app = express();
 const authRoute=require("./router/auth-router");
@@ -8,6 +9,8 @@ const errorMiddleware=require("./middleware/error-middleware");
 const cors = require("cors");
 const adminRoute = require("./router/admin-router");
 const otpRoute = require("./router/otp-router");
+const reviewsRoute = require("./router/reviews-router");
+const uploadsRoute = require("./router/uploads-router");
 
 
 app.use(cors({
@@ -19,9 +22,14 @@ app.use(cors({
 
 app.use(express.json());
 
+// Static hosting for uploaded images
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 app.use("/api/auth",authRoute);
 app.use("/api/admin",adminRoute);
 app.use("/api/otp",otpRoute);
+app.use("/api/reviews", reviewsRoute);
+app.use("/api/uploads", uploadsRoute);
 app.use(errorMiddleware);
 
 const port = process.env.PORT || 5000;
