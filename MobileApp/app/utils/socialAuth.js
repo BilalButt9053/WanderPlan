@@ -7,11 +7,11 @@ WebBrowser.maybeCompleteAuthSession();
 
 // Google OAuth Configuration
 export const useGoogleAuth = () => {
+  // For Expo Go, use the Web Client ID for both expoClientId and androidClientId/iosClientId
   const [request, response, promptAsync] = Google.useAuthRequest({
-    expoClientId: 'YOUR_EXPO_CLIENT_ID.apps.googleusercontent.com',
-    iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
-    androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-    webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
+    expoClientId: '477281756954-iq4bua8l76j76hrf8r0nacfh6mfpp6a7.apps.googleusercontent.com',
+    androidClientId: '477281756954-iq4bua8l76j76hrf8r0nacfh6mfpp6a7.apps.googleusercontent.com',
+    iosClientId: '477281756954-iq4bua8l76j76hrf8r0nacfh6mfpp6a7.apps.googleusercontent.com',
   });
 
   return { request, response, promptAsync };

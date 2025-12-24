@@ -450,7 +450,7 @@ export default function SignInScreen() {
           {/* Facebook Login */}
           <TouchableOpacity
             onPress={() => handleSocialLogin('Facebook')}
-            className="flex-row items-center justify-center gap-3 py-3 rounded-xl"
+            className="flex-row items-center justify-center gap-3 py-3 rounded-xl mt-6"
             style={{ backgroundColor: '#1877F2' }}
             activeOpacity={0.7}
           >

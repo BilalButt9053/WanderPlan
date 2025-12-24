@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,9 @@ import {
   BadgeCheck,
   ThumbsUp,
   Send,
+  MoreVertical,
+  Edit,
+  Trash2,
 } from 'lucide-react-native';
 import { WanderCard } from './wander-card';
 import { WanderChip } from './wander-chip';
@@ -28,8 +31,29 @@ export default function ReviewCard({
   onLike, 
   onHelpful,
   onSave,
-  onToggleReplies
+  onToggleReplies,
+  onAddReply,
+  onEdit,
+  onDelete,
+  currentUserId,
 }) {
+  const [replyText, setReplyText] = useState('');
+  const [showMenu, setShowMenu] = useState(false);
+  const [localLiked, setLocalLiked] = useState(review.isLiked);
+  const [localHelpful, setLocalHelpful] = useState(review.isHelpful);
+  const [localLikes, setLocalLikes] = useState(review.likes);
+  const [localHelpfulCount, setLocalHelpfulCount] = useState(review.helpful);
+  const replyInputRef = useRef(null);
+  const [shouldFocusReply, setShouldFocusReply] = useState(false);
+
+  useEffect(() => {
+    if (isExpanded && shouldFocusReply) {
+      setTimeout(() => replyInputRef.current?.focus?.(), 0);
+      setShouldFocusReply(false);
+    }
+  }, [isExpanded, shouldFocusReply]);
+
+  const isOwnReview = currentUserId && review.user?._id === currentUserId;
   const handleShare = async () => {
     try {
       await Share.share({
@@ -37,6 +61,36 @@ export default function ReviewCard({
       });
     } catch (error) {
       Alert.alert('Success', 'Link copied to clipboard!');
+    }
+  };
+
+  const handleLike = () => {
+    // Optimistic update
+    setLocalLiked(!localLiked);
+    setLocalLikes(localLiked ? localLikes - 1 : localLikes + 1);
+    onLike?.();
+  };
+
+  const handleHelpful = () => {
+    // Optimistic update
+    setLocalHelpful(!localHelpful);
+    setLocalHelpfulCount(localHelpful ? localHelpfulCount - 1 : localHelpfulCount + 1);
+    onHelpful?.();
+  };
+
+  const handleMenuAction = (action) => {
+    setShowMenu(false);
+    if (action === 'edit') {
+      onEdit?.();
+    } else if (action === 'delete') {
+      Alert.alert(
+        'Delete Review',
+        'Are you sure you want to delete this review?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: () => onDelete?.() },
+        ]
+      );
     }
   };
 
@@ -72,6 +126,37 @@ export default function ReviewCard({
             <Text className="text-sm text-gray-600">{review.timestamp}</Text>
           </View>
         </View>
+
+        {/* 3-Dots Menu */}
+        {isOwnReview && (
+          <View>
+            <TouchableOpacity
+              onPress={() => setShowMenu(!showMenu)}
+              className="w-8 h-8 rounded-full items-center justify-center"
+            >
+              <MoreVertical size={20} color="#666" />
+            </TouchableOpacity>
+            
+            {showMenu && (
+              <View className="absolute right-0 top-10 bg-white rounded-xl shadow-lg border border-gray-200 z-50" style={{ minWidth: 140 }}>
+                <TouchableOpacity
+                  onPress={() => handleMenuAction('edit')}
+                  className="flex-row items-center gap-2 px-4 py-3 border-b border-gray-100"
+                >
+                  <Edit size={16} color="#3B82F6" />
+                  <Text className="text-sm text-gray-700">Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleMenuAction('delete')}
+                  className="flex-row items-center gap-2 px-4 py-3"
+                >
+                  <Trash2 size={16} color="#EF4444" />
+                  <Text className="text-sm text-red-600">Delete</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Rating */}
@@ -143,35 +228,38 @@ export default function ReviewCard({
       {/* Action Buttons */}
       <View className="flex-row items-center gap-4 border-t border-gray-200 pt-3">
         <TouchableOpacity
-          onPress={onLike}
+          onPress={handleLike}
           className="flex-row items-center gap-1"
         >
           <Heart
             size={18}
-            color={review.isLiked ? '#EF4444' : '#666'}
-            fill={review.isLiked ? '#EF4444' : 'transparent'}
+            color={localLiked ? '#EF4444' : '#666'}
+            fill={localLiked ? '#EF4444' : 'transparent'}
           />
-          <Text className={review.isLiked ? 'text-red-500' : 'text-gray-600'}>
-            {review.likes}
+          <Text className={localLiked ? 'text-red-500' : 'text-gray-600'}>
+            {localLikes}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={onHelpful}
+          onPress={handleHelpful}
           className="flex-row items-center gap-1"
         >
           <ThumbsUp
             size={18}
-            color={review.isHelpful ? '#F59E0B' : '#666'}
-            fill={review.isHelpful ? '#F59E0B' : 'transparent'}
+            color={localHelpful ? '#F59E0B' : '#666'}
+            fill={localHelpful ? '#F59E0B' : 'transparent'}
           />
-          <Text className={review.isHelpful ? 'text-orange-500' : 'text-gray-600'}>
-            {review.helpful}
+          <Text className={localHelpful ? 'text-orange-500' : 'text-gray-600'}>
+            {localHelpfulCount}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={onToggleReplies}
+          onPress={() => {
+            onToggleReplies?.();
+            setShouldFocusReply(true);
+          }}
           className="flex-row items-center gap-1"
         >
           <MessageCircle size={18} color="#666" />
@@ -198,7 +286,7 @@ export default function ReviewCard({
       </View>
 
       {/* Replies */}
-      {isExpanded && review.replies.length > 0 && (
+      {isExpanded && (
         <View className="mt-4 pl-4 border-l-2 border-blue-200" style={{ gap: 12 }}>
           {review.replies.map((reply) => (
             <View key={reply.id} className="flex-row gap-2">
@@ -221,12 +309,21 @@ export default function ReviewCard({
           {/* Reply Input */}
           <View className="flex-row gap-2">
             <TextInput
+              ref={replyInputRef}
               placeholder="Write a reply..."
               className="flex-1 px-3 py-2 bg-gray-100 rounded-xl text-sm"
+              value={replyText}
+              onChangeText={setReplyText}
             />
             <TouchableOpacity
               className="w-10 h-10 rounded-xl items-center justify-center"
               style={{ backgroundColor: '#3B82F6' }}
+              onPress={() => {
+                if (onAddReply && replyText.trim()) {
+                  onAddReply(replyText.trim());
+                  setReplyText('');
+                }
+              }}
             >
               <Send size={16} color="#fff" />
             </TouchableOpacity>
@@ -236,3 +333,6 @@ export default function ReviewCard({
     </WanderCard>
   );
 }
+
+// Focus reply input when expanded via comment icon
+// no-op export placeholder removed

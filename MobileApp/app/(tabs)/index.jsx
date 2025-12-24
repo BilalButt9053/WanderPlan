@@ -162,7 +162,10 @@ export default function Page() {
               <Text className="text-2xl font-bold text-gray-900 mb-1">Experiences</Text>
               <Text className="text-sm text-gray-500">Discover amazing places</Text>
             </View>
-            <TouchableOpacity className="flex-row items-center gap-1">
+            <TouchableOpacity 
+              className="flex-row items-center gap-1"
+              onPress={() => router.push('/screens/experiences-screen')}
+            >
               <Text className="text-blue-600 text-sm">See all</Text>
               <ChevronRight size={16} color="#2563EB" />
             </TouchableOpacity>
@@ -176,7 +179,15 @@ export default function Page() {
             contentContainerStyle={{ gap: 16 }}
           >
             {experiences.map((exp) => (
-              <View key={exp.id} style={{ width: width * 0.75 }}>
+              <TouchableOpacity 
+                key={exp.id} 
+                style={{ width: width * 0.75 }}
+                onPress={() => router.push({
+                  pathname: '/screens/experience-detail-screen',
+                  params: { experienceId: exp.id }
+                })}
+                activeOpacity={0.9}
+              >
                 <WanderCard padding="none" className="overflow-hidden" hover>
                   <View className="relative h-48">
                     <ImageWithFallback
@@ -202,7 +213,7 @@ export default function Page() {
                     </Text>
                   </View>
                 </WanderCard>
-              </View>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         </View>

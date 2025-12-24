@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,120 +12,60 @@ import {
 } from 'lucide-react-native';
 import ReviewCard from '../components/ReviewCard';
 import CreateReviewModal from '../components/CreateReviewModal';
+import EditReviewModal from '../components/EditReviewModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useGetReviewsQuery, useCreateReviewMutation, useToggleLikeMutation, useToggleHelpfulMutation, useAddCommentMutation, useDeleteReviewMutation, useUpdateReviewMutation, useUploadImagesMutation } from '../../redux/api/reviewsApi';
+import { useSelector } from 'react-redux';
+import { selectIsAuthenticated, selectCurrentUser } from '../../redux/slices/authSlice';
 
-const reviewsData = [
-  {
-    id: '1',
-    user: {
-      name: 'Sarah Martinez',
-      avatar: 'SM',
-      isVerified: true,
-      role: 'Top Contributor',
-    },
-    place: 'La Bella Cucina',
-    category: 'food',
-    rating: 5,
-    text: 'Absolutely amazing experience! The pasta was fresh and cooked to perfection. The ambiance is cozy and romantic. Perfect for a date night! 🍝✨',
-    images: [
-      'https://images.unsplash.com/photo-1676471932681-45fa972d848a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwZm9vZCUyMGRpbmluZ3xlbnwxfHx8fDE3NjAyNTkyMzd8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      'https://images.unsplash.com/photo-1667388968964-4aa652df0a9b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwaW50ZXJpb3IlMjBkaW5pbmd8ZW58MXx8fHwxNzYwMzc0Mjc2fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    ],
-    tags: ['#localfood', '#datenight', '#italian'],
-    likes: 234,
-    helpful: 89,
-    replies: [
-      {
-        id: 'r1',
-        user: { name: 'John Smith', avatar: 'JS' },
-        text: 'Thanks for the recommendation! Going there this weekend 🙌',
-        timestamp: '2 hours ago',
-      },
-    ],
-    timestamp: '5 hours ago',
-  },
-  {
-    id: '2',
-    user: {
-      name: 'Alex Chen',
-      avatar: 'AC',
-      isVerified: true,
-      role: 'Local Guide',
-    },
-    place: 'Modern Art Museum',
-    category: 'places',
-    rating: 4.5,
-    text: 'Great collection of contemporary art. Spent 3 hours here and could have stayed longer. The new exhibition is a must-see!',
-    images: [
-      'https://images.unsplash.com/photo-1631168524494-3711bece9c09?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtdXNldW0lMjBhcnQlMjBnYWxsZXJ5fGVufDF8fHx8MTc2MDMxMjIwM3ww&ixlib=rb-4.1.0&q=80&w=1080',
-    ],
-    tags: ['#art', '#museum', '#culture'],
-    likes: 156,
-    helpful: 45,
-    replies: [],
-    timestamp: '1 day ago',
-  },
-  {
-    id: '3',
-    user: {
-      name: 'Emma Wilson',
-      avatar: 'EW',
-      isVerified: false,
-    },
-    place: 'Secret Garden Cafe',
-    category: 'food',
-    rating: 5,
-    text: 'Hidden gem alert! 💎 This place has the best coffee in town and the outdoor seating is gorgeous. Budget-friendly too!',
-    images: [
-      'https://images.unsplash.com/photo-1629096668246-524da904215c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYWZlJTIwY29mZmVlJTIwaW50ZXJpb3J8ZW58MXx8fHwxNzYwMzc1ODExfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    ],
-    tags: ['#budgettrip', '#coffee', '#hiddengem'],
-    likes: 89,
-    helpful: 32,
-    replies: [
-      {
-        id: 'r2',
-        user: { name: 'Sarah Martinez', avatar: 'SM' },
-        text: 'Been there! The lavender latte is amazing ☕',
-        timestamp: '3 hours ago',
-      },
-      {
-        id: 'r3',
-        user: { name: 'Mike Johnson', avatar: 'MJ' },
-        text: 'Adding this to my list!',
-        timestamp: '2 hours ago',
-      },
-    ],
-    timestamp: '2 days ago',
-  },
-  {
-    id: '4',
-    user: {
-      name: 'David Lee',
-      avatar: 'DL',
-      isVerified: true,
-      role: 'Travel Expert',
-    },
-    place: 'Grand Hotel',
-    category: 'hotels',
-    rating: 4,
-    text: 'Solid hotel with great location. Rooms are clean and modern. Service was excellent. A bit pricey but worth it for the convenience.',
-    images: [
-      'https://images.unsplash.com/photo-1729605411476-defbdab14c54?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxob3RlbCUyMGx1eHVyeSUyMHJvb218ZW58MXx8fHwxNzYwMzc0MzI0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    ],
-    tags: ['#hotel', '#luxury', '#travel'],
-    likes: 178,
-    helpful: 67,
-    replies: [],
-    timestamp: '3 days ago',
-  },
-];
+// Data now comes from API
 
 const Reviews = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [reviewsList, setReviewsList] = useState(reviewsData);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
   const [expandedReplies, setExpandedReplies] = useState(new Set());
+  
+  const isAuthed = useSelector(selectIsAuthenticated);
+  const currentUser = useSelector(selectCurrentUser);
+  const { data, refetch, isFetching } = useGetReviewsQuery({ category: 'all' });
+  const [createReview, { isLoading: isCreating }] = useCreateReviewMutation();
+  const [toggleLike] = useToggleLikeMutation();
+  const [toggleHelpful] = useToggleHelpfulMutation();
+  const [addComment] = useAddCommentMutation();
+  const [deleteReview] = useDeleteReviewMutation();
+  const [updateReview] = useUpdateReviewMutation();
+  const [uploadImages] = useUploadImagesMutation();
+
+  const reviewsList = useMemo(() => (data?.items || []).map(r => ({
+    id: r._id,
+    user: {
+      _id: r.user?._id,
+      name: r.user?.name || 'User',
+      avatar: r.user?.avatar || 'U',
+      isVerified: !!r.user?.isVerified,
+      role: r.user?.role,
+    },
+    place: r.place,
+    category: r.category,
+    rating: r.rating,
+    text: r.text,
+    images: r.images || [],
+    tags: r.tags || [],
+    likes: r.likes ?? (r.likedBy?.length || 0),
+    helpful: r.helpful ?? (r.helpfulBy?.length || 0),
+    isLiked: r.isLiked || false,
+    isHelpful: r.isHelpful || false,
+    isSaved: false,
+    replies: (r.replies || []).map(rep => ({
+      id: rep._id,
+      user: { name: rep.user?.name || 'User', avatar: rep.user?.avatar || 'U' },
+      text: rep.text,
+      timestamp: new Date(rep.createdAt).toLocaleString(),
+    })),
+    timestamp: new Date(r.createdAt).toLocaleString(),
+  })), [data]);
 
   const categories = [
     { id: 'all', label: 'All' },
@@ -138,43 +78,41 @@ const Reviews = () => {
     ? reviewsList 
     : reviewsList.filter(r => r.category === activeCategory);
 
-  const handleLike = (reviewId) => {
-    setReviewsList(reviewsList.map(review => {
-      if (review.id === reviewId) {
-        return {
-          ...review,
-          isLiked: !review.isLiked,
-          likes: review.isLiked ? review.likes - 1 : review.likes + 1,
-        };
-      }
-      return review;
-    }));
+  const handleLike = async (reviewId) => {
+    if (!isAuthed) return Alert.alert('Login required', 'Please sign in to like reviews');
+    try {
+      await toggleLike(reviewId).unwrap();
+    } catch (e) {
+      Alert.alert('Error', 'Could not update like');
+    }
   };
 
-  const handleHelpful = (reviewId) => {
-    setReviewsList(reviewsList.map(review => {
-      if (review.id === reviewId) {
-        return {
-          ...review,
-          isHelpful: !review.isHelpful,
-          helpful: review.isHelpful ? review.helpful - 1 : review.helpful + 1,
-        };
-      }
-      return review;
-    }));
+  const handleHelpful = async (reviewId) => {
+    if (!isAuthed) return Alert.alert('Login required', 'Please sign in to mark helpful');
+    try {
+      await toggleHelpful(reviewId).unwrap();
+    } catch (e) {
+      Alert.alert('Error', 'Could not update helpful');
+    }
   };
 
   const handleSave = (reviewId) => {
-    setReviewsList(reviewsList.map(review => {
-      if (review.id === reviewId) {
-        Alert.alert('Success', review.isSaved ? 'Removed from saved' : 'Review saved!');
-        return {
-          ...review,
-          isSaved: !review.isSaved,
-        };
-      }
-      return review;
-    }));
+    Alert.alert('Saved', 'Saved locally (not synced)');
+  };
+
+  const handleEdit = (review) => {
+    setEditingReview(review);
+    setShowEditModal(true);
+  };
+
+  const handleDelete = async (reviewId) => {
+    if (!isAuthed) return Alert.alert('Login required', 'Please sign in');
+    try {
+      await deleteReview(reviewId).unwrap();
+      Alert.alert('Success', 'Review deleted');
+    } catch (e) {
+      Alert.alert('Error', 'Could not delete review');
+    }
   };
 
   const toggleReplies = (reviewId) => {
@@ -286,10 +224,24 @@ const Reviews = () => {
               key={review.id}
               review={review}
               isExpanded={expandedReplies.has(review.id)}
+              currentUserId={currentUser?._id}
               onLike={() => handleLike(review.id)}
               onHelpful={() => handleHelpful(review.id)}
               onSave={() => handleSave(review.id)}
               onToggleReplies={() => toggleReplies(review.id)}
+              onEdit={() => handleEdit(review)}
+              onDelete={() => handleDelete(review.id)}
+              onAddReply={async (text) => {
+                if (!isAuthed) {
+                  Alert.alert('Login required', 'Please sign in to comment');
+                  return;
+                }
+                try {
+                  await addComment({ id: review.id, text }).unwrap();
+                } catch (e) {
+                  Alert.alert('Error', 'Could not post comment');
+                }
+              }}
             />
           ))}
         </View>
@@ -300,10 +252,61 @@ const Reviews = () => {
         <CreateReviewModal
           visible={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          onSubmit={(newReview) => {
-            setReviewsList([newReview, ...reviewsList]);
-            setShowCreateModal(false);
-            Alert.alert('Success', 'Review posted! 🎉');
+          onSubmit={async (newReview) => {
+            if (!isAuthed) {
+              Alert.alert('Login required', 'Please sign in to post a review');
+              return;
+            }
+            try {
+              let imageUrls = [];
+              if (newReview.images && newReview.images.length > 0) {
+                const formData = new FormData();
+                newReview.images.forEach((uri, idx) => {
+                  const name = uri.split('/').pop() || `photo_${idx}.jpg`;
+                  formData.append('images', { uri, name, type: 'image/jpeg' });
+                });
+                const res = await uploadImages(formData).unwrap();
+                imageUrls = res?.urls || [];
+              }
+
+              await createReview({
+                place: newReview.place,
+                category: newReview.category,
+                rating: newReview.rating,
+                text: newReview.text,
+                images: imageUrls,
+                tags: newReview.tags,
+              }).unwrap();
+              setShowCreateModal(false);
+              Alert.alert('Success', 'Review posted! 🎉');
+            } catch (e) {
+              Alert.alert('Error', 'Could not post review');
+            }
+          }}
+        />
+      )}
+
+      {/* Edit Review Modal */}
+      {showEditModal && editingReview && (
+        <EditReviewModal
+          visible={showEditModal}
+          review={editingReview}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingReview(null);
+          }}
+          onSubmit={async (updatedData) => {
+            try {
+              await updateReview({
+                id: editingReview.id,
+                ...updatedData,
+              }).unwrap();
+              setShowEditModal(false);
+              setEditingReview(null);
+              Alert.alert('Success', 'Review updated! ✨');
+            } catch (e) {
+              Alert.alert('Error', 'Could not update review');
+            }
           }}
         />
       )}
