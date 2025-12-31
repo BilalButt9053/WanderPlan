@@ -1,19 +1,5 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { Platform } from "react-native";
-
-// SIMPLIFIED HOST SELECTION
-// - Set `OVERRIDE_HOST` to your machine LAN IP (e.g. "192.168.1.100") when
-//   testing from a physical device (Expo Go scanned QR). Leave empty to use
-//   sensible defaults for simulators/emulators.
-// - Android emulator (Android Studio) -> 10.0.2.2
-// - iOS simulator / macOS -> localhost
-// - Physical device -> set OVERRIDE_HOST to your PC IPv4
-const OVERRIDE_HOST = "192.168.0.107"; // <-- replace with your PC LAN IP when needed
-
-const BASE_HOST =
-  OVERRIDE_HOST || (Platform.OS === "android" ? "10.0.2.2" : "localhost");
-
-export const BASE_URL = `http://${BASE_HOST}:5000/api`;
+import { BASE_URL } from "../../config";
 
 export const authApi = createApi({
   reducerPath: "authApi",

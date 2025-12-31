@@ -146,7 +146,11 @@ const login = async (req, res, next) => {
                 await emailVerificationToken.save();
                 
                 // Send OTP via email
-                await sendOTPEmail(email, OTP);
+                try {
+                    await sendOTPEmail(email, OTP);
+                } catch (emailError) {
+                    console.error('[auth-controller] Failed to send OTP email:', emailError.message);
+                }
                 
                 return res.status(403).json({
                     message: "Please verify your email before logging in. OTP sent to your email.",
@@ -157,6 +161,7 @@ const login = async (req, res, next) => {
 
             // For verified users, also send OTP for login verification
             const OTP = generateOTP();
+            console.log('[auth-controller] Generated login OTP:', OTP);
             
             // Delete any existing tokens
             await EmailVerificationToken.deleteMany({ owner: userExist._id });
@@ -168,8 +173,14 @@ const login = async (req, res, next) => {
             });
             await loginOtpToken.save();
             
-            // Send OTP via email
-            await sendOTPEmail(email, OTP);
+            // Send OTP via email (with error handling)
+            try {
+                await sendOTPEmail(email, OTP);
+                console.log('[auth-controller] Login OTP sent successfully');
+            } catch (emailError) {
+                console.error('[auth-controller] Failed to send login OTP email:', emailError.message);
+                // Continue anyway - OTP is saved in database
+            }
 
             // Return response requiring OTP verification
             return res.status(200).json({

@@ -56,4 +56,37 @@ const UpdateUserById = async (req,res,next)=>{
         next(error);
     }
 }
-module.exports = { getAllUser,  deleteUserById,GetUserById,UpdateUserById};
+
+const makeUserAdmin = async (req, res, next) => {
+    try {
+        const { userId } = req.body;
+        
+        if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+        }
+        
+        const user = await User.findById(userId);
+        
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        
+        user.isAdmin = true;
+        await user.save();
+        
+        res.status(200).json({ 
+            message: "User successfully granted admin privileges",
+            user: {
+                _id: user._id,
+                fullName: user.fullName,
+                email: user.email,
+                isAdmin: user.isAdmin
+            }
+        });
+    } catch (error) {
+        console.log("error=>", error);
+        next(error);
+    }
+};
+
+module.exports = { getAllUser,  deleteUserById,GetUserById,UpdateUserById,makeUserAdmin};

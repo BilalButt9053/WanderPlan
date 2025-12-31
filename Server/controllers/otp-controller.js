@@ -118,6 +118,7 @@ const sendVerificationOTP = async (req, res, next) => {
 const verifyOTP = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
+    console.log('[verifyOTP] Request body:', { email, otp });
 
     if (!email || !otp) {
       return res.status(400).json({ message: "Email and OTP are required" });
@@ -126,16 +127,20 @@ const verifyOTP = async (req, res, next) => {
     const userExist = await Signup.findOne({ email });
 
     if (!userExist) {
+      console.log('[verifyOTP] User not found:', email);
       return res.status(404).json({ message: "User not found" });
     }
 
     const token = await EmailVerificationToken.findOne({ owner: userExist._id });
 
     if (!token) {
+      console.log('[verifyOTP] No token found for user:', userExist._id);
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
+    console.log('[verifyOTP] Comparing OTP - Input:', otp);
     const isValid = await token.compareToken(otp);
+    console.log('[verifyOTP] OTP validation result:', isValid);
 
     if (!isValid) {
       return res.status(400).json({ message: "Invalid OTP" });
@@ -147,6 +152,8 @@ const verifyOTP = async (req, res, next) => {
 
     // Delete the used token
     await EmailVerificationToken.deleteOne({ _id: token._id });
+
+    console.log('[verifyOTP] Verification successful for:', email);
 
     // Return token and basic user info so client can sign the user in
     res.status(200).json({
@@ -162,6 +169,7 @@ const verifyOTP = async (req, res, next) => {
       },
     });
   } catch (error) {
+    console.error('[verifyOTP] Error:', error);
     next(error);
   }
 };

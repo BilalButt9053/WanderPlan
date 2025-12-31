@@ -25,35 +25,26 @@ import { WanderCard } from './wander-card';
 import { WanderChip } from './wander-chip';
 import { ImageWithFallback } from './ImageWithFallback';
 
-export default function ReviewCard({ 
-  review, 
-  isExpanded,
-  onLike, 
-  onHelpful,
-  onSave,
-  onToggleReplies,
-  onAddReply,
-  onEdit,
-  onDelete,
-  currentUserId,
-}) {
+const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, onLike, onHelpful, onSave, currentUserId }) => {
   const [replyText, setReplyText] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [localLiked, setLocalLiked] = useState(review.isLiked);
   const [localHelpful, setLocalHelpful] = useState(review.isHelpful);
+  const [localSaved, setLocalSaved] = useState(review.isSaved);
   const [localLikes, setLocalLikes] = useState(review.likes);
   const [localHelpfulCount, setLocalHelpfulCount] = useState(review.helpful);
   const replyInputRef = useRef(null);
   const [shouldFocusReply, setShouldFocusReply] = useState(false);
+  
+  const isOwner = currentUserId && review?.user?._id === currentUserId;
 
   useEffect(() => {
-    if (isExpanded && shouldFocusReply) {
+    if (expanded && shouldFocusReply) {
       setTimeout(() => replyInputRef.current?.focus?.(), 0);
       setShouldFocusReply(false);
     }
-  }, [isExpanded, shouldFocusReply]);
+  }, [expanded, shouldFocusReply]);
 
-  const isOwnReview = currentUserId && review.user?._id === currentUserId;
   const handleShare = async () => {
     try {
       await Share.share({
@@ -76,6 +67,12 @@ export default function ReviewCard({
     setLocalHelpful(!localHelpful);
     setLocalHelpfulCount(localHelpful ? localHelpfulCount - 1 : localHelpfulCount + 1);
     onHelpful?.();
+  };
+
+  const handleSave = () => {
+    // Optimistic update
+    setLocalSaved(!localSaved);
+    onSave?.();
   };
 
   const handleMenuAction = (action) => {
@@ -128,7 +125,7 @@ export default function ReviewCard({
         </View>
 
         {/* 3-Dots Menu */}
-        {isOwnReview && (
+        {isOwner && (
           <View>
             <TouchableOpacity
               onPress={() => setShowMenu(!showMenu)}
@@ -257,7 +254,7 @@ export default function ReviewCard({
 
         <TouchableOpacity
           onPress={() => {
-            onToggleReplies?.();
+            onToggle?.(review.id);
             setShouldFocusReply(true);
           }}
           className="flex-row items-center gap-1"
@@ -274,22 +271,22 @@ export default function ReviewCard({
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={onSave}
+          onPress={handleSave}
           className="ml-auto"
         >
           <Bookmark
             size={18}
-            color={review.isSaved ? '#3B82F6' : '#666'}
-            fill={review.isSaved ? '#3B82F6' : 'transparent'}
+            color={localSaved ? '#3B82F6' : '#666'}
+            fill={localSaved ? '#3B82F6' : 'transparent'}
           />
         </TouchableOpacity>
       </View>
 
       {/* Replies */}
-      {isExpanded && (
-        <View className="mt-4 pl-4 border-l-2 border-blue-200" style={{ gap: 12 }}>
+      {expanded && (
+        <View className="mt-3">
           {review.replies.map((reply) => (
-            <View key={reply.id} className="flex-row gap-2">
+            <View key={reply.id} className="flex-row gap-2 mt-1 mb-1">
               <View
                 className="w-8 h-8 rounded-full items-center justify-center"
                 style={{ backgroundColor: '#F3F4F6' }}
@@ -320,7 +317,7 @@ export default function ReviewCard({
               style={{ backgroundColor: '#3B82F6' }}
               onPress={() => {
                 if (onAddReply && replyText.trim()) {
-                  onAddReply(replyText.trim());
+                  onAddReply(review.id, replyText.trim());
                   setReplyText('');
                 }
               }}
@@ -333,6 +330,8 @@ export default function ReviewCard({
     </WanderCard>
   );
 }
+
+export default ReviewCard;
 
 // Focus reply input when expanded via comment icon
 // no-op export placeholder removed

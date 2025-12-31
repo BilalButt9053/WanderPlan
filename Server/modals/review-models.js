@@ -29,6 +29,7 @@ const ReviewSchema = new mongoose.Schema(
     tags: [{ type: String }],
     likedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Signup' }],
     helpfulBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Signup' }],
+    savedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Signup' }],
     replies: [ReplySchema],
     status: { type: String, enum: ['active', 'flagged', 'removed'], default: 'active' },
     flags: [
