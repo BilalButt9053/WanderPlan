@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Text, 
   View, 
@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
-import { logout } from '../../redux/slices/authSlice';
+import { toggleTheme } from '../../redux/slices/themeSlice';
+import { useTheme } from '../hooks/useTheme';
 import { 
   Search, 
   MapPin, 
@@ -108,11 +109,11 @@ export default function Page() {
   const router = useRouter();
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth?.user || null);
+  const { isDarkMode, colors } = useTheme();
   const reviewProgress = 60;
-  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
+  const handleToggleTheme = () => {
+    dispatch(toggleTheme());
   };
 
   const getGreeting = () => {
@@ -123,24 +124,24 @@ export default function Page() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" style={{ backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }}>
-      <ScrollView className="flex-1">
+    <SafeAreaView className="flex-1 bg-background" style={{ backgroundColor: colors.background }}>
+      <ScrollView className="flex-1" style={{ backgroundColor: colors.background }}>
         {/* Header with Greeting */}
-        <View style={{ backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }} className="border-b border-gray-200 pb-4">
+        <View style={{ backgroundColor: colors.background, borderBottomColor: colors.border }} className="border-b pb-4">
           <View className="flex-row items-center justify-between px-4 pt-4">
             {/* Greeting Section */}
             <View className="flex-1">
-              <Text style={{ color: isDarkMode ? '#9CA3AF' : '#6B7280' }} className="text-sm font-medium">
+              <Text style={{ color: colors.textSecondary }} className="text-sm font-medium">
                 {getGreeting()}
               </Text>
-              <Text style={{ color: isDarkMode ? '#FFFFFF' : '#111827' }} className="text-2xl font-bold mt-1">
+              <Text style={{ color: colors.text }} className="text-2xl font-bold mt-1">
                 {user?.fullName?.split(' ')[0] || 'Explorer'}
               </Text>
             </View>
             
             {/* Theme Toggle Icon */}
             <TouchableOpacity 
-              onPress={toggleTheme}
+              onPress={handleToggleTheme}
               className="w-11 h-11 rounded-full items-center justify-center mr-2"
               style={{ backgroundColor: isDarkMode ? '#374151' : '#F3F4F6' }}
             >
@@ -177,13 +178,13 @@ export default function Page() {
         </View>
 
       {/* Main Content */}
-      <View>
+      <View style={{ backgroundColor: colors.background }}>
         {/* Experiences Section */}
         <View className="py-4 px-4">
           <View className="flex-row items-center justify-between mb-4">
             <View>
-              <Text className="text-2xl font-bold text-gray-900 mb-1">Experiences</Text>
-              <Text className="text-sm text-gray-500">Discover amazing places</Text>
+              <Text style={{ color: colors.text }} className="text-2xl font-bold mb-1">Experiences</Text>
+              <Text style={{ color: colors.textSecondary }} className="text-sm">Discover amazing places</Text>
             </View>
             <TouchableOpacity 
               className="flex-row items-center gap-1"
@@ -225,13 +226,13 @@ export default function Page() {
                       </WanderChip>
                     </View>
                   </View>
-                  <View className="p-4">
-                    <Text className="text-lg font-bold text-gray-900 mb-1">{exp.title}</Text>
+                  <View className="p-4" style={{ backgroundColor: colors.card }}>
+                    <Text style={{ color: colors.text }} className="text-lg font-bold mb-1">{exp.title}</Text>
                     <View className="flex-row items-center gap-1">
-                      <MapPin size={14} color="#6B7280" />
-                      <Text className="text-sm text-gray-500">{exp.location}</Text>
+                      <MapPin size={14} color={colors.textSecondary} />
+                      <Text style={{ color: colors.textSecondary }} className="text-sm">{exp.location}</Text>
                     </View>
-                    <Text className="text-xs text-gray-400 mt-2">
+                    <Text style={{ color: colors.textTertiary }} className="text-xs mt-2">
                       {exp.reviews.toLocaleString()} reviews
                     </Text>
                   </View>
@@ -242,10 +243,10 @@ export default function Page() {
         </View>
 
         {/* Deals & Sponsored Ads */}
-        <View className="py-4 px-4 bg-blue-50">
+        <View className="py-4 px-4" style={{ backgroundColor: isDarkMode ? '#1E3A5F' : '#EFF6FF' }}>
           <View className="flex-row items-center gap-2 mb-4">
             <Sparkles size={20} color="#10B981" />
-            <Text className="text-xl font-bold text-gray-900">Deals & Offers</Text>
+            <Text style={{ color: colors.text }} className="text-xl font-bold">Deals & Offers</Text>
           </View>
 
           <ScrollView 
@@ -269,10 +270,10 @@ export default function Page() {
                       <WanderChip variant="accent" size="sm" className="mb-2 self-start">
                         {deal.discount}
                       </WanderChip>
-                      <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
+                      <Text style={{ color: colors.text }} className="text-base font-bold" numberOfLines={1}>
                         {deal.title}
                       </Text>
-                      <Text className="text-xs text-gray-500 capitalize">
+                      <Text style={{ color: colors.textSecondary }} className="text-xs capitalize">
                         {deal.type}
                       </Text>
                     </View>
@@ -316,8 +317,8 @@ export default function Page() {
         {/* Hidden Gems */}
         <View className="py-4 px-4">
           <View className="mb-4">
-            <Text className="text-2xl font-bold text-gray-900 mb-1">Hidden Gems</Text>
-            <Text className="text-sm text-gray-500">Local spots nearby</Text>
+            <Text style={{ color: colors.text }} className="text-2xl font-bold mb-1">Hidden Gems</Text>
+            <Text style={{ color: colors.textSecondary }} className="text-sm">Local spots nearby</Text>
           </View>
 
           <View className="gap-3">
@@ -333,15 +334,15 @@ export default function Page() {
                     />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-base font-bold text-gray-900 mb-1">{gem.name}</Text>
+                    <Text style={{ color: colors.text }} className="text-base font-bold mb-1">{gem.name}</Text>
                     <View className="flex-row items-center gap-3">
                       <View className="flex-row items-center gap-1">
                         <Star size={12} fill="#10B981" color="#10B981" />
-                        <Text className="text-xs text-gray-500">{gem.rating}</Text>
+                        <Text style={{ color: colors.textSecondary }} className="text-xs">{gem.rating}</Text>
                       </View>
                       <View className="flex-row items-center gap-1">
-                        <Navigation size={12} color="#6B7280" />
-                        <Text className="text-xs text-gray-500">{gem.distance}</Text>
+                        <Navigation size={12} color={colors.textSecondary} />
+                        <Text style={{ color: colors.textSecondary }} className="text-xs">{gem.distance}</Text>
                       </View>
                     </View>
                     <WanderChip variant="secondary" size="sm" className="mt-2 self-start">
@@ -364,11 +365,11 @@ export default function Page() {
               </View>
               <View className="flex-1">
                 <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-base font-bold text-gray-900">Earn Rewards</Text>
+                  <Text style={{ color: colors.text }} className="text-base font-bold">Earn Rewards</Text>
                   <Text className="text-sm text-green-600">3/5</Text>
                 </View>
                 <Progress value={reviewProgress} className="h-2 mb-2" />
-                <Text className="text-xs text-gray-500">
+                <Text style={{ color: colors.textSecondary }} className="text-xs">
                   3 reviews to earn a coupon
                 </Text>
               </View>

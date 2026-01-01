@@ -14,6 +14,7 @@ import ReviewCard from '../components/ReviewCard';
 import CreateReviewModal from '../components/CreateReviewModal';
 import EditReviewModal from '../components/EditReviewModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../hooks/useTheme';
 import { useGetReviewsQuery, useCreateReviewMutation, useToggleLikeMutation, useToggleHelpfulMutation, useAddCommentMutation, useDeleteReviewMutation, useUpdateReviewMutation, useUploadImagesMutation, useToggleSaveMutation } from '../../redux/api/reviewsApi';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectCurrentUser } from '../../redux/slices/authSlice';
@@ -21,6 +22,7 @@ import { selectIsAuthenticated, selectCurrentUser } from '../../redux/slices/aut
 // Data now comes from API
 
 const Reviews = () => {
+  const { colors } = useTheme();
   const [activeCategory, setActiveCategory] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -143,12 +145,12 @@ const Reviews = () => {
   const progress = (totalReviews / (totalReviews + reviewsNeeded)) * 100;
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
       {/* Header */}
-      <View className="border-b border-gray-200">
+      <View style={{ borderBottomColor: colors.border }} className="border-b">
         <View className="px-4 py-4">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-2xl font-bold">Reviews</Text>
+            <Text style={{ color: colors.text }} className="text-2xl font-bold">Reviews</Text>
             <TouchableOpacity
               onPress={() => setShowCreateModal(true)}
               className="w-12 h-12 rounded-full items-center justify-center"

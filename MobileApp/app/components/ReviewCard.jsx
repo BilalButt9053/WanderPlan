@@ -24,8 +24,10 @@ import {
 import { WanderCard } from './wander-card';
 import { WanderChip } from './wander-chip';
 import { ImageWithFallback } from './ImageWithFallback';
+import { useTheme } from '../hooks/useTheme';
 
 const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, onLike, onHelpful, onSave, currentUserId }) => {
+  const { colors } = useTheme();
   const [replyText, setReplyText] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [localLiked, setLocalLiked] = useState(review.isLiked);
@@ -106,7 +108,7 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
         </View>
         <View className="flex-1">
           <View className="flex-row items-center gap-2 mb-1">
-            <Text className="font-semibold" numberOfLines={1}>{review.user.name}</Text>
+            <Text className="font-semibold" style={{ color: colors.text }} numberOfLines={1}>{review.user.name}</Text>
             {review.user.isVerified && (
               <BadgeCheck size={16} color="#3B82F6" />
             )}
@@ -117,10 +119,10 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
             </WanderChip>
           )}
           <View className="flex-row items-center gap-2">
-            <MapPin size={12} color="#666" />
-            <Text className="text-sm text-gray-600">{review.place}</Text>
-            <Text className="text-sm text-gray-600">•</Text>
-            <Text className="text-sm text-gray-600">{review.timestamp}</Text>
+            <MapPin size={12} color={colors.textSecondary} />
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>{review.place}</Text>
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>•</Text>
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>{review.timestamp}</Text>
           </View>
         </View>
 
@@ -131,17 +133,18 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
               onPress={() => setShowMenu(!showMenu)}
               className="w-8 h-8 rounded-full items-center justify-center"
             >
-              <MoreVertical size={20} color="#666" />
+              <MoreVertical size={20} color={colors.textSecondary} />
             </TouchableOpacity>
             
             {showMenu && (
-              <View className="absolute right-0 top-10 bg-white rounded-xl shadow-lg border border-gray-200 z-50" style={{ minWidth: 140 }}>
+              <View className="absolute right-0 top-10 rounded-xl shadow-lg border z-50" style={{ minWidth: 140, backgroundColor: colors.card, borderColor: colors.border }}>
                 <TouchableOpacity
                   onPress={() => handleMenuAction('edit')}
-                  className="flex-row items-center gap-2 px-4 py-3 border-b border-gray-100"
+                  className="flex-row items-center gap-2 px-4 py-3 border-b"
+                  style={{ borderBottomColor: colors.border }}
                 >
                   <Edit size={16} color="#3B82F6" />
-                  <Text className="text-sm text-gray-700">Edit</Text>
+                  <Text className="text-sm" style={{ color: colors.text }}>Edit</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleMenuAction('delete')}
@@ -166,11 +169,11 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
             fill={idx < Math.floor(review.rating) ? '#F59E0B' : 'transparent'}
           />
         ))}
-        <Text className="text-sm ml-1">{review.rating}</Text>
+        <Text className="text-sm ml-1" style={{ color: colors.text }}>{review.rating}</Text>
       </View>
 
       {/* Review Text */}
-      <Text className="mb-3 text-gray-800">{review.text}</Text>
+      <Text className="mb-3" style={{ color: colors.text }}>{review.text}</Text>
 
       {/* Images */}
       {review.images.length > 0 && (
@@ -217,23 +220,23 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
       <View className="flex-row flex-wrap gap-2 mb-3">
         {review.tags.map((tag) => (
           <WanderChip key={tag} variant="secondary">
-            <Text className="text-xs text-gray-700">{tag}</Text>
+            <Text className="text-xs" style={{ color: colors.text }}>{tag}</Text>
           </WanderChip>
         ))}
       </View>
 
       {/* Action Buttons */}
-      <View className="flex-row items-center gap-4 border-t border-gray-200 pt-3">
+      <View className="flex-row items-center gap-4 border-t pt-3" style={{ borderTopColor: colors.border }}>
         <TouchableOpacity
           onPress={handleLike}
           className="flex-row items-center gap-1"
         >
           <Heart
             size={18}
-            color={localLiked ? '#EF4444' : '#666'}
+            color={localLiked ? '#EF4444' : colors.textSecondary}
             fill={localLiked ? '#EF4444' : 'transparent'}
           />
-          <Text className={localLiked ? 'text-red-500' : 'text-gray-600'}>
+          <Text style={{ color: localLiked ? '#EF4444' : colors.textSecondary }}>
             {localLikes}
           </Text>
         </TouchableOpacity>
@@ -244,10 +247,10 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
         >
           <ThumbsUp
             size={18}
-            color={localHelpful ? '#F59E0B' : '#666'}
+            color={localHelpful ? '#F59E0B' : colors.textSecondary}
             fill={localHelpful ? '#F59E0B' : 'transparent'}
           />
-          <Text className={localHelpful ? 'text-orange-500' : 'text-gray-600'}>
+          <Text style={{ color: localHelpful ? '#F59E0B' : colors.textSecondary }}>
             {localHelpfulCount}
           </Text>
         </TouchableOpacity>
@@ -259,15 +262,15 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
           }}
           className="flex-row items-center gap-1"
         >
-          <MessageCircle size={18} color="#666" />
-          <Text className="text-gray-600">{review.replies.length}</Text>
+          <MessageCircle size={18} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary }}>{review.replies.length}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={handleShare}
           className="flex-row items-center gap-1"
         >
-          <Share2 size={18} color="#666" />
+          <Share2 size={18} color={colors.textSecondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -276,7 +279,7 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
         >
           <Bookmark
             size={18}
-            color={localSaved ? '#3B82F6' : '#666'}
+            color={localSaved ? '#3B82F6' : colors.textSecondary}
             fill={localSaved ? '#3B82F6' : 'transparent'}
           />
         </TouchableOpacity>
@@ -284,47 +287,61 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
 
       {/* Replies */}
       {expanded && (
-        <View className="mt-3">
-          {review.replies.map((reply) => (
-            <View key={reply.id} className="flex-row gap-2 mt-1 mb-1">
-              <View
-                className="w-8 h-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: '#F3F4F6' }}
-              >
-                <Text className="text-sm font-semibold">{reply.user.avatar}</Text>
-              </View>
-              <View className="flex-1 bg-gray-100 rounded-xl p-3">
-                <View className="flex-row items-center gap-2 mb-1">
-                  <Text className="text-sm font-semibold">{reply.user.name}</Text>
-                  <Text className="text-xs text-gray-500">{reply.timestamp}</Text>
-                </View>
-                <Text className="text-sm text-gray-800">{reply.text}</Text>
-              </View>
-            </View>
-          ))}
+        <View className="mt-4 border-t pt-4" style={{ borderTopColor: colors.border }}>
+          <Text className="font-semibold mb-3" style={{ color: colors.text }}>
+            Replies ({review.replies?.length || 0})
+          </Text>
 
-          {/* Reply Input */}
-          <View className="flex-row gap-2">
+          {/* Add Reply Input */}
+          <View className="flex-row gap-2 mb-4">
             <TextInput
               ref={replyInputRef}
+              className="flex-1 px-4 py-2 border rounded-xl"
+              style={{
+                backgroundColor: colors.input,
+                borderColor: colors.border,
+                color: colors.text
+              }}
               placeholder="Write a reply..."
-              className="flex-1 px-3 py-2 bg-gray-100 rounded-xl text-sm"
+              placeholderTextColor={colors.textTertiary}
               value={replyText}
               onChangeText={setReplyText}
+              multiline
+              maxLength={200}
             />
             <TouchableOpacity
-              className="w-10 h-10 rounded-xl items-center justify-center"
-              style={{ backgroundColor: '#3B82F6' }}
               onPress={() => {
-                if (onAddReply && replyText.trim()) {
-                  onAddReply(review.id, replyText.trim());
+                if (replyText.trim()) {
+                  onAddReply?.(review.id, replyText.trim());
                   setReplyText('');
                 }
               }}
+              className="w-10 h-10 rounded-full items-center justify-center"
+              style={{ backgroundColor: replyText.trim() ? '#3B82F6' : colors.input }}
+              disabled={!replyText.trim()}
             >
-              <Send size={16} color="#fff" />
+              <Send size={18} color={replyText.trim() ? '#fff' : colors.textSecondary} />
             </TouchableOpacity>
           </View>
+
+          {/* Reply List */}
+          {review.replies?.map((reply) => (
+            <View key={reply.id} className="flex-row gap-2 mb-3">
+              <View
+                className="w-8 h-8 rounded-full items-center justify-center"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                <Text className="text-white text-xs font-semibold">{reply.user.avatar}</Text>
+              </View>
+              <View className="flex-1 p-3 rounded-xl" style={{ backgroundColor: colors.surface }}>
+                <Text className="font-semibold text-sm mb-1" style={{ color: colors.text }}>
+                  {reply.user.name}
+                </Text>
+                <Text className="text-sm mb-1" style={{ color: colors.text }}>{reply.text}</Text>
+                <Text className="text-xs" style={{ color: colors.textSecondary }}>{reply.timestamp}</Text>
+              </View>
+            </View>
+          ))}
         </View>
       )}
     </WanderCard>
@@ -332,6 +349,3 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
 }
 
 export default ReviewCard;
-
-// Focus reply input when expanded via comment icon
-// no-op export placeholder removed

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput } from 'react-native';
+import { useTheme } from '../hooks/useTheme';
 
 export default function WanderInput({ 
   label, 
@@ -9,10 +10,12 @@ export default function WanderInput({
   maxLength = 50,
   ...props 
 }) {
+  const { colors } = useTheme();
+  
   return (
     <View className="w-full mb-4">
       {label && (
-        <Text className="mb-2 text-gray-700 font-medium">{label}</Text>
+        <Text className="mb-2 font-medium" style={{ color: colors.text }}>{label}</Text>
       )}
 
       <View className="relative w-full min-h-[48px]">
@@ -22,7 +25,13 @@ export default function WanderInput({
           </View>
         )}
         <TextInput
-          className={`w-full px-4 py-3 bg-white border ${error ? 'border-red-500' : 'border-gray-300'} rounded-xl ${icon ? 'pl-11' : ''} text-base text-gray-700 ${className}`}
+          className={`w-full px-4 py-3 border rounded-xl ${icon ? 'pl-11' : ''} text-base ${className}`}
+          style={{
+            backgroundColor: colors.input,
+            borderColor: error ? '#EF4444' : colors.border,
+            color: colors.text
+          }}
+          placeholderTextColor={colors.textTertiary}
           maxLength={maxLength}
           {...props}
         />

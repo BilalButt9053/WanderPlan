@@ -12,6 +12,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout, updateUser, selectCurrentUser } from '../../redux/slices/authSlice';
 import { useRouter } from 'expo-router';
+import { useTheme } from '../hooks/useTheme';
 import {
   Settings,
   Bell,
@@ -151,6 +152,7 @@ const Profile = () => {
   const dispatch = useDispatch();
   const router = useRouter();
   const user = useSelector((state) => state.auth.user);
+  const { isDarkMode, colors } = useTheme();
   const [activeTab, setActiveTab] = useState('overview');
   const [userProfile] = useState(userProfileData);
   const [showSettings, setShowSettings] = useState(false);
@@ -258,8 +260,8 @@ const Profile = () => {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} style={{ backgroundColor: colors.background }}>
         {/* Header */}
         <View
           className="rounded-b-3xl pb-6"
