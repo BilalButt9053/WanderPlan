@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import { 
   Text, 
   View, 
@@ -20,7 +20,9 @@ import {
   ChevronRight,
   Sparkles,
   Award,
-  Navigation
+  Navigation,
+  Sun,
+  Moon
 } from 'lucide-react-native';
 import ImageWithFallback from '../components/ImageWithFallback';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -107,25 +109,47 @@ export default function Page() {
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth?.user || null);
   const reviewProgress = 60;
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-background" style={{ backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }}>
       <ScrollView className="flex-1">
-        {/* Header with Search Bar */}
-        <View className="bg-background border-b border-gray-200">
-          <View className="flex-row items-center gap-3 p-4">
-            {/* Search Bar */}
-            <View className="flex-1 flex-row items-center gap-3 bg-gray-100 rounded-2xl px-4 py-3">
-              <Search size={20} color="#6B7280" />
-              <TextInput
-                placeholder="Where to?"
-                placeholderTextColor="#9CA3AF"
-                className="flex-1 text-gray-900"
-              />
-              <Navigation size={18} color="#2563EB" />
+        {/* Header with Greeting */}
+        <View style={{ backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }} className="border-b border-gray-200 pb-4">
+          <View className="flex-row items-center justify-between px-4 pt-4">
+            {/* Greeting Section */}
+            <View className="flex-1">
+              <Text style={{ color: isDarkMode ? '#9CA3AF' : '#6B7280' }} className="text-sm font-medium">
+                {getGreeting()}
+              </Text>
+              <Text style={{ color: isDarkMode ? '#FFFFFF' : '#111827' }} className="text-2xl font-bold mt-1">
+                {user?.fullName?.split(' ')[0] || 'Explorer'}
+              </Text>
             </View>
+            
+            {/* Theme Toggle Icon */}
+            <TouchableOpacity 
+              onPress={toggleTheme}
+              className="w-11 h-11 rounded-full items-center justify-center mr-2"
+              style={{ backgroundColor: isDarkMode ? '#374151' : '#F3F4F6' }}
+            >
+              {isDarkMode ? (
+                <Sun size={22} color="#FCD34D" strokeWidth={2} />
+              ) : (
+                <Moon size={22} color="#6B7280" strokeWidth={2} />
+              )}
+            </TouchableOpacity>
             
             {/* Profile Avatar */}
             <TouchableOpacity 
@@ -150,8 +174,7 @@ export default function Page() {
               )}
             </TouchableOpacity>
           </View>
-     
-      </View>
+        </View>
 
       {/* Main Content */}
       <View>
