@@ -17,8 +17,10 @@ import {
 import { WanderButton } from './wander-button';
 import Modal from './Modal';
 import * as ImagePicker from 'expo-image-picker';
+import { useTheme } from '../hooks/useTheme';
 
 export default function CreateReviewModal({ visible, onClose, onSubmit }) {
+  const { colors } = useTheme();
   const [place, setPlace] = useState('');
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
@@ -82,21 +84,23 @@ export default function CreateReviewModal({ visible, onClose, onSubmit }) {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Place Input */}
         <View className="mb-4">
-          <Text className="mb-2 font-medium">Place</Text>
-          <View className="flex-row items-center gap-2 bg-gray-100 rounded-xl px-4 py-3">
-            <MapPin size={20} color="#666" />
+          <Text className="mb-2 font-medium" style={{ color: colors.text }}>Place</Text>
+          <View className="flex-row items-center gap-2 rounded-xl px-4 py-3" style={{ backgroundColor: colors.input }}>
+            <MapPin size={20} color={colors.textSecondary} />
             <TextInput
               placeholder="Search for a place..."
+              placeholderTextColor={colors.textTertiary}
               value={place}
               onChangeText={setPlace}
               className="flex-1"
+              style={{ color: colors.text }}
             />
           </View>
         </View>
 
         {/* Category */}
         <View className="mb-4">
-          <Text className="mb-2 font-medium">Category</Text>
+          <Text className="mb-2 font-medium" style={{ color: colors.text }}>Category</Text>
           <View className="flex-row gap-2">
             {['food', 'places', 'hotels'].map((cat) => (
               <TouchableOpacity
@@ -104,12 +108,12 @@ export default function CreateReviewModal({ visible, onClose, onSubmit }) {
                 onPress={() => setCategory(cat)}
                 className="px-4 py-2 rounded-full"
                 style={{
-                  backgroundColor: category === cat ? '#3B82F6' : '#F3F4F6',
+                  backgroundColor: category === cat ? '#3B82F6' : colors.input,
                 }}
               >
                 <Text
                   className="text-sm font-medium capitalize"
-                  style={{ color: category === cat ? '#fff' : '#000' }}
+                  style={{ color: category === cat ? '#fff' : colors.text }}
                 >
                   {cat}
                 </Text>
@@ -120,7 +124,7 @@ export default function CreateReviewModal({ visible, onClose, onSubmit }) {
 
         {/* Rating */}
         <View className="mb-4">
-          <Text className="mb-2 font-medium">Rating</Text>
+          <Text className="mb-2 font-medium" style={{ color: colors.text }}>Rating</Text>
           <View className="flex-row gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <TouchableOpacity
@@ -139,25 +143,28 @@ export default function CreateReviewModal({ visible, onClose, onSubmit }) {
 
         {/* Review Text */}
         <View className="mb-4">
-          <Text className="mb-2 font-medium">Your Review</Text>
+          <Text className="mb-2 font-medium" style={{ color: colors.text }}>Your Review</Text>
           <TextInput
             placeholder="Share your experience..."
+            placeholderTextColor={colors.textTertiary}
             value={text}
             onChangeText={setText}
             multiline
             numberOfLines={6}
             textAlignVertical="top"
-            className="bg-gray-100 rounded-xl p-3"
+            className="rounded-xl p-3"
+            style={{ backgroundColor: colors.input, color: colors.text }}
           />
         </View>
 
         {/* Add Images */}
         <TouchableOpacity
-          className="w-full py-3 border-2 border-dashed border-gray-300 rounded-2xl flex-row items-center justify-center gap-2 mb-4"
+          className="w-full py-3 border-2 border-dashed rounded-2xl flex-row items-center justify-center gap-2 mb-4"
+          style={{ borderColor: colors.border }}
           onPress={pickImage}
         >
-          <ImageIcon size={20} color="#666" />
-          <Text className="text-gray-600">Add Photos</Text>
+          <ImageIcon size={20} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary }}>Add Photos</Text>
         </TouchableOpacity>
 
         {images.length > 0 && (

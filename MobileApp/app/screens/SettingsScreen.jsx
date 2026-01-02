@@ -26,8 +26,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
 import { Switch } from '../components/ui/switch';
+import { useTheme } from '../hooks/useTheme';
 
 export function SettingsScreen({ onBack }) {
+  const { colors } = useTheme();
   const [settings, setSettings] = useState({
     language: 'English',
     currency: 'USD',
@@ -49,18 +51,19 @@ export function SettingsScreen({ onBack }) {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
       {/* Header */}
-      <View className="bg-background border-b border-gray-200">
+      <View style={{ backgroundColor: colors.background, borderBottomColor: colors.border }} className="border-b">
         <View className="p-4">
           <View className="flex-row items-center gap-3">
             <TouchableOpacity
               onPress={onBack}
-              className="w-10 h-10 rounded-xl bg-gray-100 items-center justify-center"
+              className="w-10 h-10 rounded-xl items-center justify-center"
+              style={{ backgroundColor: colors.input }}
             >
-              <ArrowLeft size={20} color="#000" />
+              <ArrowLeft size={20} color={colors.text} />
             </TouchableOpacity>
-            <Text className="text-2xl font-bold">Settings</Text>
+            <Text style={{ color: colors.text }} className="text-2xl font-bold">Settings</Text>
           </View>
         </View>
       </View>
@@ -70,7 +73,7 @@ export function SettingsScreen({ onBack }) {
         <View className="p-4" style={{ gap: 24 }}>
           {/* General Settings */}
           <View>
-            <Text className="text-lg font-semibold mb-3 px-2">General</Text>
+            <Text style={{ color: colors.text }} className="text-lg font-semibold mb-3 px-2">General</Text>
             <WanderCard padding="none">
               <TouchableOpacity
                 onPress={() => Alert.alert('Language', 'Language selection coming soon')}
@@ -79,8 +82,8 @@ export function SettingsScreen({ onBack }) {
                 <View className="flex-row items-center gap-3 flex-1">
                   <Globe size={20} color="#3B82F6" />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Language</Text>
-                    <Text className="text-sm text-gray-600">{settings.language}</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Language</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-sm">{settings.language}</Text>
                   </View>
                 </View>
                 <ChevronRight size={20} color="#9CA3AF" />
@@ -95,8 +98,8 @@ export function SettingsScreen({ onBack }) {
                 <View className="flex-row items-center gap-3 flex-1">
                   <DollarSign size={20} color="#3B82F6" />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Currency</Text>
-                    <Text className="text-sm text-gray-600">{settings.currency}</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Currency</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-sm">{settings.currency}</Text>
                   </View>
                 </View>
                 <ChevronRight size={20} color="#9CA3AF" />
@@ -108,8 +111,8 @@ export function SettingsScreen({ onBack }) {
                 <View className="flex-row items-center gap-3 flex-1">
                   <Moon size={20} color="#3B82F6" />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Dark Mode</Text>
-                    <Text className="text-sm text-gray-600">Coming soon</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Dark Mode</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-sm">Coming soon</Text>
                   </View>
                 </View>
                 <Switch
@@ -123,14 +126,14 @@ export function SettingsScreen({ onBack }) {
 
           {/* Notifications */}
           <View>
-            <Text className="text-lg font-semibold mb-3 px-2">Notifications</Text>
+            <Text style={{ color: colors.text }} className="text-lg font-semibold mb-3 px-2">Notifications</Text>
             <WanderCard padding="none">
               <View className="flex-row items-center justify-between p-4">
                 <View className="flex-row items-center gap-3 flex-1">
                   <Bell size={20} color="#3B82F6" />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Push Notifications</Text>
-                    <Text className="text-sm text-gray-600">App notifications</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Push Notifications</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-sm">App notifications</Text>
                   </View>
                 </View>
                 <Switch

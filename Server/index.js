@@ -11,6 +11,8 @@ const adminRoute = require("./router/admin-router");
 const otpRoute = require("./router/otp-router");
 const reviewsRoute = require("./router/reviews-router");
 const uploadsRoute = require("./router/uploads-router");
+const businessAuthRoute = require("./router/business-auth-router");
+const adminBusinessRoute = require("./router/admin-business-router");
 
 
 app.use(cors({
@@ -30,6 +32,8 @@ app.use("/api/admin",adminRoute);
 app.use("/api/otp",otpRoute);
 app.use("/api/reviews", reviewsRoute);
 app.use("/api/uploads", uploadsRoute);
+app.use("/api/business", businessAuthRoute);
+app.use("/api/admin", adminBusinessRoute);
 app.use(errorMiddleware);
 
 const port = process.env.PORT || 5000;

@@ -130,3 +130,8 @@ export const sendSocialAuthToBackend = async (socialAuthData, endpoint) => {
     throw error;
   }
 };
+
+// Default export to satisfy expo-router (this is a utility file, not a route)
+export default function SocialAuthUtils() {
+  return null;
+}

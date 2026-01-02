@@ -1,22 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth-middleware');
-const optionalAuth = require('../middleware/optional-auth-middleware');
-const reviews = require('../controllers/reviews-controller');
-const adminOnly = require('../middleware/admin-middleware');
+const ctrl = require('../controllers/reviews-controller');
+const authMiddleware = require('../middleware/auth-middleware');
+const optionalAuthMiddleware = require('../middleware/optional-auth-middleware');
 
-// Public (but better with optional auth)
-router.get('/', optionalAuth, reviews.list);
-
-// Auth required
-router.post('/', auth, reviews.create);
-router.put('/:id', auth, reviews.updateReview);
-router.delete('/:id', auth, reviews.deleteReview);
-router.post('/:id/like', auth, reviews.toggleLike);
-router.post('/:id/helpful', auth, reviews.toggleHelpful);
-router.get('/:id/comments', reviews.getComments); // public read
-router.post('/:id/comments', auth, reviews.addComment);
-router.post('/:id/report', auth, reviews.reportReview);
-router.post('/:id/moderate', auth, adminOnly, reviews.moderateReview);
+router.get('/', optionalAuthMiddleware, ctrl.list);
+router.post('/', authMiddleware, ctrl.create);
+router.post('/:id/like', authMiddleware, ctrl.toggleLike);
+router.post('/:id/helpful', authMiddleware, ctrl.toggleHelpful);
+router.post('/:id/save', authMiddleware, ctrl.toggleSave);
+router.post('/:id/comments', authMiddleware, ctrl.addComment);
+router.put('/:id', authMiddleware, ctrl.update);
+router.delete('/:id', authMiddleware, ctrl.deleteReview);
 
 module.exports = router;

@@ -10,8 +10,9 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout, updateUser } from '../../redux/slices/authSlice';
+import { logout, updateUser, selectCurrentUser } from '../../redux/slices/authSlice';
 import { useRouter } from 'expo-router';
+import { useTheme } from '../hooks/useTheme';
 import {
   Settings,
   Bell,
@@ -36,10 +37,14 @@ import  WanderChip  from '../components/wander-chip';
 import  Progress  from '../components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import  ImageWithFallback  from '../components/ImageWithFallback';
-import EditReviewModal from '../components/EditReviewModal';
-import { useGetReviewsQuery, useDeleteReviewMutation, useUpdateReviewMutation } from '../../redux/api/reviewsApi';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import OverviewTab from '../components/profile/OverviewTab';
+import NotificationsTab from '../components/profile/NotificationsTab';
+import SavedTripsTab from '../components/profile/SavedTripsTab';
+import RewardsTab from '../components/profile/RewardsTab';
+import MyReviewsTab from '../components/profile/MyReviewsTab';
+import SavedReviewsTab from '../components/profile/SavedReviewsTab';
 
 const userProfileData = {
   name: 'John Doe',
@@ -147,6 +152,7 @@ const Profile = () => {
   const dispatch = useDispatch();
   const router = useRouter();
   const user = useSelector((state) => state.auth.user);
+  const { isDarkMode, colors } = useTheme();
   const [activeTab, setActiveTab] = useState('overview');
   const [userProfile] = useState(userProfileData);
   const [showSettings, setShowSettings] = useState(false);
@@ -254,8 +260,8 @@ const Profile = () => {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} style={{ backgroundColor: colors.background }}>
         {/* Header */}
         <View
           className="rounded-b-3xl pb-6"
@@ -377,7 +383,7 @@ const Profile = () => {
             </TabsContent>
 
             <TabsContent value="saved">
-              <SavedTripsTab trips={savedTripsData} />
+              <SavedReviewsTab />
             </TabsContent>
 
             <TabsContent value="rewards">
@@ -396,427 +402,5 @@ const Profile = () => {
     </SafeAreaView>
   );
 };
-
-function OverviewTab({ profile }) {
-  return (
-    <View style={{ gap: 16 }}>
-      {/* Stats Grid */}
-      <View className="flex-row flex-wrap gap-3">
-        <View className="w-[48%]">
-          <WanderCard>
-            <View className="items-center">
-              <Star size={24} color="#F59E0B" style={{ marginBottom: 8 }} />
-              <Text className="text-2xl font-bold">{profile.stats.reviews}</Text>
-              <Text className="text-sm text-gray-600">Reviews</Text>
-            </View>
-          </WanderCard>
-        </View>
-        <View className="w-[48%]">
-          <WanderCard>
-            <View className="items-center">
-              <MapPin size={24} color="#3B82F6" style={{ marginBottom: 8 }} />
-              <Text className="text-2xl font-bold">{profile.stats.trips}</Text>
-              <Text className="text-sm text-gray-600">Trips</Text>
-            </View>
-          </WanderCard>
-        </View>
-        <View className="w-[48%]">
-          <WanderCard>
-            <View className="items-center">
-              <Bookmark size={24} color="#3B82F6" style={{ marginBottom: 8 }} />
-              <Text className="text-2xl font-bold">{profile.stats.saved}</Text>
-              <Text className="text-sm text-gray-600">Saved Places</Text>
-            </View>
-          </WanderCard>
-        </View>
-        <View className="w-[48%]">
-          <WanderCard>
-            <View className="items-center">
-              <ThumbsUp size={24} color="#F59E0B" style={{ marginBottom: 8 }} />
-              <Text className="text-2xl font-bold">{profile.stats.helpful}</Text>
-              <Text className="text-sm text-gray-600">Helpful Votes</Text>
-            </View>
-          </WanderCard>
-        </View>
-      </View>
-
-      {/* Contributor Stats */}
-      <WanderCard>
-        <View className="flex-row items-center gap-2 mb-4">
-          <TrendingUp size={20} color="#3B82F6" />
-          <Text className="text-lg font-semibold">Contributor Stats</Text>
-        </View>
-        <View style={{ gap: 12 }}>
-          <View className="flex-row items-center justify-between">
-            <Text className="text-sm text-gray-600">Total Impact Score</Text>
-            <Text className="text-blue-500 font-semibold">2,450 pts</Text>
-          </View>
-          <View className="flex-row items-center justify-between">
-            <Text className="text-sm text-gray-600">Reviews This Month</Text>
-            <Text className="font-semibold">8</Text>
-          </View>
-          <View className="flex-row items-center justify-between">
-            <Text className="text-sm text-gray-600">Avg. Rating Given</Text>
-            <Text className="font-semibold">4.6 ⭐</Text>
-          </View>
-          <View className="flex-row items-center justify-between">
-            <Text className="text-sm text-gray-600">Member Since</Text>
-            <Text className="font-semibold">{profile.memberSince}</Text>
-          </View>
-        </View>
-      </WanderCard>
-
-      {/* Badges */}
-      <WanderCard>
-        <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-lg font-semibold">Badges</Text>
-          <WanderChip variant="primary">
-            <Text className="text-xs text-blue-600">
-              {profile.badges.filter(b => b.unlocked).length}/{profile.badges.length}
-            </Text>
-          </WanderChip>
-        </View>
-        <View className="flex-row flex-wrap gap-3">
-          {profile.badges.map((badge) => (
-            <View
-              key={badge.id}
-              className="w-[30%] items-center p-3 rounded-xl"
-              style={{
-                backgroundColor: badge.unlocked ? 'rgba(59, 130, 246, 0.1)' : '#F3F4F6',
-                opacity: badge.unlocked ? 1 : 0.5,
-              }}
-            >
-              <Text className="text-3xl mb-2">{badge.icon}</Text>
-              <Text className="text-xs text-center" numberOfLines={1}>{badge.name}</Text>
-              {badge.progress && !badge.unlocked && (
-                <View className="w-full mt-2">
-                  <Progress value={badge.progress} className="h-1" />
-                  <Text className="text-xs text-gray-600 text-center mt-1">{badge.progress}%</Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
-      </WanderCard>
-    </View>
-  );
-}
-
-function NotificationsTab({ notifications }) {
-  const [notifList, setNotifList] = useState(notifications);
-
-  const markAsRead = (id) => {
-    setNotifList(notifList.map(n => n.id === id ? { ...n, read: true } : n));
-  };
-
-  const getIcon = (type) => {
-    switch (type) {
-      case 'like': return <ThumbsUp size={18} color="#F59E0B" />;
-      case 'reply': return <Star size={18} color="#3B82F6" />;
-      case 'reward': return <Gift size={18} color="#F59E0B" />;
-      case 'badge': return <Award size={18} color="#3B82F6" />;
-      default: return <Bell size={18} color="#6B7280" />;
-    }
-  };
-
-  return (
-    <View style={{ gap: 12 }}>
-      {notifList.length === 0 ? (
-        <View className="items-center py-12">
-          <Bell size={48} color="#D1D5DB" style={{ marginBottom: 16 }} />
-          <Text className="text-gray-600">No notifications yet</Text>
-        </View>
-      ) : (
-        notifList.map((notif) => (
-          <TouchableOpacity key={notif.id} onPress={() => markAsRead(notif.id)}>
-            <WanderCard
-              style={{
-                borderLeftWidth: !notif.read ? 4 : 0,
-                borderLeftColor: '#3B82F6',
-              }}
-            >
-              <View className="flex-row gap-3">
-                <View className="w-10 h-10 rounded-xl bg-gray-100 items-center justify-center">
-                  {getIcon(notif.type)}
-                </View>
-                <View className="flex-1">
-                  <Text className={!notif.read ? 'text-gray-900' : 'text-gray-600'}>
-                    {notif.text}
-                  </Text>
-                  <Text className="text-sm text-gray-500 mt-1">{notif.timestamp}</Text>
-                </View>
-                {!notif.read && (
-                  <View
-                    className="w-2 h-2 rounded-full mt-2"
-                    style={{ backgroundColor: '#3B82F6' }}
-                  />
-                )}
-              </View>
-            </WanderCard>
-          </TouchableOpacity>
-        ))
-      )}
-    </View>
-  );
-}
-
-function MyReviewsTab() {
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingReview, setEditingReview] = useState(null);
-  const { data, isFetching } = useGetReviewsQuery({ mine: true, limit: 50 });
-  const [deleteReview] = useDeleteReviewMutation();
-  const [updateReview] = useUpdateReviewMutation();
-
-  const items = (data?.items || []).map(r => ({
-    id: r._id,
-    place: r.place,
-    rating: r.rating,
-    text: r.text,
-    helpful: r.helpful ?? (r.helpfulBy?.length || 0),
-    timestamp: new Date(r.createdAt).toLocaleString(),
-    image: (r.images && r.images.length > 0) ? r.images[0] : undefined,
-  }));
-
-  const handleEdit = (review) => {
-    setEditingReview(review);
-    setShowEditModal(true);
-  };
-
-  const handleDelete = (id) => {
-    Alert.alert('Delete Review', 'Are you sure you want to delete this review?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        try {
-          await deleteReview(id).unwrap();
-          Alert.alert('Success', 'Review deleted');
-        } catch (e) {
-          Alert.alert('Error', 'Could not delete review');
-        }
-      } },
-    ]);
-  };
-
-  return (
-    <View style={{ gap: 12 }}>
-      {isFetching && (
-        <Text className="text-gray-600">Loading your reviews...</Text>
-      )}
-      {!isFetching && items.length === 0 && (
-        <View className="items-center py-12">
-          <Text className="text-gray-600">You haven't posted any reviews yet.</Text>
-        </View>
-      )}
-      {items.map((review) => (
-        <WanderCard key={review.id} padding="none">
-          <View className="flex-row gap-3 p-3">
-            {!!review.image && (
-              <View className="w-16 h-16 rounded-xl overflow-hidden">
-                <ImageWithFallback
-                  source={{ uri: review.image }}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode="cover"
-                />
-              </View>
-            )}
-            <View className="flex-1">
-              <Text className="font-semibold mb-1" numberOfLines={1}>{review.place}</Text>
-              <View className="flex-row items-center gap-1 mb-2">
-                {[...Array(5)].map((_, idx) => (
-                  <Star
-                    key={idx}
-                    size={12}
-                    color={idx < Math.floor(review.rating) ? '#F59E0B' : '#D1D5DB'}
-                    fill={idx < Math.floor(review.rating) ? '#F59E0B' : 'transparent'}
-                  />
-                ))}
-              </View>
-              <Text className="text-sm text-gray-600 mb-2" numberOfLines={2}>{review.text}</Text>
-              <View className="flex-row items-center gap-4">
-                <View className="flex-row items-center gap-1">
-                  <ThumbsUp size={12} color="#666" />
-                  <Text className="text-sm text-gray-600">{review.helpful} helpful</Text>
-                </View>
-                <Text className="text-sm text-gray-600">{review.timestamp}</Text>
-              </View>
-            </View>
-          </View>
-          <View className="flex-row gap-2 p-3 border-t border-gray-200">
-            <WanderButton variant="outline" onPress={() => handleEdit(review)} style={{ flex: 1 }}>
-              <View className="flex-row items-center gap-2">
-                <Edit size={14} color="#3B82F6" />
-                <Text className="text-blue-500 font-medium">Edit</Text>
-              </View>
-            </WanderButton>
-            <WanderButton variant="outline" onPress={() => handleDelete(review.id)} style={{ flex: 1 }}>
-              <View className="flex-row items-center gap-2">
-                <Trash2 size={14} color="#EF4444" />
-                <Text className="text-red-500 font-medium">Delete</Text>
-              </View>
-            </WanderButton>
-          </View>
-        </WanderCard>
-      ))}
-
-      {showEditModal && editingReview && (
-        <EditReviewModal
-          visible={showEditModal}
-          review={{
-            id: editingReview.id,
-            place: editingReview.place,
-            rating: editingReview.rating,
-            text: editingReview.text,
-            images: editingReview.image ? [editingReview.image] : [],
-          }}
-          onClose={() => {
-            setShowEditModal(false);
-            setEditingReview(null);
-          }}
-          onSubmit={async (updatedData) => {
-            try {
-              await updateReview({ id: editingReview.id, ...updatedData }).unwrap();
-              setShowEditModal(false);
-              setEditingReview(null);
-              Alert.alert('Success', 'Review updated!');
-            } catch (e) {
-              Alert.alert('Error', 'Could not update review');
-            }
-          }}
-        />
-      )}
-    </View>
-  );
-}
-
-function SavedTripsTab({ trips }) {
-  return (
-    <View style={{ gap: 12 }}>
-      {trips.map((trip) => (
-        <TouchableOpacity key={trip.id}>
-          <WanderCard padding="none">
-            <View className="flex-row gap-3 p-3">
-              <View className="w-20 h-20 rounded-xl overflow-hidden">
-                <ImageWithFallback
-                  source={{ uri: trip.image }}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode="cover"
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="font-semibold text-base mb-2">{trip.destination}</Text>
-                <Text className="text-sm text-gray-600 mb-2">${trip.budget} budget</Text>
-                <Text className="text-xs text-gray-500">Saved {trip.savedAt}</Text>
-              </View>
-              <ChevronRight size={20} color="#9CA3AF" style={{ alignSelf: 'center' }} />
-            </View>
-          </WanderCard>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
-
-function RewardsTab({ rewards }) {
-  const activeRewards = rewards.filter(r => !r.isRedeemed);
-  const redeemedRewards = rewards.filter(r => r.isRedeemed);
-
-  const handleRedeem = async (code) => {
-    try {
-      await Share.share({
-        message: `Your coupon code: ${code}`,
-      });
-    } catch (error) {
-      Alert.alert('Success', `Coupon code: ${code}`);
-    }
-  };
-
-  return (
-    <View style={{ gap: 24 }}>
-      {/* Progress Tracker */}
-      <View
-        className="rounded-2xl p-4"
-        style={{
-          background: 'linear-gradient(to right, rgba(251, 146, 60, 0.1), rgba(59, 130, 246, 0.1))',
-          backgroundColor: '#FEF3C7',
-        }}
-      >
-        <View className="flex-row items-center gap-3">
-          <View
-            className="w-12 h-12 rounded-full items-center justify-center"
-            style={{ backgroundColor: 'rgba(251, 146, 60, 0.2)' }}
-          >
-            <Award size={24} color="#F59E0B" />
-          </View>
-          <View className="flex-1">
-            <Text className="font-semibold mb-1">Next Reward</Text>
-            <Text className="text-sm text-gray-600 mb-2">
-              Write 2 more reviews to unlock 10% hotel coupon
-            </Text>
-            <Progress value={60} className="h-2" />
-          </View>
-        </View>
-      </View>
-
-      {/* Active Rewards */}
-      <View>
-        <Text className="text-lg font-bold mb-3">Available Coupons</Text>
-        <View style={{ gap: 12 }}>
-          {activeRewards.map((reward) => (
-            <WanderCard
-              key={reward.id}
-              style={{
-                borderLeftWidth: 4,
-                borderLeftColor: '#F59E0B',
-              }}
-            >
-              <View className="flex-row items-start justify-between mb-3">
-                <View className="flex-1">
-                  <WanderChip variant="accent" style={{ alignSelf: 'flex-start', marginBottom: 8 }}>
-                    <Text className="text-xs text-orange-600">{reward.discount}</Text>
-                  </WanderChip>
-                  <Text className="font-semibold mb-1">{reward.title}</Text>
-                  <View className="flex-row items-center gap-2">
-                    <Calendar size={14} color="#666" />
-                    <Text className="text-sm text-gray-600">Expires {reward.expiresAt}</Text>
-                  </View>
-                </View>
-              </View>
-              <WanderButton onPress={() => handleRedeem(reward.code)}>
-                <View className="flex-row items-center gap-2">
-                  <Gift size={16} color="#fff" />
-                  <Text className="text-white font-semibold">Copy Code: {reward.code}</Text>
-                </View>
-              </WanderButton>
-            </WanderCard>
-          ))}
-        </View>
-      </View>
-
-      {/* Redeemed History */}
-      {redeemedRewards.length > 0 && (
-        <View>
-          <Text className="text-lg font-bold mb-3">Redeemed</Text>
-          <View style={{ gap: 8 }}>
-            {redeemedRewards.map((reward) => (
-              <WanderCard key={reward.id} style={{ opacity: 0.6 }}>
-                <View className="flex-row items-center justify-between">
-                  <View>
-                    <Text className="font-semibold mb-1">{reward.title}</Text>
-                    <View className="flex-row items-center gap-2">
-                      <CheckCircle size={14} color="#10B981" />
-                      <Text className="text-sm text-gray-600">Redeemed</Text>
-                    </View>
-                  </View>
-                  <WanderChip variant="secondary">
-                    <Text className="text-xs text-gray-700">{reward.discount}</Text>
-                  </WanderChip>
-                </View>
-              </WanderCard>
-            ))}
-          </View>
-        </View>
-      )}
-    </View>
-  );
-}
 
 export default Profile;

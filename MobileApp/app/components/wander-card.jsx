@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity } from 'react-native';
+import { useTheme } from '../hooks/useTheme';
 
 export default function WanderCard({
   children,
@@ -7,9 +8,11 @@ export default function WanderCard({
   className = '',
   hover = false,
   onPress,
+  style,
   ...props
 }) {
-  const baseStyles = 'bg-white rounded-2xl shadow-sm border border-gray-200';
+  const { colors } = useTheme();
+  const baseStyles = 'rounded-2xl shadow-sm';
 
   const paddingStyles = {
     none: 'p-0',
@@ -24,6 +27,10 @@ export default function WanderCard({
   return (
     <Component
       className={`${baseStyles} ${paddingStyles[padding]} ${className}`}
+      style={[
+        { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
+        style
+      ]}
       {...(onPress ? { onPress, activeOpacity: hover ? 0.7 : 1 } : {})}
       {...props}
     >

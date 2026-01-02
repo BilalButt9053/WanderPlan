@@ -14,13 +14,15 @@ import ReviewCard from '../components/ReviewCard';
 import CreateReviewModal from '../components/CreateReviewModal';
 import EditReviewModal from '../components/EditReviewModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useGetReviewsQuery, useCreateReviewMutation, useToggleLikeMutation, useToggleHelpfulMutation, useAddCommentMutation, useDeleteReviewMutation, useUpdateReviewMutation, useUploadImagesMutation } from '../../redux/api/reviewsApi';
+import { useTheme } from '../hooks/useTheme';
+import { useGetReviewsQuery, useCreateReviewMutation, useToggleLikeMutation, useToggleHelpfulMutation, useAddCommentMutation, useDeleteReviewMutation, useUpdateReviewMutation, useUploadImagesMutation, useToggleSaveMutation } from '../../redux/api/reviewsApi';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectCurrentUser } from '../../redux/slices/authSlice';
 
 // Data now comes from API
 
 const Reviews = () => {
+  const { colors } = useTheme();
   const [activeCategory, setActiveCategory] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -33,6 +35,7 @@ const Reviews = () => {
   const [createReview, { isLoading: isCreating }] = useCreateReviewMutation();
   const [toggleLike] = useToggleLikeMutation();
   const [toggleHelpful] = useToggleHelpfulMutation();
+  const [toggleSave] = useToggleSaveMutation();
   const [addComment] = useAddCommentMutation();
   const [deleteReview] = useDeleteReviewMutation();
   const [updateReview] = useUpdateReviewMutation();
@@ -96,8 +99,14 @@ const Reviews = () => {
     }
   };
 
-  const handleSave = (reviewId) => {
-    Alert.alert('Saved', 'Saved locally (not synced)');
+  const handleSave = async (reviewId) => {
+    if (!isAuthed) return Alert.alert('Login required', 'Please sign in');
+    try {
+      await toggleSave(reviewId).unwrap();
+      refetch();
+    } catch (e) {
+      Alert.alert('Error', 'Could not save/unsave review');
+    }
   };
 
   const handleEdit = (review) => {
@@ -116,13 +125,19 @@ const Reviews = () => {
   };
 
   const toggleReplies = (reviewId) => {
-    const newExpanded = new Set(expandedReplies);
-    if (newExpanded.has(reviewId)) {
-      newExpanded.delete(reviewId);
-    } else {
-      newExpanded.add(reviewId);
+    const next = new Set(expandedReplies);
+    next.has(reviewId) ? next.delete(reviewId) : next.add(reviewId);
+    setExpandedReplies(next);
+  };
+
+  const handleAddComment = async (reviewId, text) => {
+    if (!isAuthed) return Alert.alert('Login required', 'Please sign in to comment');
+    try {
+      await addComment({ id: reviewId, text }).unwrap();
+      refetch();
+    } catch {
+      Alert.alert('Error', 'Could not add comment');
     }
-    setExpandedReplies(newExpanded);
   };
 
   const reviewsNeeded = 2;
@@ -130,12 +145,12 @@ const Reviews = () => {
   const progress = (totalReviews / (totalReviews + reviewsNeeded)) * 100;
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
       {/* Header */}
-      <View className="border-b border-gray-200">
+      <View style={{ borderBottomColor: colors.border }} className="border-b">
         <View className="px-4 py-4">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-2xl font-bold">Reviews</Text>
+            <Text style={{ color: colors.text }} className="text-2xl font-bold">Reviews</Text>
             <TouchableOpacity
               onPress={() => setShowCreateModal(true)}
               className="w-12 h-12 rounded-full items-center justify-center"
@@ -223,25 +238,15 @@ const Reviews = () => {
             <ReviewCard
               key={review.id}
               review={review}
-              isExpanded={expandedReplies.has(review.id)}
-              currentUserId={currentUser?._id}
+              expanded={expandedReplies.has(review.id)}
+              onToggle={toggleReplies}
+              onAddReply={handleAddComment}
               onLike={() => handleLike(review.id)}
               onHelpful={() => handleHelpful(review.id)}
               onSave={() => handleSave(review.id)}
-              onToggleReplies={() => toggleReplies(review.id)}
+              currentUserId={currentUser?._id}
               onEdit={() => handleEdit(review)}
               onDelete={() => handleDelete(review.id)}
-              onAddReply={async (text) => {
-                if (!isAuthed) {
-                  Alert.alert('Login required', 'Please sign in to comment');
-                  return;
-                }
-                try {
-                  await addComment({ id: review.id, text }).unwrap();
-                } catch (e) {
-                  Alert.alert('Error', 'Could not post comment');
-                }
-              }}
             />
           ))}
         </View>

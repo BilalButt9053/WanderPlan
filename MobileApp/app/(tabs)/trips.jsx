@@ -5,7 +5,9 @@ import  BudgetInputScreen  from '../screens/budget-input-screen';
 import  GeneratedPlanScreen  from '../screens/generated-plan-screen';
 import  ManualTripBuilderScreen  from '../screens/manual-trip-builder-screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../hooks/useTheme';
 const trips = () => {
+  const { colors } = useTheme();
   const [currentScreen, setCurrentScreen] = useState('history');
   const [budgetData, setBudgetData] = useState(null);
 
@@ -46,7 +48,7 @@ const trips = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
       {currentScreen === 'history' && (
         <TripHistoryScreen
           onCreateNew={handleCreateNew}

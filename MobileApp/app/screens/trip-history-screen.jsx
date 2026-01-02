@@ -19,6 +19,7 @@ import { WanderCard } from '../components/wander-card';
 import { WanderChip } from '../components/wander-chip';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ImageWithFallback from '../components/ImageWithFallback';
+import { useTheme } from '../hooks/useTheme';
 
 const trips = [
   {
@@ -94,6 +95,7 @@ const getStatusText = (status) => {
 };
 
 function TripCard({ trip, onReopen }) {
+  const { colors } = useTheme();
   const budgetPercentage = trip.spent 
     ? Math.round((Number(trip.spent) / Number(trip.budget)) * 100)
     : 0;
@@ -125,20 +127,20 @@ function TripCard({ trip, onReopen }) {
 
         {/* Info */}
         <View style={{ flex: 1, minWidth: 0, justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 4 }} numberOfLines={1}>
+          <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 4, color: colors.text }} numberOfLines={1}>
             {trip.destination}
           </Text>
           
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <Calendar size={12} color="#6B7280" />
-            <Text style={{ fontSize: 13, color: '#6B7280' }} numberOfLines={1}>
+            <Calendar size={12} color={colors.textSecondary} />
+            <Text style={{ fontSize: 13, color: colors.textSecondary }} numberOfLines={1}>
               {trip.dates}
             </Text>
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <Clock size={12} color="#6B7280" />
-            <Text style={{ fontSize: 13, color: '#6B7280' }}>
+            <Clock size={12} color={colors.textSecondary} />
+            <Text style={{ fontSize: 13, color: colors.textSecondary }}>
               {trip.duration}
             </Text>
           </View>
@@ -147,12 +149,12 @@ function TripCard({ trip, onReopen }) {
           {trip.status === 'completed' ? (
             <View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 11, color: '#6B7280' }}>Budget used</Text>
+                <Text style={{ fontSize: 11, color: colors.textSecondary }}>Budget used</Text>
                 <Text style={{ fontSize: 11, color: budgetPercentage > 100 ? '#DC2626' : '#059669', fontWeight: '600' }}>
                   {budgetPercentage}%
                 </Text>
               </View>
-              <View style={{ height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden' }}>
+              <View style={{ height: 6, backgroundColor: colors.input, borderRadius: 3, overflow: 'hidden' }}>
                 <View
                   style={{
                     height: '100%',
@@ -161,7 +163,7 @@ function TripCard({ trip, onReopen }) {
                   }}
                 />
               </View>
-              <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+              <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>
                 {trip.currency} {trip.spent} / {trip.budget}
               </Text>
             </View>
@@ -196,24 +198,25 @@ function TripCard({ trip, onReopen }) {
 }
 
 export default function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
+  const { colors } = useTheme();
   const completedTrips = trips.filter(t => t.status === 'completed');
   const upcomingTrips = trips.filter(t => t.status === 'upcoming');
   const draftTrips = trips.filter(t => t.status === 'draft');
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
       {/* Header */}
       <View style={{ 
-        backgroundColor: '#ffffff',
+        backgroundColor: colors.background,
         borderBottomWidth: 1,
-        borderBottomColor: '#e5e7eb',
+        borderBottomColor: colors.border,
         paddingHorizontal: 16,
         paddingVertical: 16
       }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View>
-            <Text style={{ fontSize: 24, fontWeight: '700' }}>My Trips</Text>
-            <Text style={{ fontSize: 14, color: '#6B7280' }}>
+            <Text style={{ fontSize: 24, fontWeight: '700', color: colors.text }}>My Trips</Text>
+            <Text style={{ fontSize: 14, color: colors.textSecondary }}>
               {trips.length} total trips
             </Text>
           </View>
@@ -246,7 +249,7 @@ export default function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
             <View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <Clock size={18} color="#3B82F6" />
-                <Text style={{ fontSize: 18, fontWeight: '600' }}>Upcoming Trips</Text>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text }}>Upcoming Trips</Text>
               </View>
               <View style={{ gap: 12 }}>
                 {upcomingTrips.map((trip) => (
@@ -263,7 +266,7 @@ export default function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
           {/* Drafts */}
           {draftTrips.length > 0 && (
             <View>
-              <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 12 }}>Drafts</Text>
+              <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 12, color: colors.text }}>Drafts</Text>
               <View style={{ gap: 12 }}>
                 {draftTrips.map((trip) => (
                   <TripCard
@@ -279,7 +282,7 @@ export default function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
           {/* Completed Trips */}
           {completedTrips.length > 0 && (
             <View>
-              <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 12 }}>Past Trips</Text>
+              <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 12, color: colors.text }}>Past Trips</Text>
               <View style={{ gap: 12 }}>
                 {completedTrips.map((trip) => (
                   <TripCard

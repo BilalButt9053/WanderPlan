@@ -26,6 +26,7 @@ import {
 import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
 import { ImageWithFallback } from '../components/ImageWithFallback';
+import { useTheme } from '../hooks/useTheme';
 
 const mapPlaces = [
   {
@@ -91,6 +92,7 @@ const mapPlaces = [
 ];
 
 const Maps = () => {
+  const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [showNearby, setShowNearby] = useState(false);
@@ -136,18 +138,20 @@ const Maps = () => {
   };
 
   return (
-    <View className="flex-1">
+    <View className="flex-1" style={{ backgroundColor: colors.background }}>
       <View className="flex-1">
         {/* Search Header */}
-        <View className="bg-white border-b border-gray-200 px-4 py-3">
+        <View style={{ backgroundColor: colors.background, borderBottomColor: colors.border }} className="border-b px-4 py-3">
           <View className="flex-row gap-2">
-            <View className="flex-1 flex-row items-center gap-2 bg-gray-100 rounded-2xl px-4 py-3">
-              <Search size={18} color="#666" />
+            <View className="flex-1 flex-row items-center gap-2 rounded-2xl px-4 py-3" style={{ backgroundColor: colors.input }}>
+              <Search size={18} color={colors.textSecondary} />
               <TextInput
                 placeholder="Search on map..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 className="flex-1 text-sm"
+                placeholderTextColor={colors.textTertiary}
+                style={{ color: colors.text }}
               />
             </View>
             <TouchableOpacity

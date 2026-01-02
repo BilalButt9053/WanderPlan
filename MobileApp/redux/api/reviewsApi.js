@@ -1,5 +1,5 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { BASE_URL } from './authApi';
+import { BASE_URL } from '../../config';
 
 export const reviewsApi = createApi({
   reducerPath: 'reviewsApi',
@@ -59,6 +59,10 @@ export const reviewsApi = createApi({
     uploadImages: builder.mutation({
       query: (formData) => ({ url: '/uploads/images', method: 'POST', body: formData }),
     }),
+    toggleSave: builder.mutation({
+      query: (id) => ({ url: `/reviews/${id}/save`, method: 'POST' }),
+      invalidatesTags: (result, error, id) => [{ type: 'Reviews', id }, { type: 'Reviews', id: 'LIST' }],
+    }),
   }),
 });
 
@@ -71,4 +75,5 @@ export const {
   useDeleteReviewMutation,
   useUpdateReviewMutation,
   useUploadImagesMutation,
+  useToggleSaveMutation,
 } = reviewsApi;
