@@ -25,7 +25,13 @@ const sendOTPEmail = async (email, OTP, businessName) => {
         port,
         secure,
         auth: { user, pass },
-        tls: { rejectUnauthorized: false },
+        tls: {
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1.2'
+        },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
     });
 
     try {
@@ -71,7 +77,13 @@ const sendApprovalEmail = async (email, businessName, status, reason = null) => 
         port,
         secure,
         auth: { user, pass },
-        tls: { rejectUnauthorized: false },
+        tls: {
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1.2'
+        },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
     });
 
     const isApproved = status === 'approved';
