@@ -26,7 +26,13 @@ const sendOTPEmail = async (email, OTP) => {
         port,
         secure,
         auth: { user, pass },
-        tls: { rejectUnauthorized: false },
+        tls: {
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1.2'
+        },
+        connectionTimeout: 10000, // 10 seconds
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
     });
 
     try {

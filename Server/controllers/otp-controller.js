@@ -32,9 +32,12 @@ const getEmailTransport = () => {
       pass,
     },
     tls: {
-      // allow self-signed certs for testing; set to true in prod to be stricter
       rejectUnauthorized: false,
+      minVersion: 'TLSv1.2'
     },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
   });
 };
 
