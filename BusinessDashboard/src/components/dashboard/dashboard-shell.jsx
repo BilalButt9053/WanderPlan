@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Button } from '@/components/ui/button'
@@ -18,9 +18,6 @@ import {
   Tag,
   Star,
   CreditCard,
-  BarChart3,
-  Users,
-  MessageSquare,
   Bell,
   Settings,
   Search,
@@ -29,19 +26,18 @@ import {
   Mountain,
   LogOut,
   User,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logout, selectCurrentBusiness } from '@/redux/slices/businessAuthSlice'
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Dashboard & Analytics', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Business Profile', href: '/dashboard/profile', icon: Building2 },
   { name: 'Deals & Ads', href: '/dashboard/deals', icon: Tag },
   { name: 'Reviews', href: '/dashboard/reviews', icon: Star },
   { name: 'POS Integration', href: '/dashboard/pos', icon: CreditCard },
-  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-  { name: 'Staff', href: '/dashboard/staff', icon: Users },
-  { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 
@@ -51,7 +47,24 @@ export function DashboardShell({ children }) {
   const dispatch = useDispatch()
   const business = useSelector(selectCurrentBusiness)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('theme') || 'light'
+    } catch (e) {
+      return 'light'
+    }
+  })
   const notifications = 3
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'dark') {
+      root.classList.add('dark')
+    } else {
+      root.classList.remove('dark')
+    }
+    try { localStorage.setItem('theme', theme) } catch (e) {}
+  }, [theme])
 
   const handleLogout = () => {
     dispatch(logout())
@@ -128,6 +141,9 @@ export function DashboardShell({ children }) {
 
             {/* Right Section */}
             <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
+                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="h-5 w-5" />
                 {notifications > 0 && (

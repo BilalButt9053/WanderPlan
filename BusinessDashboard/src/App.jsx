@@ -10,9 +10,11 @@ import ProfilePage from './pages/profile'
 import DealsPage from './pages/deals'
 import ReviewsPage from './pages/reviews'
 import AnalyticsPage from './pages/analytics'
+import POSPage from './pages/pos'
 import ProtectedRoute from './components/ProtectedRoute'
 import { loadPendingBusiness, selectIsAuthenticated } from './redux/slices/businessAuthSlice'
 import './App.css'
+import SettingsPage from './pages/settings'
 
 function App() {
   const dispatch = useDispatch()
@@ -50,6 +52,11 @@ function App() {
             <DealsPage />
           </ProtectedRoute>
         } />
+        <Route path="/dashboard/pos" element={
+          <ProtectedRoute>
+            <POSPage />
+          </ProtectedRoute>
+        } />
         <Route path="/dashboard/reviews" element={
           <ProtectedRoute>
             <ReviewsPage />
@@ -58,6 +65,11 @@ function App() {
         <Route path="/dashboard/analytics" element={
           <ProtectedRoute>
             <AnalyticsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/dashboard/settings" element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         } />
       </Routes>
