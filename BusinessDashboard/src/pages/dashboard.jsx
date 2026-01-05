@@ -10,7 +10,7 @@ export default function DashboardPage() {
     <DashboardShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-white text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1">Welcome back! Here's your business overview.</p>
         </div>
 

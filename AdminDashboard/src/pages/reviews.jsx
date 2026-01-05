@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -28,56 +29,75 @@ import {
   Star,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-
-const reviews = [
-  {
-    id: 1,
-    user: "Sarah Johnson",
-    userInitials: "SJ",
-    location: "Mountain View Hotel",
-    rating: 5,
-    content:
-      "Amazing experience! The staff was incredibly friendly and the views were breathtaking.",
-    date: "2024-12-22",
-    status: "Pending",
-    reports: 0,
-    flagged: false,
-  },
-  {
-    id: 2,
-    user: "Mike Chen",
-    userInitials: "MC",
-    location: "Sunset Restaurant",
-    rating: 4,
-    content:
-      "Great food and ambiance. The sunset view from the terrace is spectacular.",
-    date: "2024-12-21",
-    status: "Approved",
-    reports: 0,
-    flagged: false,
-  },
-  {
-    id: 3,
-    user: "Anonymous User",
-    userInitials: "AU",
-    location: "Cafe Delight",
-    rating: 1,
-    content: "Terrible service and overpriced.",
-    date: "2024-12-20",
-    status: "Flagged",
-    reports: 3,
-    flagged: true,
-  },
-]
-
-const stats = [
-  { label: "Total Reviews", value: "12,854" },
-  { label: "Pending Approval", value: "47" },
-  { label: "Flagged Content", value: "12" },
-  { label: "Approved Today", value: "156" },
-]
+import { reviewsService } from "@/services/adminService"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function ReviewsPage() {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterRating, setFilterRating] = useState('all');
+  const { toast } = useToast();
+
+  const fetchReviews = async () => {
+    try {
+      setLoading(true);
+      const data = await reviewsService.getReviews({ limit: 100 });
+      setReviews(data?.items || []);
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch reviews",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReviews();
+  }, []);
+
+  const handleDeleteReview = async (id) => {
+    if (!confirm('Are you sure you want to delete this review?')) return;
+    
+    try {
+      await reviewsService.deleteReview(id);
+      toast({
+        title: "Success",
+        description: "Review deleted successfully",
+      });
+      fetchReviews();
+    } catch (error) {
+      console.error('Error deleting review:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete review",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const filteredReviews = reviews.filter(review => {
+    const matchesSearch = review.place?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         review.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         review.text?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || 
+                         (filterStatus === 'flagged' && (review.status === 'flagged' || review.flags?.length > 0)) ||
+                         (filterStatus === 'active' && review.status === 'active');
+    const matchesRating = filterRating === 'all' || review.rating === parseInt(filterRating);
+    return matchesSearch && matchesStatus && matchesRating;
+  });
+
+  const stats = [
+    { label: "Total Reviews", value: reviews.length.toLocaleString() },
+    { label: "Pending Approval", value: "0" },
+    { label: "Flagged Content", value: reviews.filter(r => r.status === 'flagged' || r.flags?.length > 0).length.toLocaleString() },
+    { label: "Active Reviews", value: reviews.filter(r => r.status === 'active').length.toLocaleString() },
+  ];
   return (
     <div className="space-y-6">
       <div>
@@ -118,23 +138,24 @@ export default function ReviewsPage() {
                   type="search"
                   placeholder="Search reviews..."
                   className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
 
-              <Select defaultValue="all">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="w-full md:w-40">
                   <Filter className="mr-2 h-4 w-4" />
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="flagged">Flagged</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select defaultValue="all">
+              <Select value={filterRating} onValueChange={setFilterRating}>
                 <SelectTrigger className="w-full md:w-40">
                   <SelectValue placeholder="Rating" />
                 </SelectTrigger>
@@ -152,77 +173,103 @@ export default function ReviewsPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {reviews.map((review) => (
-            <div
-              key={review.id}
-              className="flex items-start gap-4 rounded-lg border p-4"
-            >
-              <Avatar>
-                <AvatarFallback>{review.userInitials}</AvatarFallback>
-              </Avatar>
+          {loading ? (
+            <div className="text-center py-8">Loading reviews...</div>
+          ) : filteredReviews.length === 0 ? (
+            <div className="text-center py-8">No reviews found</div>
+          ) : (
+            filteredReviews.map((review) => (
+              <div
+                key={review._id}
+                className="flex items-start gap-4 rounded-lg border p-4"
+              >
+                <Avatar>
+                  <AvatarFallback>{review.user?.avatar || review.user?.name?.charAt(0) || "U"}</AvatarFallback>
+                </Avatar>
 
-              <div className="flex-1 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{review.user}</span>
-                      <Badge
-                        variant={
-                          review.status === "Approved"
-                            ? "default"
-                            : review.status === "Flagged"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                      >
-                        {review.status}
-                      </Badge>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{review.user?.name || "Anonymous"}</span>
+                        <Badge
+                          variant={
+                            review.status === "active"
+                              ? "default"
+                              : review.status === "flagged" || review.flags?.length > 0
+                              ? "destructive"
+                              : "secondary"
+                          }
+                        >
+                          {review.flags?.length > 0 ? "Flagged" : review.status}
+                        </Badge>
+                        {review.flags?.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            ({review.flags.length} report{review.flags.length !== 1 ? 's' : ''})
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {review.place} • {review.category} • {new Date(review.createdAt).toLocaleDateString()}
+                      </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {review.location} • {review.date}
-                    </div>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-destructive"
+                          onClick={() => handleDeleteReview(review._id)}
+                        >
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Remove
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Eye className="mr-2 h-4 w-4" />
-                        View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Approve
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">
-                        <XCircle className="mr-2 h-4 w-4" />
-                        Remove
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`h-4 w-4 ${
+                          i < review.rating
+                            ? "fill-yellow-500 text-yellow-500"
+                            : "text-muted"
+                        }`}
+                      />
+                    ))}
+                  </div>
 
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-4 w-4 ${
-                        i < review.rating
-                          ? "fill-yellow-500 text-yellow-500"
-                          : "text-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
+                  <p className="text-sm">{review.text}</p>
 
-                <p className="text-sm">{review.content}</p>
+                  {review.tags && review.tags.length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {review.tags.map((tag, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-4 text-xs text-muted-foreground">
+                    <span>👍 {review.likes || 0} likes</span>
+                    <span>✓ {review.helpful || 0} helpful</span>
+                    {review.replies && <span>💬 {review.replies.length} replies</span>}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

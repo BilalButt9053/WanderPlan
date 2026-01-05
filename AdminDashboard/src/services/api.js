@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -12,7 +12,7 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('adminToken');
+    const token = localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -27,10 +27,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    console.error('API Error:', error.response || error);
+    
     if (error.response?.status === 401) {
-      localStorage.removeItem('adminToken');
-      window.location.href = '/login';
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('userData');
+      // Don't redirect immediately, let the component handle it
+      // window.location.href = '/sign-in';
     }
+    
+    // Enhance error message
+    if (error.response) {
+      error.message = error.response.data?.message || error.message;
+    } else if (error.request) {
+      error.message = 'No response from server. Please check if the server is running.';
+    }
+    
     return Promise.reject(error);
   }
 );

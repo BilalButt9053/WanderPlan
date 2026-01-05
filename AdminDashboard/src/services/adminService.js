@@ -34,22 +34,17 @@ export const usersService = {
   },
 
   updateUser: async (id, data) => {
-    const response = await api.put(`/admin/users/${id}`, data);
+    const response = await api.patch(`/admin/users/update/${id}`, data);
     return response.data;
   },
 
   deleteUser: async (id) => {
-    const response = await api.delete(`/admin/users/${id}`);
+    const response = await api.delete(`/admin/users/delete/${id}`);
     return response.data;
   },
 
-  suspendUser: async (id) => {
-    const response = await api.post(`/admin/users/${id}/suspend`);
-    return response.data;
-  },
-
-  activateUser: async (id) => {
-    const response = await api.post(`/admin/users/${id}/activate`);
+  makeAdmin: async (userId) => {
+    const response = await api.post(`/admin/make-admin`, { userId });
     return response.data;
   },
 
@@ -71,7 +66,7 @@ export const businessesService = {
   },
 
   updateBusiness: async (id, data) => {
-    const response = await api.put(`/admin/businesses/${id}`, data);
+    const response = await api.patch(`/admin/businesses/${id}`, data);
     return response.data;
   },
 
@@ -80,13 +75,18 @@ export const businessesService = {
     return response.data;
   },
 
-  verifyBusiness: async (id) => {
-    const response = await api.post(`/admin/businesses/${id}/verify`);
+  approveBusiness: async (id) => {
+    const response = await api.post(`/admin/businesses/${id}/approve`);
     return response.data;
   },
 
   rejectBusiness: async (id, reason) => {
     const response = await api.post(`/admin/businesses/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  suspendBusiness: async (id, reason) => {
+    const response = await api.post(`/admin/businesses/${id}/suspend`, { reason });
     return response.data;
   },
 
@@ -98,33 +98,39 @@ export const businessesService = {
 
 export const reviewsService = {
   getReviews: async (params) => {
-    const response = await api.get('/admin/reviews', { params });
+    const response = await api.get('/reviews', { params });
     return response.data;
   },
 
   getReviewById: async (id) => {
-    const response = await api.get(`/admin/reviews/${id}`);
+    const response = await api.get(`/reviews/${id}`);
     return response.data;
   },
 
   approveReview: async (id) => {
-    const response = await api.post(`/admin/reviews/${id}/approve`);
-    return response.data;
-  },
-
-  rejectReview: async (id, reason) => {
-    const response = await api.post(`/admin/reviews/${id}/reject`, { reason });
+    const response = await api.post(`/reviews/${id}/approve`);
     return response.data;
   },
 
   deleteReview: async (id) => {
-    const response = await api.delete(`/admin/reviews/${id}`);
+    const response = await api.delete(`/reviews/${id}`);
     return response.data;
   },
 
   getReviewStats: async () => {
-    const response = await api.get('/admin/reviews/stats');
-    return response.data;
+    // Calculate stats from reviews
+    const reviews = await api.get('/reviews');
+    const data = reviews.data;
+    
+    const total = data.items?.length || 0;
+    const flagged = data.items?.filter(r => r.status === 'flagged' || r.flags?.length > 0).length || 0;
+    
+    return {
+      total,
+      pending: 0,
+      flagged,
+      approvedToday: 0
+    };
   },
 };
 
