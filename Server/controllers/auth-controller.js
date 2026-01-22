@@ -138,7 +138,7 @@ const login = async (req, res, next) => {
         if (match) {
             // Check if email is verified
             if (!userExist.isVerified) {
-                // Generate and send OTP for unverified users
+                // Generate and send OTP for unverified users only
                 const OTP = generateOTP();
                 
                 // Delete any existing tokens
@@ -165,34 +165,20 @@ const login = async (req, res, next) => {
                 });
             }
 
-            // For verified users, also send OTP for login verification
-            const OTP = generateOTP();
-            console.log('[auth-controller] Generated login OTP:', OTP);
+            // For verified users, login directly without OTP
+            const token = await userExist.jwtToken();
             
-            // Delete any existing tokens
-            await EmailVerificationToken.deleteMany({ owner: userExist._id });
-            
-            // Save OTP to database
-            const loginOtpToken = new EmailVerificationToken({
-                owner: userExist._id,
-                token: OTP,
-            });
-            await loginOtpToken.save();
-            
-            // Send OTP via email (with error handling)
-            try {
-                await sendOTPEmail(email, OTP);
-                console.log('[auth-controller] Login OTP sent successfully');
-            } catch (emailError) {
-                console.error('[auth-controller] Failed to send login OTP email:', emailError.message);
-                // Continue anyway - OTP is saved in database
-            }
-
-            // Return response requiring OTP verification
             return res.status(200).json({
-                msg: "OTP sent to your email for login verification",
-                requiresLoginOtp: true,
-                email: userExist.email,
+                msg: "Login successful",
+                user: {
+                    _id: userExist._id,
+                    fullName: userExist.fullName,
+                    email: userExist.email,
+                    profilePhoto: userExist.profilePhoto,
+                    isVerified: userExist.isVerified,
+                    isAdmin: userExist.isAdmin || false,
+                },
+                token
             });
         } else {
             // Password does not match, send error response

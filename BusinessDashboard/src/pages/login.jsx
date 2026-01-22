@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Mountain, Loader2, AlertCircle, Clock, XCircle } from 'lucide-react'
 import { useLoginBusinessMutation } from '@/redux/api/businessApi'
-import { setCredentials, selectIsAuthenticated } from '@/redux/slices/businessAuthSlice'
+import { setCredentials, selectIsAuthenticated, setPendingBusiness } from '@/redux/slices/businessAuthSlice'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -41,6 +41,16 @@ export default function LoginPage() {
       navigate('/dashboard')
     } catch (err) {
       console.error('Login failed:', err)
+      
+      // Handle unverified email - redirect to verification page
+      if (err?.data?.businessId && err?.status === 403) {
+        dispatch(setPendingBusiness({
+          businessId: err.data.businessId,
+          email: email
+        }))
+        navigate('/verify-email')
+        return
+      }
       
       // Handle different status responses
       const status = err?.data?.status

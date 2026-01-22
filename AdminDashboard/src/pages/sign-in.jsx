@@ -45,34 +45,28 @@ export default function SignInPage() {
       
       console.log('Login response:', response);
       
-      // Check if OTP is required
-      if (response.requiresLoginOtp || response.requiresVerification || response.msg) {
-        setSuccess(response.msg || "OTP sent to your email");
-        // Navigate to OTP verification with email
-        setTimeout(() => {
-          navigate("/auth/verify-otp", { 
-            state: { 
-              email: formData.email,
-              isLogin: true 
-            } 
-          });
-        }, 1000);
-      } else if (response.token && response.user) {
-        // Direct login without OTP (backup case)
+      // Check if user is verified and has token (direct login for verified users)
+      if (response.token && response.user) {
+        // Check if user is admin
         if (!response.user.isAdmin) {
           setError("Access denied. Admin privileges required.");
           return;
         }
+        
+        // Store credentials and redirect to dashboard
         localStorage.setItem("authToken", response.token);
         localStorage.setItem("userData", JSON.stringify(response.user));
-        navigate("/");
+        setSuccess("Login successful! Redirecting...");
+        setTimeout(() => {
+          navigate("/");
+        }, 500);
       } else {
         setError("Unexpected response from server");
       }
     } catch (err) {
       console.error("Login error:", err);
       
-      // Check if it's a verification required error (403 status)
+      // Check if it's a verification required error (403 status) - only for unverified users
       if (err?.status === 403 && err?.data?.requiresVerification) {
         setSuccess(err.data.message || "OTP sent to your email. Please verify your email.");
         setTimeout(() => {
