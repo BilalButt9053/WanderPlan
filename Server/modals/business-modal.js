@@ -43,10 +43,22 @@ const BusinessSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    website: {
+        type: String,
+        default: ''
+    },
     logo: {
         type: String,
         default: null
     },
+    galleryImages: [{
+        url: String,
+        publicId: String,
+        uploadedAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
     documents: [{
         type: {
             type: String,

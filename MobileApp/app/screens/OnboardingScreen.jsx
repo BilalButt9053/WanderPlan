@@ -46,12 +46,12 @@ function OnboardingScreen({ onComplete }) {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-1 p-6">
+      <View className="relative flex-1 p-6">
         {/* Skip button */}
         {currentSlide < slides.length - 1 && (
           <View className="items-end mb-4">
             <TouchableOpacity onPress={onComplete}>
-              <Text className="text-muted-foreground text-base">
+              <Text className="absolute top-0 right-0 text-muted-foreground text-base">
                 Skip
               </Text>
             </TouchableOpacity>

@@ -4,66 +4,72 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Mountain, Loader2 } from 'lucide-react'
-import { useRegisterBusinessMutation } from '@/redux/api/businessApi'
+import { Mountain, Sun, Moon } from 'lucide-react'
 import { setPendingBusiness } from '@/redux/slices/businessAuthSlice'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    businessName: '',
+    ownerName: '',
     email: '',
     password: '',
+    confirmPassword: '',
   })
   
   const navigate = useNavigate()
   const dispatch = useDispatch()
-  const [registerBusiness, { isLoading, error }] = useRegisterBusinessMutation()
+  const { theme, toggleTheme } = useTheme()
+  const [error, setError] = useState('')
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     })
+    setError('')
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setError('')
 
-    if (formData.password.length < 6) {
-      alert('Password must be at least 6 characters long')
+    // Validation
+    if (!formData.ownerName || !formData.email || !formData.password) {
+      setError('All fields are required')
       return
     }
 
-    try {
-      // Combine firstName and lastName into ownerName for backend
-      const registrationData = {
-        businessName: formData.businessName,
-        ownerName: `${formData.firstName} ${formData.lastName}`,
-        email: formData.email,
-        password: formData.password,
-        phone: '', // Will be collected in onboarding
-        businessType: 'other', // Will be collected in onboarding
-      }
-      const response = await registerBusiness(registrationData).unwrap()
-      
-      // Store pending business info for onboarding flow
-      dispatch(setPendingBusiness({
-        businessId: response.businessId,
-        email: response.email
-      }))
-      
-      // Navigate to onboarding page instead of directly to OTP verification
-      navigate('/onboarding')
-    } catch (err) {
-      console.error('Registration failed:', err)
-      alert(err?.data?.message || 'Registration failed. Please try again.')
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long')
+      return
     }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    // Store signup data temporarily in Redux (no API call yet)
+    dispatch(setPendingBusiness({
+      ownerName: formData.ownerName,
+      email: formData.email,
+      password: formData.password,
+      step: 'onboarding'
+    }))
+    
+    // Navigate to onboarding to collect business details
+    navigate('/onboarding')
   }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      {/* Theme Toggle Button */}
+      <div className="fixed top-4 right-4">
+        <Button variant="ghost" size="icon" onClick={toggleTheme}>
+          {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </Button>
+      </div>
+
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -74,45 +80,16 @@ export default function SignupPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="firstName" className="text-sm font-medium">First Name</label>
-                <Input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  placeholder="John"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="lastName" className="text-sm font-medium">Last Name</label>
-                <Input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  placeholder="Doe"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
             <div className="space-y-2">
-              <label htmlFor="businessName" className="text-sm font-medium">Business Name</label>
+              <label htmlFor="ownerName" className="text-sm font-medium">Owner Name</label>
               <Input
-                id="businessName"
-                name="businessName"
+                id="ownerName"
+                name="ownerName"
                 type="text"
-                placeholder="My Amazing Business"
-                value={formData.businessName}
+                placeholder="John Doe"
+                value={formData.ownerName}
                 onChange={handleChange}
                 required
-                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -125,7 +102,6 @@ export default function SignupPage() {
                 value={formData.email}
                 onChange={handleChange}
                 required
-                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -138,26 +114,32 @@ export default function SignupPage() {
                 value={formData.password}
                 onChange={handleChange}
                 required
-                disabled={isLoading}
+                minLength={6}
+              />
+              <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</label>
+              <Input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                placeholder="••••••••"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
                 minLength={6}
               />
             </div>
 
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                {error?.data?.message || 'Registration failed. Please try again.'}
+                {error}
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Account...
-                </>
-              ) : (
-                'Continue to Onboarding'
-              )}
+            <Button type="submit" className="w-full">
+              Continue to Business Details
             </Button>
           </form>
           <p className="text-center text-sm text-muted-foreground mt-4">

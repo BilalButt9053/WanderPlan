@@ -23,7 +23,10 @@ function App() {
   useEffect(() => {
     // Load pending business data on app mount
     dispatch(loadPendingBusiness())
+    console.log('App mounted, isAuthenticated:', isAuthenticated)
   }, [dispatch])
+
+  console.log('App rendering, isAuthenticated:', isAuthenticated)
 
   return (
     <Router>

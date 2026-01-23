@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -28,98 +28,116 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Search, Filter, MoreVertical, Eye, CheckCircle, Ban, Trash2 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-
-const users = [
-  {
-    id: 1,
-    name: "Sarah Johnson",
-    email: "sarah.j@email.com",
-    role: "Contributor",
-    level: "Level 3",
-    status: "Active",
-    joinedDate: "2024-01-15",
-    contributions: 127,
-  },
-  {
-    id: 2,
-    name: "Mike Chen",
-    email: "mike.chen@email.com",
-    role: "Contributor",
-    level: "Level 5",
-    status: "Active",
-    joinedDate: "2023-11-20",
-    contributions: 243,
-  },
-  {
-    id: 3,
-    name: "Emma Davis",
-    email: "emma.d@email.com",
-    role: "Tourist",
-    level: "Level 1",
-    status: "Active",
-    joinedDate: "2024-06-10",
-    contributions: 12,
-  },
-  {
-    id: 4,
-    name: "James Wilson",
-    email: "james.w@email.com",
-    role: "Contributor",
-    level: "Level 4",
-    status: "Suspended",
-    joinedDate: "2023-09-05",
-    contributions: 189,
-  },
-  {
-    id: 5,
-    name: "Lisa Anderson",
-    email: "lisa.a@email.com",
-    role: "Tourist",
-    level: "Level 2",
-    status: "Active",
-    joinedDate: "2024-03-22",
-    contributions: 34,
-  },
-  {
-    id: 6,
-    name: "David Martinez",
-    email: "david.m@email.com",
-    role: "Contributor",
-    level: "Level 3",
-    status: "Active",
-    joinedDate: "2024-02-18",
-    contributions: 98,
-  },
-  {
-    id: 7,
-    name: "Sophie Taylor",
-    email: "sophie.t@email.com",
-    role: "Tourist",
-    level: "Level 1",
-    status: "Active",
-    joinedDate: "2024-07-01",
-    contributions: 8,
-  },
-  {
-    id: 8,
-    name: "Ryan Brown",
-    email: "ryan.b@email.com",
-    role: "Contributor",
-    level: "Level 5",
-    status: "Active",
-    joinedDate: "2023-08-12",
-    contributions: 312,
-  },
-]
-
-const stats = [
-  { label: "Total Users", value: "8,432" },
-  { label: "Active Today", value: "1,234" },
-  { label: "Contributors", value: "1,420" },
-  { label: "Tourists", value: "7,012" },
-]
+import { usersService } from "@/services/adminService"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function UsersPage() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterRole, setFilterRole] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const { toast } = useToast();
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        toast({
+          title: "Error",
+          description: "Please login first",
+          variant: "destructive",
+        });
+        window.location.href = '/sign-in';
+        return;
+      }
+      
+      const data = await usersService.getUsers();
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      const errorMessage = error.response?.data?.message || error.message || "Failed to fetch users";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      // If unauthorized, redirect to login
+      if (error.response?.status === 401) {
+        setTimeout(() => {
+          window.location.href = '/sign-in';
+        }, 1500);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleDeleteUser = async (id) => {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    
+    try {
+      await usersService.deleteUser(id);
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+      fetchUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete user",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMakeAdmin = async (id) => {
+    if (!confirm('Are you sure you want to make this user an admin?')) return;
+    
+    try {
+      await usersService.makeAdmin(id);
+      toast({
+        title: "Success",
+        description: "User granted admin privileges",
+      });
+      fetchUsers();
+    } catch (error) {
+      console.error('Error making admin:', error);
+      toast({
+        title: "Error",
+        description: "Failed to grant admin privileges",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         user.email?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRole = filterRole === 'all' || 
+                       (filterRole === 'admin' && user.isAdmin) ||
+                       (filterRole === 'user' && !user.isAdmin);
+    const matchesStatus = filterStatus === 'all' || 
+                         (filterStatus === 'active' && user.isVerified) ||
+                         (filterStatus === 'suspended' && !user.isVerified);
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
+  const stats = [
+    { label: "Total Users", value: users.length.toLocaleString() },
+    { label: "Active Today", value: users.filter(u => u.isVerified).length.toLocaleString() },
+    { label: "Admins", value: users.filter(u => u.isAdmin).length.toLocaleString() },
+    { label: "Regular Users", value: users.filter(u => !u.isAdmin).length.toLocaleString() },
+  ];
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -155,22 +173,27 @@ export default function UsersPage() {
             <div className="flex flex-col gap-2 md:flex-row md:items-center">
               <div className="relative md:w-64">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Search users..." className="pl-10" />
+                <Input 
+                  placeholder="Search users..." 
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
 
-              <Select defaultValue="all">
+              <Select value={filterRole} onValueChange={setFilterRole}>
                 <SelectTrigger className="md:w-40">
                   <Filter className="mr-2 h-4 w-4" />
                   <SelectValue placeholder="Role" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="contributor">Contributor</SelectItem>
-                  <SelectItem value="tourist">Tourist</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="user">User</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select defaultValue="all">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="md:w-40">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -190,95 +213,111 @@ export default function UsersPage() {
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Level</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Contributions</TableHead>
+                <TableHead>Verified</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarFallback>
-                          {user.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {user.email}
-                        </div>
-                      </div>
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    <Badge
-                      variant={
-                        user.role === "Contributor" ? "default" : "secondary"
-                      }
-                    >
-                      {user.role}
-                    </Badge>
-                  </TableCell>
-
-                  <TableCell>{user.level}</TableCell>
-
-                  <TableCell>
-                    <Badge
-                      variant={
-                        user.status === "Active"
-                          ? "default"
-                          : "destructive"
-                      }
-                    >
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-
-                  <TableCell>{user.contributions}</TableCell>
-                  <TableCell>{user.joinedDate}</TableCell>
-
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Approve Contributor
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Ban className="mr-2 h-4 w-4" />
-                          Suspend User
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete User
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    Loading users...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    No users found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredUsers.map((user) => (
+                  <TableRow key={user._id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarFallback>
+                            {user.fullName
+                              ?.split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase() || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium">{user.fullName || "Unknown"}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {user.email}
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge
+                        variant={user.isAdmin ? "default" : "secondary"}
+                      >
+                        {user.isAdmin ? "Admin" : "User"}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge
+                        variant={user.isVerified ? "default" : "destructive"}
+                      >
+                        {user.isVerified ? "Active" : "Unverified"}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell>
+                      {user.isVerified ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Ban className="h-4 w-4 text-red-500" />
+                      )}
+                    </TableCell>
+
+                    <TableCell>
+                      {new Date(user.createdAt || Date.now()).toLocaleDateString()}
+                    </TableCell>
+
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Profile
+                          </DropdownMenuItem>
+                          {!user.isAdmin && (
+                            <DropdownMenuItem onClick={() => handleMakeAdmin(user._id)}>
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Make Admin
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => handleDeleteUser(user._id)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete User
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
