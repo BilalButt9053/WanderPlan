@@ -13,6 +13,7 @@ const reviewsRoute = require("./router/reviews-router");
 const uploadsRoute = require("./router/uploads-router");
 const businessAuthRoute = require("./router/business-auth-router");
 const adminBusinessRoute = require("./router/admin-business-router");
+const businessUploadRoute = require("./router/business-upload-router");
 
 
 app.use(cors({
@@ -34,6 +35,7 @@ app.use("/api/reviews", reviewsRoute);
 app.use("/api/uploads", uploadsRoute);
 app.use("/api/business", businessAuthRoute);
 app.use("/api/admin", adminBusinessRoute);
+app.use("/api/business/upload", businessUploadRoute);
 app.use(errorMiddleware);
 
 const port = process.env.PORT || 5000;

@@ -4,9 +4,10 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Mountain, Loader2, AlertCircle, Clock, XCircle } from 'lucide-react'
+import { Mountain, Loader2, AlertCircle, Clock, XCircle, Sun, Moon } from 'lucide-react'
 import { useLoginBusinessMutation } from '@/redux/api/businessApi'
 import { setCredentials, selectIsAuthenticated, setPendingBusiness } from '@/redux/slices/businessAuthSlice'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const isAuthenticated = useSelector(selectIsAuthenticated)
+  const { theme, toggleTheme } = useTheme()
   
   const [loginBusiness, { isLoading, error }] = useLoginBusinessMutation()
 
@@ -88,6 +90,13 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      {/* Theme Toggle Button */}
+      <div className="fixed top-4 right-4">
+        <Button variant="ghost" size="icon" onClick={toggleTheme}>
+          {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </Button>
+      </div>
+
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">

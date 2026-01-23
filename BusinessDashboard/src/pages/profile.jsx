@@ -8,7 +8,7 @@ export default function ProfilePage() {
     <DashboardShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-white text-3xl font-bold">Business Profile</h1>
+          <h1 className="text-foreground text-3xl font-bold">Business Profile</h1>
           <p className="text-muted-foreground mt-1">Manage your business information and settings.</p>
         </div>
 

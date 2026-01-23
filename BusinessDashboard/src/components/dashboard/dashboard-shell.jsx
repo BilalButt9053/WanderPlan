@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logout, selectCurrentBusiness } from '@/redux/slices/businessAuthSlice'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const navigation = [
   { name: 'Dashboard & Analytics', href: '/dashboard', icon: LayoutDashboard },
@@ -47,24 +48,8 @@ export function DashboardShell({ children }) {
   const dispatch = useDispatch()
   const business = useSelector(selectCurrentBusiness)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem('theme') || 'light'
-    } catch (e) {
-      return 'light'
-    }
-  })
+  const { theme, toggleTheme } = useTheme()
   const notifications = 3
-
-  useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'dark') {
-      root.classList.add('dark')
-    } else {
-      root.classList.remove('dark')
-    }
-    try { localStorage.setItem('theme', theme) } catch (e) {}
-  }, [theme])
 
   const handleLogout = () => {
     dispatch(logout())
@@ -116,36 +101,49 @@ export function DashboardShell({ children }) {
       {/* Main Content */}
       <div className="lg:pl-64">
         {/* Top Navigation */}
-        <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-          <div className="flex h-16 items-center gap-4 px-4 sm:px-6">
-            {/* Mobile Menu Toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
+        <header className="sticky top-0 z-40 border-b border-border bg-card px-4 md:px-6">
+          <div className="flex h-16 items-center justify-between gap-4">
+            {/* Left Section - Mobile Menu & Search */}
+            <div className="flex flex-1 items-center gap-2 md:gap-4">
+              {/* Mobile Menu Toggle */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden flex-shrink-0"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                title="Toggle Sidebar"
+              >
+                {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
 
-            {/* Search */}
-            <div className="flex-1 flex items-center gap-4 max-w-md">
-              <div className="relative w-full">
+              {/* Search */}
+              <div className="relative w-full max-w-md">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  type="search"
                   placeholder="Search..."
-                  className="pl-9 h-9"
+                  className="pl-10"
                 />
               </div>
             </div>
 
             {/* Right Section */}
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
-                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            <div className="flex items-center gap-2 md:gap-4">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleTheme}
+                className="relative flex-shrink-0"
+                title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              >
+                {theme === 'dark' ? (
+                  <Sun className="h-5 w-5 text-yellow-500" />
+                ) : (
+                  <Moon className="h-5 w-5" />
+                )}
               </Button>
               <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
+                <Bell className="h-5 w-5 text-foreground" />
                 {notifications > 0 && (
                   <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
                 )}
@@ -153,14 +151,15 @@ export function DashboardShell({ children }) {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                    <Avatar className="h-9 w-9">
+                  <Button variant="ghost" className="gap-2">
+                    <Avatar className="h-8 w-8">
                       <AvatarImage src={business?.logo} alt={business?.businessName} />
                       <AvatarFallback>{getInitials()}</AvatarFallback>
                     </Avatar>
+                    <span className="hidden md:inline text-sm font-medium text-foreground">{business?.businessName}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none">{business?.businessName}</p>
@@ -177,7 +176,7 @@ export function DashboardShell({ children }) {
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
+                  <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out
                   </DropdownMenuItem>

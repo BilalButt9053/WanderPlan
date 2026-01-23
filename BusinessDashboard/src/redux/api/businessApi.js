@@ -49,12 +49,72 @@ export const businessApi = createApi({
       providesTags: ['Profile'],
     }),
     
+    // Update business profile
+    updateBusinessProfile: builder.mutation({
+      query: (updates) => ({
+        url: '/business/profile',
+        method: 'PUT',
+        body: updates,
+      }),
+      invalidatesTags: ['Profile'],
+    }),
+    
     // Resend OTP
     resendOTP: builder.mutation({
       query: (businessId) => ({
         url: '/otp/resend',
         method: 'POST',
         body: { userId: businessId },
+      }),
+    }),
+    
+    // Upload logo
+    uploadLogo: builder.mutation({
+      query: (file) => {
+        const formData = new FormData();
+        formData.append('logo', file);
+        return {
+          url: '/business/upload/logo',
+          method: 'POST',
+          body: formData,
+        };
+      },
+    }),
+    
+    // Upload gallery images
+    uploadGalleryImages: builder.mutation({
+      query: (files) => {
+        const formData = new FormData();
+        files.forEach((file) => {
+          formData.append('images', file);
+        });
+        return {
+          url: '/business/upload/gallery',
+          method: 'POST',
+          body: formData,
+        };
+      },
+    }),
+    
+    // Upload document
+    uploadDocument: builder.mutation({
+      query: ({ file, type }) => {
+        const formData = new FormData();
+        formData.append('document', file);
+        formData.append('type', type);
+        return {
+          url: '/business/upload/documents',
+          method: 'POST',
+          body: formData,
+        };
+      },
+    }),
+    
+    // Delete uploaded file
+    deleteUploadedFile: builder.mutation({
+      query: (publicId) => ({
+        url: `/business/upload/${publicId}`,
+        method: 'DELETE',
       }),
     }),
   }),
@@ -65,5 +125,10 @@ export const {
   useVerifyBusinessEmailMutation,
   useLoginBusinessMutation,
   useGetBusinessProfileQuery,
+  useUpdateBusinessProfileMutation,
   useResendOTPMutation,
+  useUploadLogoMutation,
+  useUploadGalleryImagesMutation,
+  useUploadDocumentMutation,
+  useDeleteUploadedFileMutation,
 } = businessApi

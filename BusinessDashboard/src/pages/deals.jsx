@@ -6,7 +6,7 @@ export default function DealsPage() {
     <DashboardShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-white text-3xl font-bold">Deals & Ads</h1>
+          <h1 className="text-foreground text-3xl font-bold">Deals & Ads</h1>
           <p className="text-muted-foreground mt-1">Create and manage your promotional deals.</p>
         </div>
         <DealsList />

@@ -132,7 +132,20 @@ const sendApprovalEmail = async (email, businessName, status, reason = null) => 
 const registerBusiness = async (req, res, next) => {
     try {
         console.log('[business-auth] Business registration request', req.body);
-        const { businessName, ownerName, email, password, phone, businessType, address } = req.body;
+        const { 
+            businessName, 
+            ownerName, 
+            email, 
+            password, 
+            phone, 
+            businessType, 
+            address,
+            description,
+            website,
+            logo,
+            galleryImages,
+            documents
+        } = req.body;
 
         // Check if business already exists
         const businessExist = await Business.findOne({ email });
@@ -148,16 +161,22 @@ const registerBusiness = async (req, res, next) => {
             }
         }
 
-        // Create new business
+        // Create new business with all data
         const businessCreated = await Business.create({
             businessName,
             ownerName,
             email,
             password,
-            phone,
+            phone: phone || '',
             businessType: businessType || 'other',
             address: address || {},
-            status: 'pending'
+            description: description || '',
+            website: website || '',
+            logo: logo || null,
+            galleryImages: galleryImages || [],
+            documents: documents || [],
+            status: 'pending',
+            isVerified: false
         });
 
         // Generate and send OTP
@@ -280,6 +299,54 @@ const getBusinessProfile = async (req, res, next) => {
     }
 };
 
+// Update Business Profile
+const updateBusinessProfile = async (req, res, next) => {
+    try {
+        const businessId = req.business.business_id;
+        const updates = req.body;
+
+        // Fields that can be updated
+        const allowedUpdates = [
+            'businessName',
+            'description',
+            'phone',
+            'website',
+            'businessType',
+            'address',
+            'logo',
+            'galleryImages',
+            'operatingHours'
+        ];
+
+        // Filter only allowed fields
+        const filteredUpdates = {};
+        Object.keys(updates).forEach(key => {
+            if (allowedUpdates.includes(key)) {
+                filteredUpdates[key] = updates[key];
+            }
+        });
+
+        const business = await Business.findByIdAndUpdate(
+            businessId,
+            { $set: filteredUpdates },
+            { new: true, runValidators: true }
+        ).select('-password');
+
+        if (!business) {
+            return res.status(404).json({ message: "Business not found" });
+        }
+
+        res.status(200).json({
+            message: "Profile updated successfully",
+            business
+        });
+
+    } catch (error) {
+        console.error('[business-auth] Update profile error', error);
+        next(error);
+    }
+};
+
 // Verify Business Email
 const verifyBusinessEmail = async (req, res, next) => {
     try {
@@ -329,6 +396,7 @@ module.exports = {
     registerBusiness,
     loginBusiness,
     getBusinessProfile,
+    updateBusinessProfile,
     verifyBusinessEmail,
     sendApprovalEmail
 };

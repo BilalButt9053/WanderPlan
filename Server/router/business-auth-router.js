@@ -7,5 +7,6 @@ router.route("/register").post(businessAuthController.registerBusiness);
 router.route("/login").post(businessAuthController.loginBusiness);
 router.route("/verify-email").post(businessAuthController.verifyBusinessEmail);
 router.route("/profile").get(businessAuthMiddleware, businessAuthController.getBusinessProfile);
+router.route("/profile").put(businessAuthMiddleware, businessAuthController.updateBusinessProfile);
 
 module.exports = router;
