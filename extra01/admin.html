@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Command Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --green: #238636; --red: #da3633; --blue: #58a6ff; }
+        body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; padding: 20px; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #30363d; padding-bottom: 20px; }
+        h1 { font-size: 1.5rem; color: var(--blue); margin: 0; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: var(--card); padding: 20px; border-radius: 6px; border: 1px solid #30363d; }
+        .stat-val { font-size: 2rem; font-weight: bold; margin-top: 10px; display: block; }
+        
+        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 6px; overflow: hidden; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #30363d; font-size: 0.9rem; }
+        th { background: #21262d; color: #8b949e; text-transform: uppercase; font-size: 0.75rem; }
+        tr:hover { background: #21262d; }
+        
+        .tag { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+        .tag-visit { background: rgba(88, 166, 255, 0.15); color: var(--blue); }
+        .tag-yes { background: rgba(35, 134, 54, 0.15); color: var(--green); }
+        .tag-no { background: rgba(218, 54, 51, 0.15); color: var(--red); }
+        
+        .loading { text-align: center; padding: 50px; color: #8b949e; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Admin Command Panel</h1>
+        <button onclick="fetchLogs()" style="background:var(--green); color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">Refresh Data</button>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span>Total Visits</span>
+            <span class="stat-val" id="total-visits">0</span>
+        </div>
+        <div class="stat-card">
+            <span>"Yes" Clicks</span>
+            <span class="stat-val" style="color:var(--green)" id="total-yes">0</span>
+        </div>
+        <div class="stat-card">
+            <span>Unique Locations</span>
+            <span class="stat-val" style="color:var(--blue)" id="total-locs">0</span>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Event Type</th>
+                <th>Location (City/Country)</th>
+                <th>Device</th>
+            </tr>
+        </thead>
+        <tbody id="log-table-body">
+            <tr><td colspan="4" class="loading">Connecting to satellite...</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        async function fetchLogs() {
+            try {
+                // Add a random number to prevent browser caching
+                const response = await fetch('secret_activity_logs.json?' + Math.random());
+                if (!response.ok) throw new Error("No logs found yet.");
+                const logs = await response.json();
+                renderLogs(logs);
+            } catch (error) {
+                document.getElementById('log-table-body').innerHTML = `<tr><td colspan="4" class="loading">No interactions recorded yet. Waiting for targets.</td></tr>`;
+            }
+        }
+
+        function renderLogs(logs) {
+            const tbody = document.getElementById('log-table-body');
+            tbody.innerHTML = '';
+            
+            let visits = 0, yesClicks = 0, locations = new Set();
+
+            logs.forEach(log => {
+                // Update Stats
+                if (log.event === 'Page Load') visits++;
+                if (log.event === 'Clicked Yes') yesClicks++;
+                if (log.location) locations.add(log.location);
+
+                // Determine Tag Color
+                let tagClass = 'tag-visit';
+                if (log.event === 'Clicked Yes') tagClass = 'tag-yes';
+                if (log.event.includes('No')) tagClass = 'tag-no';
+
+                // Create Row
+                const row = `
+                    <tr>
+                        <td style="color:#8b949e">${log.timestamp}</td>
+                        <td><span class="tag ${tagClass}">${log.event}</span></td>
+                        <td style="color:#e6edf3">${log.location || 'Unknown'}</td>
+                        <td style="font-size:0.8rem; color:#8b949e">${log.device}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+
+            document.getElementById('total-visits').innerText = visits;
+            document.getElementById('total-yes').innerText = yesClicks;
+            document.getElementById('total-locs').innerText = locations.size;
+        }
+
+        // Auto Load on Start
+        fetchLogs();
+    </script>
+</body>
+</html>

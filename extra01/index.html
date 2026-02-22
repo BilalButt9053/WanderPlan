@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Special Question</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Manrope:wght@300;400;600&family=Indie+Flower&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="music-control">
+        <button id="music-toggle" class="music-btn">
+            <i class="fa-solid fa-music"></i>
+        </button>
+        <audio id="bg-music" loop>
+            <source src="assets/piano.mp3" type="audio/mpeg">
+        </audio>
+    </div>
+
+    <section id="scene-intro" class="hero-section">
+        <div class="floating-background">
+            <div class="gold-orb orb-1"></div>
+            <div class="gold-orb orb-2"></div>
+        </div>
+
+        <div class="content-wrapper">
+            <div class="whale-container">
+                <img src="assets/whale.png" alt="Whale" class="whale-anim">
+            </div>
+
+            <h1 class="title-main">
+                Do you want to see what <br>
+                <span class="gold-text">the whale</span> has for you?
+            </h1>
+
+            <div class="interaction-zone">
+                <button id="btn-yes" class="magnetic-btn">
+                    <span class="btn-text">Yes, Show Me</span>
+                </button>
+                <button id="btn-no" class="magnetic-btn secondary">
+                    <span class="btn-text">No</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="ocean-stage">
+            <img src="assets/whale.png" class="jumping-whale-sprite" alt="Jumping Whale">
+            <div class="splash-mark splash-left"></div>
+            <div class="splash-mark splash-right"></div>
+        </div>
+    </section>
+
+    <main id="scene-celebration" class="celebration-container">
+        
+        <div class="rose-container">
+            <div class="flower">
+                <div class="petal"></div>
+                <div class="petal"></div>
+                <div class="petal"></div>
+                <div class="petal"></div>
+                <div class="petal"></div> 
+            </div>
+            <div class="leaf"></div>
+            <div class="leaf leaf-2"></div>
+        </div>
+
+        <section class="scroll-section hero-reveal">
+            <div class="glass-card main-card">
+                <div class="cake-visual">
+                    <img src="assets/cake.png" alt="Birthday Cake" class="parallax-img">
+                </div>
+                <div class="text-content">
+                    <h2 class="reveal-text">Happy Birthday!</h2>
+                    <p class="poetic-wishes">
+                        The world spins a little brighter because you're in it. 
+                        May this 24th of February mark the beginning of your most 
+                        radiant chapter yet.
+                    </p>
+                    <p class="poetic-wishes">
+                        Keep shining with that elegance only you possess.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section class="cat-zone">
+            <div class="marquee-wrapper">
+                <div class="marquee-content">
+                    <img src="assets/Playful_cat.jpg" class="cat-item">
+                    <img src="assets/sleeping_cat.jpg" class="cat-item">
+                    <img src="assets/Playful_cat.jpg" class="cat-item">
+                    <img src="assets/sleeping_cat.jpg" class="cat-item">
+                    <img src="assets/Playful_cat.jpg" class="cat-item">
+                    <img src="assets/sleeping_cat.jpg" class="cat-item">
+                    <img src="assets/Playful_cat.jpg" class="cat-item">
+                    <img src="assets/sleeping_cat.jpg" class="cat-item">
+                    <img src="assets/Playful_cat.jpg" class="cat-item">
+                    <img src="assets/sleeping_cat.jpg" class="cat-item">
+                    <img src="assets/Playful_cat.jpg" class="cat-item">
+                    <img src="assets/sleeping_cat.jpg" class="cat-item">
+                </div>
+            </div>
+        </section>
+
+        <section class="scroll-section gallery-zone" id="gallery-container">
+            <h3 class="section-title">A Few Memories</h3>
+            <p class="instruction-small">(Drag the photos around!)</p>
+            <div class="polaroid-wrapper">
+                <div class="polaroid p1">
+                    <img src="assets/sleeping_cat.jpg" alt="Cat">
+                    <p>Monday Mood</p>
+                </div>
+                <div class="polaroid p2">
+                    <img src="assets/Playful_cat.jpg" alt="Vibe">
+                    <p>Playful Vibes</p>
+                </div>
+                <div class="polaroid p3">
+                    <img src="assets/sleeping_cat.jpg" alt="Gold">
+                    <p>Peace</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="scroll-section compliment-section">
+            <div class="glass-card small-card">
+                <h3>Why you are awesome?</h3>
+                <div class="compliment-box">
+                    <p id="compliment-text">Click the button below...</p>
+                </div>
+                <button id="compliment-btn" class="magnetic-btn">Tell Me</button>
+            </div>
+        </section>
+
+        <footer class="final-footer">
+            <p>"Elegance is the only beauty that never fades."</p>
+        </footer>
+
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/Draggable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.29/bundled/lenis.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
