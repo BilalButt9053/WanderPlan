@@ -32,6 +32,16 @@ const documentStorage = new CloudinaryStorage({
   },
 });
 
+// Create storage for review images
+const reviewImageStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'wanderplan/reviews',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 1200, height: 900, crop: 'limit', quality: 'auto' }],
+  },
+});
+
 // Create multer instances
 const uploadLogo = multer({
   storage: logoStorage,
@@ -48,9 +58,15 @@ const uploadDocument = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
+const uploadReviewImages = multer({
+  storage: reviewImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit per image
+});
+
 module.exports = {
   uploadLogo,
   uploadGallery,
   uploadDocument,
+  uploadReviewImages,
   cloudinary,
 };

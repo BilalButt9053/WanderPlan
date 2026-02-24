@@ -12,6 +12,7 @@ import {
   MapPin,
   Star,
   Image as ImageIcon,
+  Camera,
   Send,
 } from 'lucide-react-native';
 import { WanderButton } from './wander-button';
@@ -60,7 +61,7 @@ export default function CreateReviewModal({ visible, onClose, onSubmit }) {
     setImages([]);
   };
 
-  const pickImage = async () => {
+  const pickImageFromGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'We need access to your photos to upload images.');
@@ -77,6 +78,38 @@ export default function CreateReviewModal({ visible, onClose, onSubmit }) {
         setImages((prev) => [...prev, { uri: asset.uri }]);
       }
     }
+  };
+
+  const takePhotoWithCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'We need access to your camera to take photos.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const asset = result.assets?.[0];
+      if (asset?.uri) {
+        setImages((prev) => [...prev, { uri: asset.uri }]);
+      }
+    }
+  };
+
+  const showImageOptions = () => {
+    Alert.alert(
+      'Add Photo',
+      'Choose an option',
+      [
+        { text: 'Take Photo', onPress: takePhotoWithCamera },
+        { text: 'Choose from Gallery', onPress: pickImageFromGallery },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
   };
 
   return (
@@ -158,14 +191,24 @@ export default function CreateReviewModal({ visible, onClose, onSubmit }) {
         </View>
 
         {/* Add Images */}
-        <TouchableOpacity
-          className="w-full py-3 border-2 border-dashed rounded-2xl flex-row items-center justify-center gap-2 mb-4"
-          style={{ borderColor: colors.border }}
-          onPress={pickImage}
-        >
-          <ImageIcon size={20} color={colors.textSecondary} />
-          <Text style={{ color: colors.textSecondary }}>Add Photos</Text>
-        </TouchableOpacity>
+        <View className="flex-row gap-2 mb-4">
+          <TouchableOpacity
+            className="flex-1 py-3 border-2 border-dashed rounded-2xl flex-row items-center justify-center gap-2"
+            style={{ borderColor: colors.border }}
+            onPress={takePhotoWithCamera}
+          >
+            <Camera size={20} color={colors.textSecondary} />
+            <Text style={{ color: colors.textSecondary }}>Camera</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="flex-1 py-3 border-2 border-dashed rounded-2xl flex-row items-center justify-center gap-2"
+            style={{ borderColor: colors.border }}
+            onPress={pickImageFromGallery}
+          >
+            <ImageIcon size={20} color={colors.textSecondary} />
+            <Text style={{ color: colors.textSecondary }}>Gallery</Text>
+          </TouchableOpacity>
+        </View>
 
         {images.length > 0 && (
           <View className="mb-4" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
