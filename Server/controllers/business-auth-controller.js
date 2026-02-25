@@ -392,11 +392,82 @@ const verifyBusinessEmail = async (req, res, next) => {
     }
 };
 
+// Change Password
+const changePassword = async (req, res, next) => {
+    try {
+        const businessId = req.business.business_id;
+        const { currentPassword, newPassword } = req.body;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ message: "Current password and new password are required" });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: "New password must be at least 6 characters" });
+        }
+
+        const business = await Business.findById(businessId);
+
+        if (!business) {
+            return res.status(404).json({ message: "Business not found" });
+        }
+
+        const isPasswordValid = await business.comparePassword(currentPassword);
+
+        if (!isPasswordValid) {
+            return res.status(400).json({ message: "Current password is incorrect" });
+        }
+
+        business.password = newPassword;
+        await business.save();
+
+        res.status(200).json({ message: "Password changed successfully" });
+
+    } catch (error) {
+        console.error('[business-auth] Change password error', error);
+        next(error);
+    }
+};
+
+// Update Notification Settings
+const updateNotificationSettings = async (req, res, next) => {
+    try {
+        const businessId = req.business.business_id;
+        const { notifications } = req.body;
+
+        const business = await Business.findByIdAndUpdate(
+            businessId,
+            { 
+                $set: { 
+                    'settings.notifications': notifications,
+                    updatedAt: Date.now()
+                } 
+            },
+            { new: true }
+        ).select('-password');
+
+        if (!business) {
+            return res.status(404).json({ message: "Business not found" });
+        }
+
+        res.status(200).json({
+            message: "Notification settings updated successfully",
+            settings: business.settings
+        });
+
+    } catch (error) {
+        console.error('[business-auth] Update notification settings error', error);
+        next(error);
+    }
+};
+
 module.exports = {
     registerBusiness,
     loginBusiness,
     getBusinessProfile,
     updateBusinessProfile,
     verifyBusinessEmail,
-    sendApprovalEmail
+    sendApprovalEmail,
+    changePassword,
+    updateNotificationSettings
 };
