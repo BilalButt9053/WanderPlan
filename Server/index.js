@@ -18,6 +18,7 @@ const menuItemRoute = require("./router/menu-item-router");
 const dealRoute = require("./router/deal-router");
 const notificationRoute = require("./router/notification-router");
 const publicRoute = require("./router/public-router");
+const tripRoute = require("./router/trip-router");
 
 
 app.use(cors({
@@ -44,6 +45,7 @@ app.use("/api/business/menu-items", menuItemRoute);
 app.use("/api/business/deals", dealRoute);
 app.use("/api/business/notifications", notificationRoute);
 app.use("/api/public", publicRoute);
+app.use("/api/trips", tripRoute);
 app.use(errorMiddleware);
 
 const port = process.env.PORT || 5000;
