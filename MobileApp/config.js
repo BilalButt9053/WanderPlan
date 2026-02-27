@@ -8,7 +8,7 @@ import { Platform } from 'react-native';
 // IMPORTANT: Update this with your computer's IP address
 // To find it: Run 'ipconfig' (Windows) or 'ifconfig' (Mac/Linux) in terminal
 // Look for IPv4 Address under your active network connection
-const SERVER_IP = '192.168.0.107'; // <-- UPDATE THIS with your PC's IP
+const SERVER_IP = '192.168.0.108'; // <-- UPDATE THIS with your PC's IP
 const SERVER_PORT = 5000;
 
 export function getApiUrl() {
