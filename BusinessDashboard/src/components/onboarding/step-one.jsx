@@ -51,7 +51,7 @@ export function OnboardingStepOne({ formData, updateFormData }) {
               id="phone"
               name="phone"
               type="tel"
-              placeholder="+1 (555) 123-4567"
+              placeholder="+92 300 1234567"
               className="bg-secondary"
               value={formData.phone}
               onChange={handleChange}

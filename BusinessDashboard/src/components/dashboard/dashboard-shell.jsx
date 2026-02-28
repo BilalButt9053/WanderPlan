@@ -28,14 +28,17 @@ import {
   User,
   Sun,
   Moon,
+  ShoppingBag,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logout, selectCurrentBusiness } from '@/redux/slices/businessAuthSlice'
 import { useTheme } from '@/contexts/ThemeContext'
+import { NotificationDropdown } from './notification-dropdown'
 
 const navigation = [
   { name: 'Dashboard & Analytics', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Business Profile', href: '/dashboard/profile', icon: Building2 },
+  { name: 'Menu Items', href: '/dashboard/menu', icon: ShoppingBag },
   { name: 'Deals & Ads', href: '/dashboard/deals', icon: Tag },
   { name: 'Reviews', href: '/dashboard/reviews', icon: Star },
   { name: 'POS Integration', href: '/dashboard/pos', icon: CreditCard },
@@ -49,7 +52,6 @@ export function DashboardShell({ children }) {
   const business = useSelector(selectCurrentBusiness)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
-  const notifications = 3
 
   const handleLogout = () => {
     dispatch(logout())
@@ -142,12 +144,7 @@ export function DashboardShell({ children }) {
                   <Moon className="h-5 w-5" />
                 )}
               </Button>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5 text-foreground" />
-                {notifications > 0 && (
-                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
-                )}
-              </Button>
+              <NotificationDropdown />
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
