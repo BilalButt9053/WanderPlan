@@ -15,9 +15,10 @@ export function OnboardingStepTwo({ formData, updateFormData }) {
         label="Business Logo"
         description="Upload your business logo (PNG, JPG up to 5MB)"
         value={formData.logo}
-        onChange={(url) => updateFormData({ logo: url })}
+        onChange={(data) => updateFormData({ logo: data?.url || data })}
         multiple={false}
         accept="image/*"
+        uploadEndpoint="/business/upload/logo"
       />
 
       {/* Gallery Upload */}
@@ -29,6 +30,7 @@ export function OnboardingStepTwo({ formData, updateFormData }) {
         multiple={true}
         maxFiles={10}
         accept="image/*"
+        uploadEndpoint="/business/upload/gallery"
       />
     </div>
   );

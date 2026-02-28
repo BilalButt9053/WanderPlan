@@ -86,7 +86,7 @@ export default function SignupPage() {
                 id="ownerName"
                 name="ownerName"
                 type="text"
-                placeholder="John Doe"
+                placeholder="Ahmed Khan"
                 value={formData.ownerName}
                 onChange={handleChange}
                 required
