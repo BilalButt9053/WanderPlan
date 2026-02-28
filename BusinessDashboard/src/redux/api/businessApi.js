@@ -14,7 +14,7 @@ export const businessApi = createApi({
       return headers
     },
   }),
-  tagTypes: ['Business', 'Profile'],
+  tagTypes: ['Business', 'Profile', 'MenuItems', 'Deals', 'Notifications'],
   endpoints: (builder) => ({
     // Register business
     registerBusiness: builder.mutation({
@@ -55,6 +55,25 @@ export const businessApi = createApi({
         url: '/business/profile',
         method: 'PUT',
         body: updates,
+      }),
+      invalidatesTags: ['Profile'],
+    }),
+
+    // Change password
+    changePassword: builder.mutation({
+      query: (data) => ({
+        url: '/business/change-password',
+        method: 'POST',
+        body: data,
+      }),
+    }),
+
+    // Update notification settings
+    updateNotificationSettings: builder.mutation({
+      query: (notifications) => ({
+        url: '/business/settings/notifications',
+        method: 'PUT',
+        body: { notifications },
       }),
       invalidatesTags: ['Profile'],
     }),
@@ -117,6 +136,155 @@ export const businessApi = createApi({
         method: 'DELETE',
       }),
     }),
+
+    // Menu Items
+    getMenuItems: builder.query({
+      query: (params) => ({
+        url: '/business/menu-items',
+        params,
+      }),
+      providesTags: ['MenuItems'],
+    }),
+
+    getMenuItem: builder.query({
+      query: (id) => `/business/menu-items/${id}`,
+      providesTags: ['MenuItems'],
+    }),
+
+    createMenuItem: builder.mutation({
+      query: (data) => ({
+        url: '/business/menu-items',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['MenuItems'],
+    }),
+
+    updateMenuItem: builder.mutation({
+      query: ({ id, ...data }) => ({
+        url: `/business/menu-items/${id}`,
+        method: 'PUT',
+        body: data,
+      }),
+      invalidatesTags: ['MenuItems'],
+    }),
+
+    deleteMenuItem: builder.mutation({
+      query: (id) => ({
+        url: `/business/menu-items/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['MenuItems'],
+    }),
+
+    // Deals & Ads
+    getDeals: builder.query({
+      query: (params) => ({
+        url: '/business/deals',
+        params,
+      }),
+      providesTags: ['Deals'],
+    }),
+
+    getDeal: builder.query({
+      query: (id) => `/business/deals/${id}`,
+      providesTags: ['Deals'],
+    }),
+
+    getDealStats: builder.query({
+      query: () => '/business/deals/stats',
+      providesTags: ['Deals'],
+    }),
+
+    createDeal: builder.mutation({
+      query: (data) => ({
+        url: '/business/deals',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Deals'],
+    }),
+
+    updateDeal: builder.mutation({
+      query: ({ id, ...data }) => ({
+        url: `/business/deals/${id}`,
+        method: 'PUT',
+        body: data,
+      }),
+      invalidatesTags: ['Deals'],
+    }),
+
+    deleteDeal: builder.mutation({
+      query: (id) => ({
+        url: `/business/deals/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Deals'],
+    }),
+
+    toggleDealStatus: builder.mutation({
+      query: ({ id, status }) => ({
+        url: `/business/deals/${id}/status`,
+        method: 'PATCH',
+        body: { status },
+      }),
+      invalidatesTags: ['Deals'],
+    }),
+
+    // Notifications
+    getNotifications: builder.query({
+      query: (params) => ({
+        url: '/business/notifications',
+        params,
+      }),
+      providesTags: ['Notifications'],
+    }),
+
+    getUnreadCount: builder.query({
+      query: () => '/business/notifications/unread-count',
+      providesTags: ['Notifications'],
+    }),
+
+    markNotificationAsRead: builder.mutation({
+      query: (id) => ({
+        url: `/business/notifications/${id}/read`,
+        method: 'PUT',
+      }),
+      invalidatesTags: ['Notifications'],
+    }),
+
+    markAllNotificationsAsRead: builder.mutation({
+      query: () => ({
+        url: '/business/notifications/mark-all-read',
+        method: 'PUT',
+      }),
+      invalidatesTags: ['Notifications'],
+    }),
+
+    deleteNotification: builder.mutation({
+      query: (id) => ({
+        url: `/business/notifications/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Notifications'],
+    }),
+
+    clearAllNotifications: builder.mutation({
+      query: () => ({
+        url: '/business/notifications/clear-all',
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Notifications'],
+    }),
+
+    createTestNotification: builder.mutation({
+      query: (data) => ({
+        url: '/business/notifications/test',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Notifications'],
+    }),
   }),
 })
 
@@ -126,9 +294,30 @@ export const {
   useLoginBusinessMutation,
   useGetBusinessProfileQuery,
   useUpdateBusinessProfileMutation,
+  useChangePasswordMutation,
+  useUpdateNotificationSettingsMutation,
   useResendOTPMutation,
   useUploadLogoMutation,
   useUploadGalleryImagesMutation,
   useUploadDocumentMutation,
   useDeleteUploadedFileMutation,
+  useGetMenuItemsQuery,
+  useGetMenuItemQuery,
+  useCreateMenuItemMutation,
+  useUpdateMenuItemMutation,
+  useDeleteMenuItemMutation,
+  useGetDealsQuery,
+  useGetDealQuery,
+  useGetDealStatsQuery,
+  useCreateDealMutation,
+  useUpdateDealMutation,
+  useDeleteDealMutation,
+  useToggleDealStatusMutation,
+  useGetNotificationsQuery,
+  useGetUnreadCountQuery,
+  useMarkNotificationAsReadMutation,
+  useMarkAllNotificationsAsReadMutation,
+  useDeleteNotificationMutation,
+  useClearAllNotificationsMutation,
+  useCreateTestNotificationMutation,
 } = businessApi

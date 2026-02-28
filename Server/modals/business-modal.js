@@ -95,7 +95,7 @@ const BusinessSchema = new mongoose.Schema({
     subscription: {
         plan: {
             type: String,
-            enum: ['free', 'basic', 'premium', 'enterprise'],
+            enum: ['free', 'starter', 'professional', 'enterprise'],
             default: 'free'
         },
         startDate: Date,
@@ -113,6 +113,15 @@ const BusinessSchema = new mongoose.Schema({
         twoFactorEnabled: {
             type: Boolean,
             default: false
+        },
+        notifications: {
+            newReviews: { type: Boolean, default: true },
+            newMessages: { type: Boolean, default: true },
+            bookingNotifications: { type: Boolean, default: true },
+            dealPerformance: { type: Boolean, default: false },
+            marketingUpdates: { type: Boolean, default: false },
+            urgentMessages: { type: Boolean, default: true },
+            dailySummary: { type: Boolean, default: true }
         }
     },
     createdAt: {

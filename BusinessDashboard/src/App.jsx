@@ -11,22 +11,72 @@ import DealsPage from './pages/deals'
 import ReviewsPage from './pages/reviews'
 import AnalyticsPage from './pages/analytics'
 import POSPage from './pages/pos'
+import MenuPage from './pages/menu'
 import ProtectedRoute from './components/ProtectedRoute'
-import { loadPendingBusiness, selectIsAuthenticated } from './redux/slices/businessAuthSlice'
+import { loadPendingBusiness, selectIsAuthenticated, selectIsLoading, selectCurrentToken, setCredentials, logout, setLoading } from './redux/slices/businessAuthSlice'
+import { useGetBusinessProfileQuery } from './redux/api/businessApi'
 import './App.css'
 import SettingsPage from './pages/settings'
 
 function App() {
   const dispatch = useDispatch()
   const isAuthenticated = useSelector(selectIsAuthenticated)
+  const isLoading = useSelector(selectIsLoading)
+  const token = useSelector(selectCurrentToken)
+
+  // Try to fetch business profile if token exists
+  const { data: profileData, error: profileError, isLoading: isProfileLoading, isSuccess, isError } = useGetBusinessProfileQuery(undefined, {
+    skip: !token || isAuthenticated, // Skip if no token or already authenticated
+  })
 
   useEffect(() => {
     // Load pending business data on app mount
     dispatch(loadPendingBusiness())
-    console.log('App mounted, isAuthenticated:', isAuthenticated)
   }, [dispatch])
 
-  console.log('App rendering, isAuthenticated:', isAuthenticated)
+  // Handle profile data to restore session
+  useEffect(() => {
+    if (profileData && isSuccess) {
+      // API returns business object directly, not wrapped in { business: ... }
+      dispatch(setCredentials({ business: profileData }))
+    }
+  }, [profileData, isSuccess, dispatch])
+
+  // Handle profile error (invalid token)
+  useEffect(() => {
+    if (profileError || isError) {
+      console.log('Token validation failed:', profileError)
+      dispatch(logout())
+    }
+  }, [profileError, isError, dispatch])
+
+  // Set loading to false when profile check completes without token
+  useEffect(() => {
+    if (!token && isLoading) {
+      dispatch(setLoading(false))
+    }
+  }, [token, isLoading, dispatch])
+
+  // Also set loading to false when profile query completes (success or error)
+  useEffect(() => {
+    if (token && !isProfileLoading && isLoading && !isAuthenticated) {
+      // Profile check completed but no auth set - set loading to false
+      if (!isSuccess && !isError) {
+        // Query hasn't started yet, wait
+        return
+      }
+      dispatch(setLoading(false))
+    }
+  }, [token, isProfileLoading, isLoading, isAuthenticated, isSuccess, isError, dispatch])
+
+  // Show loading only while profile is being fetched
+  if (token && isProfileLoading && !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   return (
     <Router>
@@ -48,6 +98,11 @@ function App() {
         <Route path="/dashboard/profile" element={
           <ProtectedRoute>
             <ProfilePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/dashboard/menu" element={
+          <ProtectedRoute>
+            <MenuPage />
           </ProtectedRoute>
         } />
         <Route path="/dashboard/deals" element={
