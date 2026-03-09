@@ -4,13 +4,13 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  TextInput
+  TextInput,
+  Platform
 } from 'react-native';
 import { 
   DollarSign, 
   MapPin, 
   Calendar, 
-  ChevronDown,
   ArrowLeft,
   Sparkles,
   Edit3
@@ -18,6 +18,7 @@ import {
 import  WanderButton  from '../components/wander-button';
 import  WanderCard  from '../components/wander-card';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const currencies = ['PKR'];
 const popularDestinations = [
@@ -40,12 +41,33 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
   const [currency, setCurrency] = useState('PKR');
   const [destination, setDestination] = useState('');
   const [duration, setDuration] = useState('');
+  const [startDate, setStartDate] = useState(new Date(Date.now() + 24 * 60 * 60 * 1000)); // Default tomorrow
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCurrencies, setShowCurrencies] = useState(false);
   const [showDestinations, setShowDestinations] = useState(false);
 
+  // Minimum date is tomorrow
+  const minDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  minDate.setHours(0, 0, 0, 0);
+
+  // Format date for display
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Handle date change from picker
+  const onDateChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setStartDate(selectedDate);
+    }
+  };
+
   const handleGeneratePlan = () => {
     if (budget && destination && duration) {
-      onGeneratePlan({ budget, currency, destination, duration });
+      onGeneratePlan({ budget, currency, destination, duration, startDate: startDate.toISOString() });
     }
   };
 
@@ -234,6 +256,59 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
           </View>
         </WanderCard>
 
+        {/* Start Date Input */}
+        <WanderCard>
+          <View style={{ marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Calendar size={18} color="#3B82F6" />
+              <Text style={{ fontSize: 16, fontWeight: '500' }}>Start Date</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowDatePicker(true)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                backgroundColor: '#F9FAFB',
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                borderRadius: 16,
+              }}
+            >
+              <Text style={{ fontSize: 16, color: '#111827' }}>{formatDate(startDate)}</Text>
+              <Calendar size={18} color="#6B7280" />
+            </TouchableOpacity>
+            
+            {showDatePicker && (
+              <View style={{ marginTop: 8 }}>
+                <DateTimePicker
+                  value={startDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  minimumDate={minDate}
+                  onChange={onDateChange}
+                />
+                {Platform.OS === 'ios' && (
+                  <TouchableOpacity
+                    onPress={() => setShowDatePicker(false)}
+                    style={{
+                      marginTop: 8,
+                      paddingVertical: 10,
+                      alignItems: 'center',
+                      backgroundColor: '#3B82F6',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '600' }}>Done</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        </WanderCard>
+
         {/* AI Generate Button */}
         <TouchableOpacity
           onPress={handleGeneratePlan}
@@ -268,7 +343,14 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
 
         {/* Manual Create Button */}
         <TouchableOpacity
-          onPress={onManualCreate}
+          onPress={() => {
+            if (budget && destination && duration) {
+              onManualCreate({ budget, currency, destination, duration, startDate: startDate.toISOString() });
+            } else {
+              onManualCreate();
+            }
+          }}
+          disabled={!budget || !destination || !duration}
           style={{
             backgroundColor: '#ffffff',
             paddingVertical: 16,
@@ -278,11 +360,12 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
             justifyContent: 'center',
             gap: 8,
             borderWidth: 2,
-            borderColor: '#3B82F6'
+            borderColor: (!budget || !destination || !duration) ? '#D1D5DB' : '#3B82F6',
+            opacity: (!budget || !destination || !duration) ? 0.6 : 1
           }}
         >
-          <Edit3 size={20} color="#3B82F6" />
-          <Text style={{ color: '#3B82F6', fontSize: 16, fontWeight: '600' }}>
+          <Edit3 size={20} color={(!budget || !destination || !duration) ? '#9CA3AF' : '#3B82F6'} />
+          <Text style={{ color: (!budget || !destination || !duration) ? '#9CA3AF' : '#3B82F6', fontSize: 16, fontWeight: '600' }}>
             Create Trip Manually
           </Text>
         </TouchableOpacity>

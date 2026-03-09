@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput } from 'react-native';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function WanderInput({ 
   label, 

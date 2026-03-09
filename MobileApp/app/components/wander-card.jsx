@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function WanderCard({
   children,

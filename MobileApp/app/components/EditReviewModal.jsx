@@ -15,7 +15,7 @@ import {
 } from 'lucide-react-native';
 import { WanderButton } from './wander-button';
 import Modal from './Modal';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function EditReviewModal({ visible, onClose, onSubmit, review }) {
   const { colors } = useTheme();
