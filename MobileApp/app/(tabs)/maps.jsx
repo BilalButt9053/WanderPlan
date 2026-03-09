@@ -26,7 +26,7 @@ import {
 import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
 import { ImageWithFallback } from '../components/ImageWithFallback';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 
 const mapPlaces = [
   {
