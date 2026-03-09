@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
-  TextInput
+  TextInput,
+  ActivityIndicator
 } from 'react-native';
 import {
   ArrowLeft,
@@ -16,82 +17,38 @@ import {
   X,
   Filter,
   Bookmark,
-  GripVertical
+  GripVertical,
+  Tag,
+  RefreshCw
 } from 'lucide-react-native';
 import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
 import { WanderChip } from '../components/wander-chip';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ImageWithFallback from '../components/ImageWithFallback';
-
-const availableItems = [
-  {
-    id: '1',
-    name: 'Grand Palace Hotel',
-    type: 'hotel',
-    price: 150,
-    rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1729605411476-defbdab14c54?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxob3RlbCUyMGx1eHVyeSUyMHJvb218ZW58MXx8fHwxNzYwMzc0MzI0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    location: 'Downtown',
-  },
-  {
-    id: '2',
-    name: 'La Bella Vista Restaurant',
-    type: 'restaurant',
-    price: 45,
-    rating: 4.6,
-    image: 'https://images.unsplash.com/photo-1676471932681-45fa972d848a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwZm9vZCUyMGRpbmluZ3xlbnwxfHx8fDE3NjAyNTkyMzd8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    location: 'Old Town',
-  },
-  {
-    id: '3',
-    name: 'Historic City Tour',
-    type: 'attraction',
-    price: 30,
-    rating: 4.7,
-    image: 'https://images.unsplash.com/photo-1641303125338-72cd1d3e1e2b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaXR5JTIwdHJhdmVsJTIwYXJjaGl0ZWN0dXJlfGVufDF8fHx8MTc2MDI3NzU1M3ww&ixlib=rb-4.1.0&q=80&w=1080',
-    location: 'City Center',
-  },
-  {
-    id: '4',
-    name: 'Seaside Cafe',
-    type: 'restaurant',
-    price: 25,
-    rating: 4.5,
-    image: 'https://images.unsplash.com/photo-1628565350863-533a3c174b85?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2ZmZWUlMjBzaG9wJTIwY2FmZXxlbnwxfHx8fDE3NjAzMzg3OTd8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    location: 'Beach Area',
-  },
-  {
-    id: '5',
-    name: 'Beach Resort',
-    type: 'hotel',
-    price: 200,
-    rating: 4.9,
-    image: 'https://images.unsplash.com/photo-1752436632465-57f537d386f8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0cmF2ZWwlMjBkZXN0aW5hdGlvbiUyMGJlYWNofGVufDF8fHx8MTc2MDM2ODU4Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-    location: 'Beachfront',
-  },
-  {
-    id: '6',
-    name: 'Mountain View Point',
-    type: 'attraction',
-    price: 15,
-    rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1543169564-be8896b30cdb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb3VudGFpbiUyMGFkdmVudHVyZSUyMGhpa2luZ3xlbnwxfHx8fDE3NjAzMzI2ODB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    location: 'Highland',
-  },
-];
+import { useGetMenuItemsQuery, useGetDealsQuery } from '../../redux/api/businessItemsApi';
 
 const getIcon = (type) => {
   switch (type) {
     case 'hotel':
       return Hotel;
     case 'restaurant':
+    case 'food':
+    case 'beverage':
       return UtensilsCrossed;
+    case 'deal':
+      return Tag;
     case 'attraction':
-      return MapPin;
     default:
       return MapPin;
   }
+};
+
+const getCategoryType = (category) => {
+  const foodCategories = ['food', 'beverage', 'appetizer', 'main course', 'dessert', 'drinks'];
+  if (foodCategories.includes(category?.toLowerCase())) return 'restaurant';
+  if (category?.toLowerCase() === 'hotel' || category?.toLowerCase() === 'accommodation') return 'hotel';
+  return 'attraction';
 };
 
 export default function ManualTripBuilderScreen({ onBack, onSave }) {
@@ -100,6 +57,95 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
   const [filterType, setFilterType] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Fetch menu items from API
+  const { 
+    data: menuItemsData, 
+    isLoading: isLoadingItems, 
+    error: itemsError,
+    refetch: refetchItems 
+  } = useGetMenuItemsQuery({ limit: 100 });
+
+  // Fetch active deals
+  const { 
+    data: dealsData, 
+    isLoading: isLoadingDeals,
+    error: dealsError,
+    refetch: refetchDeals
+  } = useGetDealsQuery({ limit: 50 });
+
+  // Debug logging
+  console.log('[TripBuilder] Menu items data:', menuItemsData);
+  console.log('[TripBuilder] Deals data:', dealsData);
+  console.log('[TripBuilder] Items error:', itemsError);
+  console.log('[TripBuilder] Deals error:', dealsError);
+
+  // Transform API data to match expected format
+  const availableItems = useMemo(() => {
+    const items = [];
+    
+    // Helper to extract image URL
+    const getImageUrl = (images, fallback = 'https://images.unsplash.com/photo-1676471932681-45fa972d848a') => {
+      if (!images || images.length === 0) return fallback;
+      const img = images[0];
+      if (typeof img === 'string') return img;
+      return img?.url || fallback;
+    };
+    
+    // Add menu items
+    if (menuItemsData?.items) {
+      menuItemsData.items.forEach(item => {
+        items.push({
+          id: item._id,
+          name: item.name,
+          type: getCategoryType(item.category),
+          category: item.category,
+          price: item.price || 0,
+          rating: item.rating || 4.5,
+          image: getImageUrl(item.images),
+          location: item.business?.address?.city || item.business?.businessName || 'Pakistan',
+          businessName: item.business?.businessName,
+          description: item.description,
+          itemType: 'menuItem'
+        });
+      });
+    }
+    
+    // Add deals
+    if (dealsData?.deals) {
+      dealsData.deals.forEach(deal => {
+        const discountText = deal.discountType === 'percentage' 
+          ? `${deal.discountValue}% off` 
+          : `Rs ${deal.discountValue} off`;
+        
+        // Extract deal image URL
+        let dealImage = 'https://images.unsplash.com/photo-1676471932681-45fa972d848a';
+        if (deal.image) {
+          dealImage = typeof deal.image === 'string' ? deal.image : deal.image.url || dealImage;
+        } else if (deal.menuItems?.[0]?.images) {
+          dealImage = getImageUrl(deal.menuItems[0].images);
+        }
+        
+        items.push({
+          id: deal._id,
+          name: `${deal.title} (${discountText})`,
+          type: 'deal',
+          category: 'deal',
+          price: deal.menuItems?.[0]?.price || 0,
+          rating: 4.8,
+          image: dealImage,
+          location: deal.business?.address?.city || deal.business?.businessName || 'Pakistan',
+          businessName: deal.business?.businessName,
+          description: deal.description,
+          discountType: deal.discountType,
+          discountValue: deal.discountValue,
+          itemType: 'deal'
+        });
+      });
+    }
+    
+    return items;
+  }, [menuItemsData, dealsData]);
 
   const addItem = (item) => {
     if (!selectedItems.find(i => i.id === item.id)) {
@@ -112,18 +158,26 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
   };
 
   const filteredItems = availableItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          item.businessName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          item.location?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'all' || item.type === filterType;
     const matchesPrice = 
       priceRange === 'all' ||
-      (priceRange === 'low' && item.price < 50) ||
-      (priceRange === 'medium' && item.price >= 50 && item.price < 150) ||
-      (priceRange === 'high' && item.price >= 150);
+      (priceRange === 'low' && item.price < 5000) ||
+      (priceRange === 'medium' && item.price >= 5000 && item.price < 20000) ||
+      (priceRange === 'high' && item.price >= 20000);
     
     return matchesSearch && matchesType && matchesPrice;
   });
 
   const totalCost = selectedItems.reduce((sum, item) => sum + item.price, 0);
+  const isLoading = isLoadingItems || isLoadingDeals;
+
+  const handleRefresh = () => {
+    refetchItems();
+    refetchDeals();
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -153,7 +207,7 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
             <View>
               <Text style={{ fontSize: 18, fontWeight: '600' }}>Build Your Trip</Text>
               <Text style={{ fontSize: 13, color: '#6B7280' }}>
-                {selectedItems.length} items • ${totalCost}
+                {selectedItems.length} items • Rs {totalCost.toLocaleString()}
               </Text>
             </View>
           </View>
@@ -180,6 +234,18 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
             />
           </View>
           <TouchableOpacity
+            onPress={handleRefresh}
+            style={{
+              paddingHorizontal: 12,
+              borderRadius: 16,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#F3F4F6'
+            }}
+          >
+            <RefreshCw size={18} color={isLoading ? '#3B82F6' : '#000'} />
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() => setShowFilters(!showFilters)}
             style={{
               paddingHorizontal: 16,
@@ -199,7 +265,7 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
             <View>
               <Text style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>Type</Text>
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                {['all', 'hotel', 'restaurant', 'attraction'].map((type) => (
+                {['all', 'restaurant', 'hotel', 'attraction', 'deal'].map((type) => (
                   <TouchableOpacity
                     key={type}
                     onPress={() => setFilterType(type)}
@@ -226,9 +292,9 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                 {[
                   { value: 'all', label: 'All' },
-                  { value: 'low', label: '< $50' },
-                  { value: 'medium', label: '$50-150' },
-                  { value: 'high', label: '> $150' },
+                  { value: 'low', label: '< Rs 5,000' },
+                  { value: 'medium', label: 'Rs 5,000-20,000' },
+                  { value: 'high', label: '> Rs 20,000' },
                 ].map((range) => (
                   <TouchableOpacity
                     key={range.value}
@@ -263,7 +329,7 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
               <Text style={{ fontSize: 18, fontWeight: '600' }}>Your Itinerary</Text>
               <Text style={{ fontSize: 14, color: '#059669', fontWeight: '600' }}>
-                ${totalCost} total
+                Rs {totalCost.toLocaleString()} total
               </Text>
             </View>
             <View style={{ gap: 8 }}>
@@ -299,7 +365,7 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
                         {item.name}
                       </Text>
                       <Text style={{ fontSize: 14, color: '#059669', fontWeight: '600' }}>
-                        ${item.price}
+                        Rs {item.price.toLocaleString()}
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -324,7 +390,47 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
 
         {/* Available Items */}
         <View>
-          <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 12 }}>Available Places</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: '600' }}>Available Places</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280' }}>
+              {filteredItems.length} items
+            </Text>
+          </View>
+          
+          {isLoading ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#3B82F6" />
+              <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading items from businesses...</Text>
+            </View>
+          ) : (itemsError || dealsError) ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#DC2626', marginBottom: 8 }}>Failed to load items</Text>
+              <Text style={{ color: '#6B7280', textAlign: 'center', marginBottom: 16 }}>
+                {itemsError?.message || dealsError?.message || 'Please check your connection and try again'}
+              </Text>
+              <TouchableOpacity
+                onPress={handleRefresh}
+                style={{
+                  backgroundColor: '#3B82F6',
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  borderRadius: 12
+                }}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '600' }}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : filteredItems.length === 0 ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>No items found</Text>
+              <Text style={{ color: '#6B7280', textAlign: 'center' }}>
+                {availableItems.length === 0 
+                  ? 'No businesses have added items yet. Check back later!'
+                  : 'Try adjusting your filters or search query'
+                }
+              </Text>
+            </View>
+          ) : (
           <View style={{ gap: 12 }}>
             {filteredItems.map((item) => {
               const Icon = getIcon(item.type);
@@ -357,15 +463,20 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
                           </Text>
                         </View>
                       </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                         <Icon size={14} color="#6B7280" />
                         <Text style={{ fontSize: 13, color: '#6B7280', flex: 1 }} numberOfLines={1}>
-                          {item.location}
+                          {item.businessName || item.location}
                         </Text>
                       </View>
+                      {item.businessName && item.location && (
+                        <Text style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 8 }} numberOfLines={1}>
+                          📍 {item.location}
+                        </Text>
+                      )}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text style={{ fontSize: 15, color: '#059669', fontWeight: '600' }}>
-                          ${item.price}
+                          Rs {item.price.toLocaleString()}
                         </Text>
                         <TouchableOpacity
                           onPress={() => addItem(item)}
@@ -396,6 +507,7 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
               );
             })}
           </View>
+          )}
         </View>
       </ScrollView>
 

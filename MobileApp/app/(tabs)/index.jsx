@@ -7,7 +7,8 @@ import {
   ScrollView, 
   TextInput,
   Image,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
@@ -19,11 +20,11 @@ import {
   Star, 
   TrendingUp, 
   ChevronRight,
-  Sparkles,
   Award,
   Navigation,
   Sun,
-  Moon
+  Moon,
+  Tag
 } from 'lucide-react-native';
 import ImageWithFallback from '../components/ImageWithFallback';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,6 +32,7 @@ import WanderCard from '../components/wander-card';
 import WanderChip from '../components/wander-chip';
 import { WanderButton } from '../components/wander-button';
 import Progress from '../components/ui/progress';
+import { useGetDealsQuery } from '../../redux/api/businessItemsApi';
 
 const { width } = Dimensions.get('window');
 
@@ -61,7 +63,7 @@ const experiences = [
   },
 ];
 
-const deals = [
+const staticDeals = [
   {
     id: 1,
     title: 'Khan Baba Restaurant',
@@ -111,6 +113,50 @@ export default function Page() {
   const user = useSelector((state) => state.auth?.user || null);
   const { isDarkMode, colors } = useTheme();
   const reviewProgress = 60;
+
+  // Fetch deals from API
+  const { data: dealsData, isLoading: dealsLoading, error: dealsError } = useGetDealsQuery({ limit: 10 });
+
+  // Debug logging
+  console.log('[Home] Deals API response:', dealsData);
+  console.log('[Home] Deals error:', dealsError);
+
+  // Transform API deals to match expected format
+  const deals = React.useMemo(() => {
+    if (!dealsData?.deals || dealsData.deals.length === 0) {
+      console.log('[Home] No API deals, using static fallback');
+      return staticDeals; // Fallback to static deals
+    }
+    console.log('[Home] Using', dealsData.deals.length, 'deals from API');
+    return dealsData.deals.map(deal => {
+      const discountText = deal.discountType === 'percentage' 
+        ? `${deal.discountValue}% OFF` 
+        : `Rs ${deal.discountValue} OFF`;
+      
+      // Extract image URL from various formats
+      let imageUrl = 'https://images.unsplash.com/photo-1585937421612-70a008356fbe';
+      if (deal.image) {
+        if (typeof deal.image === 'string') {
+          imageUrl = deal.image;
+        } else if (deal.image.url) {
+          imageUrl = deal.image.url;
+        }
+      } else if (deal.menuItems?.[0]?.images?.[0]) {
+        const menuImg = deal.menuItems[0].images[0];
+        imageUrl = typeof menuImg === 'string' ? menuImg : menuImg.url || imageUrl;
+      }
+      
+      return {
+        id: deal._id,
+        title: deal.title || deal.business?.businessName || 'Special Deal',
+        discount: discountText,
+        image: imageUrl,
+        type: deal.type || 'deal',
+        businessName: deal.business?.businessName,
+        description: deal.description,
+      };
+    });
+  }, [dealsData]);
 
   const handleToggleTheme = () => {
     dispatch(toggleTheme());
@@ -244,9 +290,12 @@ export default function Page() {
 
         {/* Deals & Sponsored Ads */}
         <View className="py-4 px-4" style={{ backgroundColor: isDarkMode ? '#1E3A5F' : '#EFF6FF' }}>
-          <View className="flex-row items-center gap-2 mb-4">
-            <Sparkles size={20} color="#10B981" />
-            <Text style={{ color: colors.text }} className="text-xl font-bold">Deals & Offers</Text>
+          <View className="flex-row items-center justify-between mb-4">
+            <View className="flex-row items-center gap-2">
+              <Tag size={20} color="#10B981" />
+              <Text style={{ color: colors.text }} className="text-xl font-bold">Deals & Offers</Text>
+            </View>
+            {dealsLoading && <ActivityIndicator size="small" color="#10B981" />}
           </View>
 
           <ScrollView 
@@ -255,7 +304,7 @@ export default function Page() {
             contentContainerStyle={{ gap: 12 }}
           >
             {deals.map((deal) => (
-              <View key={deal.id} style={{ width: width * 0.7 }}>
+              <TouchableOpacity key={deal.id} style={{ width: width * 0.75 }} activeOpacity={0.9}>
                 <WanderCard padding="none" className="overflow-hidden" hover>
                   <View className="flex-row items-center gap-3 p-3">
                     <View className="w-20 h-20 rounded-xl overflow-hidden">
@@ -274,12 +323,12 @@ export default function Page() {
                         {deal.title}
                       </Text>
                       <Text style={{ color: colors.textSecondary }} className="text-xs capitalize">
-                        {deal.type}
+                        {deal.businessName || deal.type}
                       </Text>
                     </View>
                   </View>
                 </WanderCard>
-              </View>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         </View>

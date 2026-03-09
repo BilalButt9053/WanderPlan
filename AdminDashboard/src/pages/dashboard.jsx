@@ -1,46 +1,80 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Building2, MessageSquare, TrendingUp, DollarSign, Trophy, Bell, ArrowRight } from "lucide-react";
 import { useGetBusinessStatsQuery } from "@/services/businessApi";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-
-const stats = [
-  { 
-    label: "Total Users", 
-    value: "8,432",
-    change: "+12.5%",
-    icon: Users,
-    color: "text-blue-500"
-  },
-  { 
-    label: "Businesses", 
-    value: "342",
-    change: "+8.2%",
-    icon: Building2,
-    color: "text-green-500"
-  },
-  { 
-    label: "Reviews", 
-    value: "12,458",
-    change: "+15.3%",
-    icon: MessageSquare,
-    color: "text-purple-500"
-  },
-  { 
-    label: "Active Deals", 
-    value: "87",
-    change: "+5.1%",
-    icon: DollarSign,
-    color: "text-yellow-500"
-  },
-];
+import { usersService, businessesService, reviewsService } from "@/services/adminService";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { data: businessStats } = useGetBusinessStatsQuery();
   const hasPendingBusinesses = businessStats?.pending > 0;
+
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    businesses: 0,
+    reviews: 0,
+    activeDeals: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [users, businesses, reviews] = await Promise.all([
+          usersService.getUsers(),
+          businessesService.getBusinesses(),
+          reviewsService.getReviews({ limit: 1000 }),
+        ]);
+
+        setStats({
+          totalUsers: users?.length || 0,
+          businesses: businesses?.count || 0,
+          reviews: reviews?.items?.length || 0,
+          activeDeals: businessStats?.byStatus?.approved || 0,
+        });
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [businessStats]);
+
+  const statsCards = [
+    { 
+      label: "Total Users", 
+      value: loading ? "..." : stats.totalUsers.toLocaleString(),
+      change: "+12.5%",
+      icon: Users,
+      color: "text-blue-500"
+    },
+    { 
+      label: "Businesses", 
+      value: loading ? "..." : stats.businesses.toLocaleString(),
+      change: "+8.2%",
+      icon: Building2,
+      color: "text-green-500"
+    },
+    { 
+      label: "Reviews", 
+      value: loading ? "..." : stats.reviews.toLocaleString(),
+      change: "+15.3%",
+      icon: MessageSquare,
+      color: "text-purple-500"
+    },
+    { 
+      label: "Active Deals", 
+      value: loading ? "..." : stats.activeDeals.toLocaleString(),
+      change: "+5.1%",
+      icon: DollarSign,
+      color: "text-yellow-500"
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -80,7 +114,7 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
+        {statsCards.map((stat) => {
           const Icon = stat.icon;
           return (
             <Card key={stat.label}>

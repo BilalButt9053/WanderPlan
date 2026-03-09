@@ -43,25 +43,43 @@ export default function SignInPage() {
     try {
       const response = await login(formData).unwrap();
       
-      // Check if OTP is required
-      if (response.requiresLoginOtp || response.requiresVerification) {
-        setSuccess(response.msg || "OTP sent to your email");
-        // Navigate to OTP verification with email
+      console.log('Login response:', response);
+      
+      // Check if user is verified and has token (direct login for verified users)
+      if (response.token && response.user) {
+        // Check if user is admin
+        if (!response.user.isAdmin) {
+          setError("Access denied. Admin privileges required.");
+          return;
+        }
+        
+        // Store credentials and redirect to dashboard
+        localStorage.setItem("authToken", response.token);
+        localStorage.setItem("userData", JSON.stringify(response.user));
+        setSuccess("Login successful! Redirecting...");
         setTimeout(() => {
-          navigate("/auth/verify-otp", { 
-            state: { 
-              email: formData.email,
-              isLogin: true 
-            } 
-          });
-        }, 1500);
+          navigate("/");
+        }, 500);
       } else {
-        // If no OTP required (shouldn't happen based on server logic)
         setError("Unexpected response from server");
       }
     } catch (err) {
       console.error("Login error:", err);
-      setError(err?.data?.message || "Invalid credentials. Please try again.");
+      
+      // Check if it's a verification required error (403 status) - only for unverified users
+      if (err?.status === 403 && err?.data?.requiresVerification) {
+        setSuccess(err.data.message || "OTP sent to your email. Please verify your email.");
+        setTimeout(() => {
+          navigate("/auth/verify-otp", { 
+            state: { 
+              email: err.data.email || formData.email,
+              isLogin: true 
+            } 
+          });
+        }, 1000);
+      } else {
+        setError(err?.data?.message || "Invalid credentials. Please try again.");
+      }
     }
   };
 
@@ -161,16 +179,6 @@ export default function SignInPage() {
                 "Sign In"
               )}
             </Button>
-
-            <div className="text-center text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link 
-                to="/auth/sign-up" 
-                className="text-primary font-medium hover:underline"
-              >
-                Sign Up
-              </Link>
-            </div>
           </form>
         </CardContent>
       </Card>

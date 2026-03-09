@@ -11,7 +11,7 @@ export default function SettingsPage() {
     <DashboardShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
+          <h1 className="text-foreground text-3xl font-bold">Settings</h1>
           <p className="text-muted-foreground mt-1">Business and account settings.</p>
         </div>
 

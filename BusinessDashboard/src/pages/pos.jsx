@@ -11,7 +11,7 @@ export default function POSPage() {
     <DashboardShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">POS Integration</h1>
+          <h1 className="text-foreground text-3xl font-bold">POS Integration</h1>
           <p className="text-muted-foreground mt-1">Connect your POS to keep inventory in sync.</p>
         </div>
 

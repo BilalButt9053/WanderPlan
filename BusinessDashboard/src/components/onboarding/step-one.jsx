@@ -19,7 +19,7 @@ export function OnboardingStepOne({ formData, updateFormData }) {
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="businessName">Business Name</Label>
+          <Label htmlFor="businessName">Business Name *</Label>
           <Input
             id="businessName"
             name="businessName"
@@ -27,11 +27,12 @@ export function OnboardingStepOne({ formData, updateFormData }) {
             className="bg-secondary"
             value={formData.businessName}
             onChange={handleChange}
+            required
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="description">Description</Label>
+          <Label htmlFor="description">Description *</Label>
           <Textarea
             id="description"
             name="description"
@@ -39,20 +40,22 @@ export function OnboardingStepOne({ formData, updateFormData }) {
             className="bg-secondary min-h-[120px]"
             value={formData.description}
             onChange={handleChange}
+            required
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number</Label>
+            <Label htmlFor="phone">Phone Number *</Label>
             <Input
               id="phone"
               name="phone"
               type="tel"
-              placeholder="+1 (555) 123-4567"
+              placeholder="+92 300 1234567"
               className="bg-secondary"
               value={formData.phone}
               onChange={handleChange}
+              required
             />
           </div>
           <div className="space-y-2">
@@ -67,19 +70,6 @@ export function OnboardingStepOne({ formData, updateFormData }) {
               onChange={handleChange}
             />
           </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="contactEmail">Contact Email</Label>
-          <Input
-            id="contactEmail"
-            name="contactEmail"
-            type="email"
-            placeholder="contact@yourbusiness.com"
-            className="bg-secondary"
-            value={formData.contactEmail}
-            onChange={handleChange}
-          />
         </div>
       </div>
     </div>
