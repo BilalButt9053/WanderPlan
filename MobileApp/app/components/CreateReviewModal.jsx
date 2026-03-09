@@ -18,7 +18,7 @@ import {
 import { WanderButton } from './wander-button';
 import Modal from './Modal';
 import * as ImagePicker from 'expo-image-picker';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function CreateReviewModal({ visible, onClose, onSubmit }) {
   const { colors } = useTheme();

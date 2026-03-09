@@ -4,7 +4,8 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Image
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import {
   Plus,
@@ -19,63 +20,23 @@ import { WanderCard } from '../components/wander-card';
 import { WanderChip } from '../components/wander-chip';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ImageWithFallback from '../components/ImageWithFallback';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 
-const trips = [
-  {
-    id: '1',
-    destination: 'Hunza Valley, Gilgit-Baltistan',
-    dates: 'Jun 15 - Jun 22, 2024',
-    duration: '7 days',
-    budget: '150000',
-    spent: '135000',
-    currency: 'PKR',
-    image: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxodW56YSUyMHZhbGxleSUyMHBha2lzdGFufGVufDF8fHx8MTczMjYxMjAwMHww&ixlib=rb-4.1.0&q=80&w=1080',
-    status: 'completed',
-  },
-  {
-    id: '2',
-    destination: 'Lahore, Punjab',
-    dates: 'Aug 10 - Aug 17, 2024',
-    duration: '7 days',
-    budget: '120000',
-    spent: '115000',
-    currency: 'PKR',
-    image: 'https://images.unsplash.com/photo-1571847027516-1df28ffc1e29?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYWhvcmUlMjBmb3J0JTIwcGFraXN0YW58ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    status: 'completed',
-  },
-  {
-    id: '3',
-    destination: 'Skardu, Gilgit-Baltistan',
-    dates: 'Dec 20 - Dec 30, 2024',
-    duration: '10 days',
-    budget: '180000',
-    spent: '0',
-    currency: 'PKR',
-    image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYWlyeSUyMG1lYWRvd3MlMjBwYWtpc3RhbnxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    status: 'upcoming',
-  },
-  {
-    id: '4',
-    destination: 'Murree, Punjab',
-    dates: 'Not scheduled',
-    duration: '5 days',
-    budget: '80000',
-    spent: '0',
-    currency: 'PKR',
-    image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwYWtpc3RhbmklMjBmb29kJTIwYmlyeWFuaXxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    status: 'draft',
-  },
-];
-
+// Dynamic status styles
 const getStatusColor = (status) => {
   switch (status) {
     case 'completed':
       return { backgroundColor: '#D1FAE5', color: '#059669' };
     case 'upcoming':
+    case 'confirmed':
       return { backgroundColor: '#DBEAFE', color: '#2563EB' };
+    case 'in-progress':
+      return { backgroundColor: '#FEF3C7', color: '#D97706' };
     case 'draft':
+    case 'planning':
       return { backgroundColor: '#F3F4F6', color: '#6B7280' };
+    case 'cancelled':
+      return { backgroundColor: '#FEE2E2', color: '#DC2626' };
     default:
       return { backgroundColor: '#F3F4F6', color: '#6B7280' };
   }
@@ -86,11 +47,17 @@ const getStatusText = (status) => {
     case 'completed':
       return 'Completed';
     case 'upcoming':
+    case 'confirmed':
       return 'Upcoming';
+    case 'in-progress':
+      return 'In Progress';
     case 'draft':
+    case 'planning':
       return 'Draft';
+    case 'cancelled':
+      return 'Cancelled';
     default:
-      return status;
+      return status?.charAt(0).toUpperCase() + status?.slice(1) || 'Unknown';
   }
 };
 
@@ -197,14 +164,52 @@ function TripCard({ trip, onReopen }) {
   );
 }
 
-export default function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
+export default function TripHistoryScreen({ 
+  onCreateNew, 
+  onReopenTrip,
+  trips = [],
+  isLoading = false,
+  onRefresh,
+  error,
+}) {
   const { colors } = useTheme();
-  const completedTrips = trips.filter(t => t.status === 'completed');
-  const upcomingTrips = trips.filter(t => t.status === 'upcoming');
-  const draftTrips = trips.filter(t => t.status === 'draft');
+  
+  // Normalize trips data from API
+  const normalizedTrips = React.useMemo(() => {
+    return trips.map(trip => {
+      // Safely extract image URL from various formats
+      let imageUrl = 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=400';
+      if (trip.coverImage) {
+        if (typeof trip.coverImage === 'string') {
+          imageUrl = trip.coverImage;
+        } else if (trip.coverImage?.url) {
+          imageUrl = trip.coverImage.url;
+        }
+      }
+      
+      return {
+        id: trip._id,
+        destination: trip.destination?.name || trip.destination?.city || 'Unknown',
+        dates: trip.startDate && trip.endDate 
+          ? `${new Date(trip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(trip.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+          : 'Not scheduled',
+        duration: `${trip.durationDays || Math.ceil((new Date(trip.endDate) - new Date(trip.startDate)) / (1000 * 60 * 60 * 24)) + 1 || 1} days`,
+        budget: trip.totalBudget?.toString() || '0',
+        spent: trip.totalSpent?.toString() || '0',
+        currency: trip.currency || 'PKR',
+        image: imageUrl,
+        status: trip.status || 'draft',
+      };
+    });
+  }, [trips]);
+
+  const completedTrips = normalizedTrips.filter(t => t.status === 'completed');
+  const upcomingTrips = normalizedTrips.filter(t => t.status === 'upcoming' || t.status === 'confirmed');
+  const draftTrips = normalizedTrips.filter(t => t.status === 'draft' || t.status === 'planning');
+  const inProgressTrips = normalizedTrips.filter(t => t.status === 'in-progress' || t.status === 'ongoing');
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
       <View style={{ 
         backgroundColor: colors.background,
@@ -217,7 +222,7 @@ export default function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
           <View>
             <Text style={{ fontSize: 24, fontWeight: '700', color: colors.text }}>My Trips</Text>
             <Text style={{ fontSize: 14, color: colors.textSecondary }}>
-              {trips.length} total trips
+              {normalizedTrips.length} total trips
             </Text>
           </View>
           <TouchableOpacity
@@ -242,8 +247,83 @@ export default function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
       </View>
 
       {/* Content */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView 
+        style={{ flex: 1 }} 
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={onRefresh}
+              colors={['#3B82F6']}
+            />
+          ) : undefined
+        }
+      >
+        {/* Loading State */}
+        {isLoading && normalizedTrips.length === 0 && (
+          <View style={{ paddingVertical: 48, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#3B82F6" />
+            <Text style={{ marginTop: 12, color: colors.textSecondary }}>Loading trips...</Text>
+          </View>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <View style={{ padding: 16 }}>
+            <View style={{
+              backgroundColor: '#FEE2E2',
+              padding: 16,
+              borderRadius: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+            }}>
+              <View style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#DC2626',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Text style={{ color: '#ffffff', fontSize: 18 }}>!</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#991B1B' }}>
+                  Failed to load trips
+                </Text>
+                <Text style={{ fontSize: 12, color: '#B91C1C' }}>
+                  {error?.data?.message || 'Please check your connection'}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={onRefresh}>
+                <Text style={{ color: '#DC2626', fontWeight: '600' }}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         <View style={{ padding: 16, gap: 24 }}>
+          {/* In Progress Trips */}
+          {inProgressTrips.length > 0 && (
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <MapPin size={18} color="#059669" />
+                <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text }}>Currently Traveling</Text>
+              </View>
+              <View style={{ gap: 12 }}>
+                {inProgressTrips.map((trip) => (
+                  <TripCard
+                    key={trip.id}
+                    trip={trip}
+                    onReopen={() => onReopenTrip(trip.id)}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
           {/* Upcoming Trips */}
           {upcomingTrips.length > 0 && (
             <View>
@@ -296,21 +376,21 @@ export default function TripHistoryScreen({ onCreateNew, onReopenTrip }) {
           )}
 
           {/* Empty State */}
-          {trips.length === 0 && (
+          {!isLoading && normalizedTrips.length === 0 && !error && (
             <View style={{ paddingVertical: 48, alignItems: 'center' }}>
               <View style={{
                 width: 80,
                 height: 80,
                 borderRadius: 40,
-                backgroundColor: '#F3F4F6',
+                backgroundColor: colors.input,
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 16
               }}>
-                <MapPin size={32} color="#6B7280" />
+                <MapPin size={32} color={colors.textSecondary} />
               </View>
-              <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>No trips yet</Text>
-              <Text style={{ color: '#6B7280', marginBottom: 24, textAlign: 'center' }}>
+              <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8, color: colors.text }}>No trips yet</Text>
+              <Text style={{ color: colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
                 Start planning your first adventure!
               </Text>
               <WanderButton onPress={onCreateNew}>

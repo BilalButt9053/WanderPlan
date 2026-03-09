@@ -24,7 +24,7 @@ import {
 import { WanderCard } from './wander-card';
 import { WanderChip } from './wander-chip';
 import { ImageWithFallback } from './ImageWithFallback';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 
 const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, onLike, onHelpful, onSave, currentUserId }) => {
   const { colors } = useTheme();

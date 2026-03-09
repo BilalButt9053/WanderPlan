@@ -26,7 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
 import { Switch } from '../components/ui/switch';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 
 export function SettingsScreen({ onBack }) {
   const { colors } = useTheme();

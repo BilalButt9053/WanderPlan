@@ -1,7 +1,7 @@
 import React from "react";
 import { Modal as RNModal, View, TouchableOpacity, Text } from "react-native";
 import { X } from "lucide-react-native";
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function ReusableModal({
   visible,

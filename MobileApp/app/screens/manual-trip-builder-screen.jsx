@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   TextInput,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import {
   ArrowLeft,
@@ -17,9 +18,9 @@ import {
   X,
   Filter,
   Bookmark,
-  GripVertical,
   Tag,
-  RefreshCw
+  RefreshCw,
+  DollarSign
 } from 'lucide-react-native';
 import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
@@ -27,6 +28,29 @@ import { WanderChip } from '../components/wander-chip';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ImageWithFallback from '../components/ImageWithFallback';
 import { useGetMenuItemsQuery, useGetDealsQuery } from '../../redux/api/businessItemsApi';
+import { 
+  useLazyGetActivitySuggestionsQuery, 
+  useSaveManualItineraryMutation 
+} from '../../redux/api/itineraryApi';
+import { useTheme } from '../../hooks/useTheme';
+
+// Category colors for activity types
+const getCategoryColor = (type) => {
+  switch (type) {
+    case 'hotel':
+    case 'accommodation':
+      return '#F2994A';
+    case 'restaurant':
+    case 'food':
+      return '#27AE60';
+    case 'attraction':
+      return '#9B51E0';
+    case 'deal':
+      return '#DC2626';
+    default:
+      return '#3B82F6';
+  }
+};
 
 const getIcon = (type) => {
   switch (type) {
@@ -51,12 +75,30 @@ const getCategoryType = (category) => {
   return 'attraction';
 };
 
-export default function ManualTripBuilderScreen({ onBack, onSave }) {
-  const [selectedItems, setSelectedItems] = useState([]);
+export default function ManualTripBuilderScreen({ 
+  onBack, 
+  onSave, 
+  tripId, 
+  budgetData,
+  onItinerarySaved 
+}) {
+  const { colors } = useTheme();
+  const [selectedItems, setSelectedItems] = useState([]); // Items with assignedDay
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDay, setSelectedDay] = useState(1); // Current day being viewed/added to
   const [filterType, setFilterType] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Extract budget info
+  const totalBudget = parseInt(budgetData?.budget) || 0;
+  const currency = budgetData?.currency || 'PKR';
+  const destination = budgetData?.destination || '';
+  const duration = parseInt(budgetData?.duration) || 1;
+
+  // RTK Query mutations
+  const [saveManualItinerary, { isLoading: isSaving }] = useSaveManualItineraryMutation();
+  const [fetchAISuggestions, { data: aiSuggestionsData, isLoading: isLoadingAI }] = useLazyGetActivitySuggestionsQuery();
 
   // Fetch menu items from API
   const { 
@@ -74,14 +116,22 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
     refetch: refetchDeals
   } = useGetDealsQuery({ limit: 50 });
 
+  // Fetch AI suggestions when tripId is available
+  useEffect(() => {
+    if (tripId) {
+      fetchAISuggestions(tripId);
+    }
+  }, [tripId, fetchAISuggestions]);
+
   // Debug logging
   console.log('[TripBuilder] Menu items data:', menuItemsData);
   console.log('[TripBuilder] Deals data:', dealsData);
+  console.log('[TripBuilder] AI Suggestions data:', aiSuggestionsData);
   console.log('[TripBuilder] Items error:', itemsError);
   console.log('[TripBuilder] Deals error:', dealsError);
 
   // Transform API data to match expected format
-  const availableItems = useMemo(() => {
+  const businessItems = useMemo(() => {
     const items = [];
     
     // Helper to extract image URL
@@ -147,14 +197,57 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
     return items;
   }, [menuItemsData, dealsData]);
 
+  // Transform AI suggestions to match expected format
+  const aiItems = useMemo(() => {
+    const items = [];
+    
+    if (aiSuggestionsData?.suggestions) {
+      aiSuggestionsData.suggestions.forEach((suggestion, idx) => {
+        items.push({
+          id: suggestion.id || `ai_${idx}`,
+          name: suggestion.title,
+          type: getCategoryType(suggestion.type || suggestion.category),
+          category: suggestion.category,
+          price: suggestion.estimatedCost || 0,
+          rating: 4.5,
+          image: 'https://images.unsplash.com/photo-1676471932681-45fa972d848a',
+          location: suggestion.location || destination,
+          businessName: suggestion.businessName,
+          description: suggestion.description,
+          source: suggestion.source || 'ai',
+          suggestedDay: suggestion.suggestedDay,
+          itemType: 'suggestion'
+        });
+      });
+    }
+    
+    return items;
+  }, [aiSuggestionsData, destination]);
+
+  // Combine business items and AI items - show all in one list
+  const availableItems = useMemo(() => {
+    return [...businessItems, ...aiItems];
+  }, [businessItems, aiItems]);
+
   const addItem = (item) => {
     if (!selectedItems.find(i => i.id === item.id)) {
-      setSelectedItems([...selectedItems, item]);
+      setSelectedItems([...selectedItems, { ...item, assignedDay: selectedDay }]);
     }
   };
 
   const removeItem = (id) => {
     setSelectedItems(selectedItems.filter(item => item.id !== id));
+  };
+
+  const changeItemDay = (id, newDay) => {
+    setSelectedItems(selectedItems.map(item => 
+      item.id === id ? { ...item, assignedDay: newDay } : item
+    ));
+  };
+
+  // Get items for a specific day
+  const getItemsForDay = (day) => {
+    return selectedItems.filter(item => item.assignedDay === day);
   };
 
   const filteredItems = availableItems.filter(item => {
@@ -172,20 +265,71 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
   });
 
   const totalCost = selectedItems.reduce((sum, item) => sum + item.price, 0);
-  const isLoading = isLoadingItems || isLoadingDeals;
+  const remainingBudget = totalBudget - totalCost;
+  const isOverBudget = remainingBudget < 0;
+  const isLoading = isLoadingItems || isLoadingDeals || isLoadingAI;
 
   const handleRefresh = () => {
     refetchItems();
     refetchDeals();
+    if (tripId) {
+      fetchAISuggestions(tripId);
+    }
+  };
+
+  // Save itinerary to backend
+  const handleSaveItinerary = async () => {
+    if (!tripId) {
+      Alert.alert('Error', 'No trip selected. Please create a trip first.');
+      onSave?.();
+      return;
+    }
+
+    if (selectedItems.length === 0) {
+      Alert.alert('Error', 'Please select at least one activity');
+      return;
+    }
+
+    try {
+      // Organize activities by their assigned day
+      const days = [];
+      
+      for (let d = 1; d <= duration; d++) {
+        const dayItems = selectedItems.filter(item => item.assignedDay === d);
+        
+        days.push({
+          day: d,
+          activities: dayItems.map(item => ({
+            title: item.name,
+            description: item.description || '',
+            type: item.type === 'restaurant' ? 'food' : item.type,
+            category: item.category || 'activities',
+            estimatedCost: item.price,
+            location: item.location || '',
+            source: item.source || 'business',
+            businessId: item.id?.startsWith?.('ai_') ? null : item.id,
+            businessName: item.businessName
+          }))
+        });
+      }
+
+      await saveManualItinerary({ tripId, days }).unwrap();
+      Alert.alert('Success', 'Your trip itinerary has been saved!');
+      onItinerarySaved?.();
+      onSave?.();
+    } catch (error) {
+      console.error('[TripBuilder] Save error:', error);
+      Alert.alert('Error', error?.data?.message || 'Failed to save itinerary. Please try again.');
+    }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
       <View style={{ 
-        backgroundColor: '#ffffff',
+        backgroundColor: colors.card,
         borderBottomWidth: 1,
-        borderBottomColor: '#e5e7eb',
+        borderBottomColor: colors.border,
         paddingHorizontal: 16,
         paddingVertical: 16
       }}>
@@ -197,20 +341,98 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                backgroundColor: '#F3F4F6',
+                backgroundColor: colors.input,
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
             >
-              <ArrowLeft size={20} color="#000" />
+              <ArrowLeft size={20} color={colors.text} />
             </TouchableOpacity>
             <View>
-              <Text style={{ fontSize: 18, fontWeight: '600' }}>Build Your Trip</Text>
-              <Text style={{ fontSize: 13, color: '#6B7280' }}>
-                {selectedItems.length} items • Rs {totalCost.toLocaleString()}
+              <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text }}>Build Your Trip</Text>
+              <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+                {destination ? `${destination} • ` : ''}{selectedItems.length} items
               </Text>
             </View>
           </View>
+        </View>
+
+        {/* Budget Info */}
+        {totalBudget > 0 && (
+          <View style={{
+            backgroundColor: isOverBudget ? '#FEE2E2' : '#D1FAE5',
+            borderRadius: 12,
+            padding: 12,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            marginBottom: 12
+          }}>
+            <View>
+              <Text style={{ fontSize: 12, color: isOverBudget ? '#DC2626' : '#059669' }}>Selected Cost</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: isOverBudget ? '#DC2626' : '#059669' }}>
+                {currency} {totalCost.toLocaleString()}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 12, color: isOverBudget ? '#DC2626' : '#059669' }}>
+                {isOverBudget ? 'Over Budget' : 'Remaining'}
+              </Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: isOverBudget ? '#DC2626' : '#059669' }}>
+                {currency} {Math.abs(remainingBudget).toLocaleString()}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Day Selector - User picks which day to add activities to */}
+        <View style={{ marginBottom: 12 }}>
+          <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 8 }}>Adding to:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {Array.from({ length: duration }, (_, i) => i + 1).map((day) => {
+                const dayItemCount = getItemsForDay(day).length;
+                return (
+                  <TouchableOpacity
+                    key={day}
+                    onPress={() => setSelectedDay(day)}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      backgroundColor: selectedDay === day ? '#3B82F6' : colors.input,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Text style={{ 
+                      fontSize: 14, 
+                      fontWeight: '600', 
+                      color: selectedDay === day ? '#fff' : colors.text 
+                    }}>
+                      Day {day}
+                    </Text>
+                    {dayItemCount > 0 && (
+                      <View style={{
+                        backgroundColor: selectedDay === day ? 'rgba(255,255,255,0.3)' : '#E5E7EB',
+                        borderRadius: 10,
+                        paddingHorizontal: 6,
+                        paddingVertical: 2
+                      }}>
+                        <Text style={{ 
+                          fontSize: 11, 
+                          fontWeight: '600',
+                          color: selectedDay === day ? '#fff' : colors.textSecondary 
+                        }}>
+                          {dayItemCount}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
         </View>
 
         {/* Search Bar */}
@@ -323,68 +545,119 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
 
       {/* Content */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: selectedItems.length > 0 ? 180 : 100, gap: 24 }}>
-        {/* Selected Items */}
+        {/* Selected Items organized by Day */}
         {selectedItems.length > 0 && (
           <View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-              <Text style={{ fontSize: 18, fontWeight: '600' }}>Your Itinerary</Text>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text }}>Your Itinerary</Text>
               <Text style={{ fontSize: 14, color: '#059669', fontWeight: '600' }}>
                 Rs {totalCost.toLocaleString()} total
               </Text>
             </View>
-            <View style={{ gap: 8 }}>
-              {selectedItems.map((item) => {
-                const Icon = getIcon(item.type);
-                return (
-                  <View
-                    key={item.id}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 12,
-                      padding: 12,
-                      backgroundColor: '#ffffff',
-                      borderWidth: 1,
-                      borderColor: '#E5E7EB',
-                      borderRadius: 16
-                    }}
-                  >
-                    <GripVertical size={18} color="#6B7280" />
-                    <View style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 12,
-                      backgroundColor: '#DBEAFE',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Icon size={20} color="#3B82F6" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '600' }} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      <Text style={{ fontSize: 14, color: '#059669', fontWeight: '600' }}>
-                        Rs {item.price.toLocaleString()}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => removeItem(item.id)}
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 8,
-                        backgroundColor: '#FEE2E2',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <X size={16} color="#DC2626" />
-                    </TouchableOpacity>
+            
+            {/* Day tabs for viewing itinerary */}
+            {Array.from({ length: duration }, (_, i) => i + 1).map((day) => {
+              const dayItems = getItemsForDay(day);
+              const dayCost = dayItems.reduce((sum, item) => sum + item.price, 0);
+              
+              return (
+                <View key={day} style={{ marginBottom: 16 }}>
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    marginBottom: 8,
+                    paddingBottom: 8,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border
+                  }}>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>
+                      Day {day}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#059669', fontWeight: '500' }}>
+                      Rs {dayCost.toLocaleString()}
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
+                  
+                  {dayItems.length === 0 ? (
+                    <Text style={{ fontSize: 13, color: colors.textSecondary, fontStyle: 'italic', paddingVertical: 8 }}>
+                      No activities yet. Select "Day {day}" above and add items.
+                    </Text>
+                  ) : (
+                    <View style={{ gap: 8 }}>
+                      {dayItems.map((item) => {
+                        const Icon = getIcon(item.type);
+                        const typeColor = getCategoryColor(item.type);
+                        return (
+                          <View
+                            key={item.id}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 12,
+                              padding: 12,
+                              backgroundColor: colors.card,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              borderRadius: 16
+                            }}
+                          >
+                            <View style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 10,
+                              backgroundColor: `${typeColor}20`,
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <Icon size={18} color={typeColor} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>
+                                {item.name}
+                              </Text>
+                              <Text style={{ fontSize: 13, color: '#059669', fontWeight: '500' }}>
+                                Rs {item.price.toLocaleString()}
+                              </Text>
+                            </View>
+                            {/* Day changer */}
+                            <TouchableOpacity
+                              onPress={() => {
+                                const newDay = (item.assignedDay % duration) + 1;
+                                changeItemDay(item.id, newDay);
+                              }}
+                              style={{
+                                paddingHorizontal: 8,
+                                paddingVertical: 4,
+                                borderRadius: 6,
+                                backgroundColor: colors.input
+                              }}
+                            >
+                              <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                                Move →
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => removeItem(item.id)}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 8,
+                                backgroundColor: '#FEE2E2',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              <X size={16} color="#DC2626" />
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -435,6 +708,7 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
             {filteredItems.map((item) => {
               const Icon = getIcon(item.type);
               const isAdded = selectedItems.some(i => i.id === item.id);
+              const typeColor = getCategoryColor(item.type);
               
               return (
                 <WanderCard key={item.id} padding="none" hover>
@@ -448,29 +722,40 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text style={{ fontSize: 15, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                        <Text style={{ fontSize: 15, fontWeight: '600', flex: 1, color: colors.text }} numberOfLines={1}>
                           {item.name}
                         </Text>
-                        <View style={{ 
-                          paddingHorizontal: 8, 
-                          paddingVertical: 4, 
-                          borderRadius: 12,
-                          backgroundColor: '#F3F4F6',
-                          marginLeft: 8
-                        }}>
-                          <Text style={{ fontSize: 11, fontWeight: '600' }}>
-                            ⭐ {item.rating}
-                          </Text>
-                        </View>
+                        {item.rating && (
+                          <View style={{ 
+                            paddingHorizontal: 6, 
+                            paddingVertical: 2, 
+                            borderRadius: 4,
+                            backgroundColor: colors.input,
+                            marginLeft: 8
+                          }}>
+                            <Text style={{ fontSize: 10, fontWeight: '600', color: colors.text }}>
+                              ⭐ {item.rating}
+                            </Text>
+                          </View>
+                        )}
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <Icon size={14} color="#6B7280" />
-                        <Text style={{ fontSize: 13, color: '#6B7280', flex: 1 }} numberOfLines={1}>
+                        <View style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 5,
+                          backgroundColor: `${typeColor}20`,
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <Icon size={12} color={typeColor} />
+                        </View>
+                        <Text style={{ fontSize: 13, color: colors.textSecondary, flex: 1 }} numberOfLines={1}>
                           {item.businessName || item.location}
                         </Text>
                       </View>
                       {item.businessName && item.location && (
-                        <Text style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 8 }} numberOfLines={1}>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }} numberOfLines={1}>
                           📍 {item.location}
                         </Text>
                       )}
@@ -485,7 +770,7 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
                             paddingHorizontal: 12,
                             paddingVertical: 6,
                             borderRadius: 8,
-                            backgroundColor: isAdded ? '#F3F4F6' : '#3B82F6',
+                            backgroundColor: isAdded ? colors.input : '#3B82F6',
                             flexDirection: 'row',
                             alignItems: 'center',
                             gap: 4
@@ -494,10 +779,10 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
                           {!isAdded && <Plus size={14} color="#ffffff" />}
                           <Text style={{ 
                             fontSize: 13, 
-                            color: isAdded ? '#6B7280' : '#ffffff',
+                            color: isAdded ? colors.textSecondary : '#ffffff',
                             fontWeight: '600'
                           }}>
-                            {isAdded ? 'Added' : 'Add'}
+                            {isAdded ? 'Added' : `Day ${selectedDay}`}
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -519,28 +804,39 @@ export default function ManualTripBuilderScreen({ onBack, onSave }) {
           left: 0,
           right: 0,
           padding: 16,
-          backgroundColor: '#ffffff',
+          backgroundColor: colors.card,
           borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
+          borderTopColor: colors.border,
           zIndex: 30
         }}>
           <TouchableOpacity
-            onPress={onSave}
+            onPress={handleSaveItinerary}
+            disabled={isSaving}
             style={{
-              backgroundColor: '#3B82F6',
+              backgroundColor: isOverBudget ? '#DC2626' : '#3B82F6',
               paddingVertical: 16,
               borderRadius: 16,
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 8
+              gap: 8,
+              opacity: isSaving ? 0.7 : 1
             }}
           >
-            <Bookmark size={20} color="#ffffff" />
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Bookmark size={20} color="#ffffff" />
+            )}
             <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
-              Save Trip ({selectedItems.length} items)
+              {isSaving ? 'Saving...' : `Save Trip (${currency} ${totalCost.toLocaleString()})`}
             </Text>
           </TouchableOpacity>
+          {isOverBudget && (
+            <Text style={{ textAlign: 'center', fontSize: 12, color: '#DC2626', marginTop: 8 }}>
+              ⚠️ This exceeds your budget by {currency} {Math.abs(remainingBudget).toLocaleString()}
+            </Text>
+          )}
         </View>
       )}
     </SafeAreaView>

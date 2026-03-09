@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { toggleTheme } from '../../redux/slices/themeSlice';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 import { 
   Search, 
   MapPin, 

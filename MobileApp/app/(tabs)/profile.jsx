@@ -12,7 +12,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout, updateUser, selectCurrentUser } from '../../redux/slices/authSlice';
 import { useRouter } from 'expo-router';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 import {
   Settings,
   Bell,

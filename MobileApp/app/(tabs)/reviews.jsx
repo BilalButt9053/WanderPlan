@@ -14,7 +14,7 @@ import ReviewCard from '../components/ReviewCard';
 import CreateReviewModal from '../components/CreateReviewModal';
 import EditReviewModal from '../components/EditReviewModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from '../../hooks/useTheme';
 import { useGetReviewsQuery, useCreateReviewMutation, useToggleLikeMutation, useToggleHelpfulMutation, useAddCommentMutation, useDeleteReviewMutation, useUpdateReviewMutation, useUploadImagesMutation, useToggleSaveMutation } from '../../redux/api/reviewsApi';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectCurrentUser } from '../../redux/slices/authSlice';
