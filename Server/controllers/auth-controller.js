@@ -138,7 +138,7 @@ const login = async (req, res, next) => {
         if (match) {
             // Check if email is verified
             if (!userExist.isVerified) {
-                // Generate and send OTP for unverified users
+                // Generate and send OTP for unverified users only
                 const OTP = generateOTP();
                 
                 // Delete any existing tokens
@@ -167,12 +167,18 @@ const login = async (req, res, next) => {
 
             // For verified users, login directly without OTP
             const token = await userExist.jwtToken();
-            console.log("Generated token:", token);
             
             return res.status(200).json({
-                msg: "OTP sent to your email for login verification",
-                requiresLoginOtp: true,
-                email: userExist.email,
+                msg: "Login successful",
+                user: {
+                    _id: userExist._id,
+                    fullName: userExist.fullName,
+                    email: userExist.email,
+                    profilePhoto: userExist.profilePhoto,
+                    isVerified: userExist.isVerified,
+                    isAdmin: userExist.isAdmin || false,
+                },
+                token
             });
         } else {
             // Password does not match, send error response

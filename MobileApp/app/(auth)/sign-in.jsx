@@ -147,12 +147,12 @@ export default function SignInScreen() {
     try {
       const res = await loginUser({ email: emailAddress, password }).unwrap();
       
-      // Check if OTP verification is required for login
-      if (res.requiresLoginOtp || res.requiresVerification) {
+      // Check if OTP verification is required for unverified users
+      if (res.requiresVerification) {
         Toast.show({
           type: 'info',
-          text1: 'OTP Sent',
-          text2: res.msg || res.message || 'Please check your email for the verification code.',
+          text1: 'Email Verification Required',
+          text2: res.message || 'Please check your email for the verification code.',
           position: 'top',
           visibilityTime: 3000,
         });
@@ -173,7 +173,7 @@ export default function SignInScreen() {
         return;
       }
 
-      // Direct login successful
+      // Direct login successful for verified users
       dispatch(setCredentials(res));
       Toast.show({
         type: 'success',

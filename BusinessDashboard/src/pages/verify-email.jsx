@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Mountain, Loader2 } from 'lucide-react'
+import { Mountain, Loader2, Sun, Moon } from 'lucide-react'
 import { 
   useVerifyBusinessEmailMutation,
   useResendOTPMutation 
@@ -15,6 +15,7 @@ import {
   clearPendingBusiness,
   loadPendingBusiness
 } from '@/redux/slices/businessAuthSlice'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export default function VerifyEmailPage() {
   const [otp, setOtp] = useState('')
@@ -23,6 +24,7 @@ export default function VerifyEmailPage() {
   
   const navigate = useNavigate()
   const dispatch = useDispatch()
+  const { theme, toggleTheme } = useTheme()
   
   const businessId = useSelector(selectPendingBusinessId)
   const email = useSelector(selectPendingEmail)
@@ -86,6 +88,13 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      {/* Theme Toggle Button */}
+      <div className="fixed top-4 right-4">
+        <Button variant="ghost" size="icon" onClick={toggleTheme}>
+          {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </Button>
+      </div>
+
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">

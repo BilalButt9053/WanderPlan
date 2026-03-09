@@ -1,40 +1,49 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { uploadReviewImages, cloudinary } = require('../middleware/cloudinary-upload');
+const authMiddleware = require('../middleware/auth-middleware');
 
 const router = express.Router();
 
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
+// Upload review images to Cloudinary (requires authentication)
+router.post('/images', authMiddleware, uploadReviewImages.array('images', 10), (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' });
+    }
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, UPLOAD_DIR);
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname) || '.jpg';
-    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '');
-    cb(null, `${Date.now()}_${base}${ext}`);
+    const urls = req.files.map(file => file.path);
+    const images = req.files.map(file => ({
+      url: file.path,
+      publicId: file.filename,
+    }));
+
+    res.json({ 
+      urls,
+      images,
+      message: 'Images uploaded successfully' 
+    });
+  } catch (error) {
+    console.error('Review image upload error:', error);
+    res.status(500).json({ message: 'Failed to upload images' });
   }
 });
 
-function fileFilter(req, file, cb) {
-  if (!file.mimetype.startsWith('image/')) {
-    return cb(new Error('Only image uploads are allowed'));
+// Delete a review image by public ID
+router.delete('/images/:publicId(*)', authMiddleware, async (req, res) => {
+  try {
+    const { publicId } = req.params;
+    
+    const result = await cloudinary.uploader.destroy(publicId);
+    
+    if (result.result === 'ok') {
+      res.status(200).json({ message: 'Image deleted successfully' });
+    } else {
+      res.status(404).json({ message: 'Image not found' });
+    }
+  } catch (error) {
+    console.error('Delete image error:', error);
+    res.status(500).json({ message: 'Failed to delete image' });
   }
-  cb(null, true);
-}
-
-const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024, files: 10 } });
-
-router.post('/images', upload.array('images', 10), (req, res) => {
-  const host = req.get('host');
-  const protocol = req.protocol;
-  const urls = (req.files || []).map(f => `${protocol}://${host}/uploads/${f.filename}`);
-  res.json({ urls });
 });
 
 module.exports = router;

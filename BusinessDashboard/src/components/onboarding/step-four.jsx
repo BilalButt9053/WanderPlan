@@ -23,7 +23,7 @@ export function OnboardingStepFour({ formData, updateFormData }) {
           <Input
             id="address"
             name="address"
-            placeholder="123 Main Street"
+            placeholder="House 123, Street 45, Block A"
             className="bg-secondary"
             value={formData.address}
             onChange={handleChange}
@@ -36,18 +36,18 @@ export function OnboardingStepFour({ formData, updateFormData }) {
             <Input
               id="city"
               name="city"
-              placeholder="New York"
+              placeholder="Lahore"
               className="bg-secondary"
               value={formData.city}
               onChange={handleChange}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="state">State</Label>
+            <Label htmlFor="state">Province</Label>
             <Input
               id="state"
               name="state"
-              placeholder="NY"
+              placeholder="Punjab"
               className="bg-secondary"
               value={formData.state}
               onChange={handleChange}
@@ -57,11 +57,11 @@ export function OnboardingStepFour({ formData, updateFormData }) {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="zipCode">ZIP Code</Label>
+            <Label htmlFor="zipCode">Postal Code</Label>
             <Input
               id="zipCode"
               name="zipCode"
-              placeholder="10001"
+              placeholder="54000"
               className="bg-secondary"
               value={formData.zipCode}
               onChange={handleChange}
@@ -72,7 +72,7 @@ export function OnboardingStepFour({ formData, updateFormData }) {
             <Input
               id="country"
               name="country"
-              placeholder="United States"
+              placeholder="Pakistan"
               className="bg-secondary"
               value={formData.country}
               onChange={handleChange}

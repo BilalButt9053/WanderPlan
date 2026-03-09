@@ -15,16 +15,16 @@ import DashboardPage from '@/pages/dashboard';
 
 // Import auth pages
 import SignInPage from '@/pages/sign-in';
-import SignUpPage from '@/pages/sign-up';
 import VerifyOtpPage from '@/pages/verify-otp';
+import ForgotPasswordPage from '@/pages/forgot-password';
 
 function AppRoutes() {
   return (
     <Routes>
       {/* Auth Routes */}
       <Route path="/auth/sign-in" element={<AuthRoute><SignInPage /></AuthRoute>} />
-      <Route path="/auth/sign-up" element={<AuthRoute><SignUpPage /></AuthRoute>} />
       <Route path="/auth/verify-otp" element={<VerifyOtpPage />} />
+      <Route path="/auth/forgot-password" element={<AuthRoute><ForgotPasswordPage /></AuthRoute>} />
       
       {/* Protected Admin Routes */}
       <Route path="/" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>

@@ -19,19 +19,25 @@ import  WanderButton  from '../components/wander-button';
 import  WanderCard  from '../components/wander-card';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'INR'];
+const currencies = ['PKR'];
 const popularDestinations = [
-  'Paris, France',
-  'Tokyo, Japan',
-  'Bali, Indonesia',
-  'New York, USA',
-  'Barcelona, Spain',
-  'Dubai, UAE',
+  'Islamabad, Pakistan',
+  'Lahore, Pakistan',
+  'Karachi, Pakistan',
+  'Murree, Pakistan',
+  'Hunza Valley, Pakistan',
+  'Skardu, Pakistan',
+  'Swat Valley, Pakistan',
+  'Naran Kaghan, Pakistan',
+  'Fairy Meadows, Pakistan',
+  'Multan, Pakistan',
+  'Peshawar, Pakistan',
+  'Faisalabad, Pakistan',
 ];
 
 export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBack }) {
   const [budget, setBudget] = useState('');
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('PKR');
   const [destination, setDestination] = useState('');
   const [duration, setDuration] = useState('');
   const [showCurrencies, setShowCurrencies] = useState(false);
@@ -83,7 +89,7 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
       {/* Content */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 24 }}>
         {/* Budget Input */}
-        <WanderCard>
+        <WanderCard style={{ zIndex: 999 }}>
           <View style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <DollarSign size={18} color="#3B82F6" />
@@ -108,65 +114,26 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
                   }}
                 />
               </View>
-              <View style={{ position: 'relative' }}>
-                <TouchableOpacity
-                  onPress={() => setShowCurrencies(!showCurrencies)}
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    backgroundColor: '#F9FAFB',
-                    borderWidth: 1,
-                    borderColor: '#E5E7EB',
-                    borderRadius: 16,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    minWidth: 96,
-                    zIndex:500,
-                  }}
-                >
-                  <Text style={{ fontSize: 16 }}>{currency}</Text>
-                  <ChevronDown size={16} color="#6B7280" />
-                </TouchableOpacity>
-                {showCurrencies && (
-                  <View style={{
-                    position: 'absolute',
-                    top: '100%',
-                    marginTop: 8,
-                    right: 0,
-                    backgroundColor: '#ffffff',
-                    borderWidth: 1,
-                    borderColor: '#E5E7EB',
-                    borderRadius: 16,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 8,
-                    elevation: 5,
-                    width: 128,
-                    zIndex: 50
-                  }}>
-                    {currencies.map((curr) => (
-                      <TouchableOpacity
-                        key={curr}
-                        onPress={() => {
-                          setCurrency(curr);
-                          setShowCurrencies(false);
-                        }}
-                        style={{ paddingHorizontal: 16, paddingVertical: 8 }}
-                      >
-                        <Text>{curr}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
+              <View style={{
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                backgroundColor: '#F9FAFB',
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                borderRadius: 16,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 96,
+              }}>
+                <Text style={{ fontSize: 16, fontWeight: '600' }}>PKR</Text>
               </View>
             </View>
           </View>
         </WanderCard>
 
         {/* Destination Input */}
-        <WanderCard>
+        <WanderCard style={{ zIndex: 1000 }}>
           <View style={{ marginBottom: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <MapPin size={18} color="#3B82F6" />
@@ -209,7 +176,7 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
                   shadowRadius: 8,
                   elevation: 5,
                   maxHeight: 192,
-                  zIndex: 500
+                  zIndex: 1001
                 }}>
                   <ScrollView>
                     {filteredDestinations.map((dest) => (
