@@ -400,4 +400,52 @@ const socialLogin = async (req, res, next) => {
     }
 };
 
-module.exports={register,login,user,forgotPassword,resetPassword,socialLogin}; 
+// Update user profile
+const updateProfile = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const { fullName, profilePhoto } = req.body;
+
+        // Build update object with only provided fields
+        const updateData = {};
+        if (fullName !== undefined) updateData.fullName = fullName;
+        if (profilePhoto !== undefined) updateData.profilePhoto = profilePhoto;
+
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({
+                message: "No fields to update",
+                success: false
+            });
+        }
+
+        const updatedUser = await Signup.findByIdAndUpdate(
+            userId,
+            { $set: updateData },
+            { new: true, runValidators: true }
+        ).select('-password');
+
+        if (!updatedUser) {
+            return res.status(404).json({
+                message: "User not found",
+                success: false
+            });
+        }
+
+        res.status(200).json({
+            message: "Profile updated successfully",
+            success: true,
+            user: {
+                _id: updatedUser._id,
+                fullName: updatedUser.fullName,
+                email: updatedUser.email,
+                profilePhoto: updatedUser.profilePhoto,
+                isVerified: updatedUser.isVerified,
+            }
+        });
+    } catch (error) {
+        console.error("Update profile error:", error);
+        next(error);
+    }
+};
+
+module.exports={register,login,user,forgotPassword,resetPassword,socialLogin,updateProfile}; 

@@ -3,7 +3,16 @@ import { BASE_URL } from "../../config";
 
 export const authApi = createApi({
   reducerPath: "authApi",
-  baseQuery: fetchBaseQuery({ baseUrl: BASE_URL }),
+  baseQuery: fetchBaseQuery({ 
+    baseUrl: BASE_URL,
+    prepareHeaders: (headers, { getState }) => {
+      const token = getState().auth.token;
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      return headers;
+    },
+  }),
   endpoints: (builder) => ({
     registerUser: builder.mutation({
       query: (userData) => ({
@@ -61,6 +70,14 @@ export const authApi = createApi({
         headers: { "Content-Type": "application/json" },
       }),
     }),
+    updateProfile: builder.mutation({
+      query: (profileData) => ({
+        url: "/auth/profile",
+        method: "PUT",
+        body: profileData,
+        headers: { "Content-Type": "application/json" },
+      }),
+    }),
   }),
 });
 
@@ -72,4 +89,5 @@ export const {
   useForgotPasswordMutation,
   useResetPasswordMutation,
   useSocialLoginMutation,
+  useUpdateProfileMutation,
 } = authApi;

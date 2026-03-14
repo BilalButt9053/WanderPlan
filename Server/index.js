@@ -70,6 +70,14 @@ ConnectDb().then(() => {
     const listenHost = '0.0.0.0';
     const localIp = getLocalIp();
     app.listen(port, listenHost, () => {
-        console.log(`Server running at http://${localIp}:${port} (bound to ${listenHost})`);
+        console.log(`\n=== WanderPlan Server ===`);
+        console.log(`Local:    http://localhost:${port}/api`);
+        console.log(`Network:  http://${localIp}:${port}/api`);
+        if (process.env.NGROK_URL) {
+            console.log(`Ngrok:    ${process.env.NGROK_URL}/api`);
+        } else {
+            console.log(`Ngrok:    Not configured (add NGROK_URL to .env)`);
+        }
+        console.log(`==========================\n`);
     });
 });
