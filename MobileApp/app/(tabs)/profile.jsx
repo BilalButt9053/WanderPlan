@@ -7,10 +7,14 @@ import {
   Alert,
   Share,
   Image,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout, updateUser, selectCurrentUser } from '../../redux/slices/authSlice';
+import { useUpdateProfileMutation } from '../../redux/api/authApi';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
 import {
@@ -30,6 +34,8 @@ import {
   CheckCircle,
   Clock,
   ChevronRight,
+  X,
+  Save,
 } from 'lucide-react-native';
 import  WanderButton  from '../components/wander-button';
 import  WanderCard  from '../components/wander-card';
@@ -156,11 +162,38 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [userProfile] = useState(userProfileData);
   const [showSettings, setShowSettings] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  
+  // RTK Query mutation for profile update
+  const [updateProfile, { isLoading: isUpdating }] = useUpdateProfileMutation();
 
   const progressPercentage = (userProfile.points / userProfile.nextLevelPoints) * 100;
 
   const handleOpenSettings = () => {
     setShowSettings(true);
+  };
+
+  const handleOpenEditModal = () => {
+    setEditName(user?.fullName || '');
+    setShowEditModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      Alert.alert('Error', 'Name cannot be empty');
+      return;
+    }
+
+    try {
+      const result = await updateProfile({ fullName: editName.trim() }).unwrap();
+      dispatch(updateUser(result.user));
+      setShowEditModal(false);
+      Alert.alert('Success', 'Profile updated successfully!');
+    } catch (error) {
+      console.error('Profile update error:', error);
+      Alert.alert('Error', error?.data?.message || 'Failed to update profile');
+    }
   };
 
   const handleImagePicker = async () => {
@@ -226,13 +259,13 @@ const Profile = () => {
 
   const handleImageUpload = async (uri) => {
     try {
-      // TODO: Upload to server
-      // For now, just update local state
-      dispatch(updateUser({ profilePhoto: uri }));
+      // Update profile via API
+      const result = await updateProfile({ profilePhoto: uri }).unwrap();
+      dispatch(updateUser(result.user));
       Alert.alert('Success', 'Profile photo updated!');
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload photo');
       console.error('Upload error:', error);
+      Alert.alert('Error', error?.data?.message || 'Failed to upload photo');
     }
   };
 
@@ -316,9 +349,18 @@ const Profile = () => {
                 </View>
               </TouchableOpacity>
               <View className="flex-1">
-                <Text className="text-xl font-bold text-white mb-1">
-                  {user ? user.fullName : userProfile.name}
-                </Text>
+                <View className="flex-row items-center gap-2 mb-1">
+                  <Text className="text-xl font-bold text-white">
+                    {user ? user.fullName : userProfile.name}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={handleOpenEditModal}
+                    className="w-6 h-6 rounded-full items-center justify-center"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.3)' }}
+                  >
+                    <Edit size={12} color="#fff" />
+                  </TouchableOpacity>
+                </View>
                 <Text className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.8)' }}>
                   {user ? user.email : userProfile.username}
                 </Text>
@@ -399,6 +441,94 @@ const Profile = () => {
           </WanderButton>
         </View>
       </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20,
+        }}>
+          <View style={{
+            backgroundColor: colors.card,
+            borderRadius: 20,
+            padding: 24,
+            width: '100%',
+            maxWidth: 400,
+          }}>
+            {/* Modal Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 20, fontWeight: '600', color: colors.text }}>Edit Profile</Text>
+              <TouchableOpacity
+                onPress={() => setShowEditModal(false)}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: colors.input,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Name Input */}
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 8 }}>Full Name</Text>
+              <TextInput
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Enter your name"
+                placeholderTextColor={colors.textSecondary}
+                style={{
+                  backgroundColor: colors.input,
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  fontSize: 16,
+                  color: colors.text,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              />
+            </View>
+
+            {/* Save Button */}
+            <TouchableOpacity
+              onPress={handleSaveProfile}
+              disabled={isUpdating}
+              style={{
+                backgroundColor: '#3B82F6',
+                borderRadius: 12,
+                paddingVertical: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                opacity: isUpdating ? 0.7 : 1,
+              }}
+            >
+              {isUpdating ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Save size={18} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Save Changes</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,10 @@ import {
   Animated,
   Modal,
   Alert,
+  Linking,
+  Platform,
 } from 'react-native';
+import * as Location from 'expo-location';
 import {
   Search,
   Filter,
@@ -22,74 +25,24 @@ import {
   DollarSign,
   Layers,
   Locate,
+  Coffee,
+  ShoppingBag,
 } from 'lucide-react-native';
 import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
 import { ImageWithFallback } from '../components/ImageWithFallback';
+import { ListItemSkeleton } from '../components/Skeleton';
 import { useTheme } from '../../hooks/useTheme';
+import { useGetBusinessesQuery } from '../../redux/api/businessItemsApi';
 
-const mapPlaces = [
-  {
-    id: '1',
-    name: 'La Bella Cucina',
-    type: 'food',
-    lat: 40.7580,
-    lng: -73.9855,
-    rating: 4.7,
-    distance: 0.8,
-    price: 45,
-    image: 'https://images.unsplash.com/photo-1667388968964-4aa652df0a9b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwaW50ZXJpb3IlMjBkaW5pbmd8ZW58MXx8fHwxNzYwMzc0Mjc2fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    address: '123 Main Street',
-  },
-  {
-    id: '2',
-    name: 'Grand Hotel',
-    type: 'hotel',
-    lat: 40.7589,
-    lng: -73.9851,
-    rating: 4.8,
-    distance: 1.2,
-    price: 150,
-    image: 'https://images.unsplash.com/photo-1729605411476-defbdab14c54?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxob3RlbCUyMGx1eHVyeSUyMHJvb218ZW58MXx8fHwxNzYwMzc0MzI0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    address: '456 Park Avenue',
-  },
-  {
-    id: '3',
-    name: 'Secret Garden Cafe',
-    type: 'gem',
-    lat: 40.7570,
-    lng: -73.9860,
-    rating: 4.9,
-    distance: 0.5,
-    price: 12,
-    image: 'https://images.unsplash.com/photo-1629096668246-524da904215c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYWZlJTIwY29mZmVlJTIwaW50ZXJpb3J8ZW58MXx8fHwxNzYwMzc1ODExfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    address: '321 Hidden Lane',
-  },
-  {
-    id: '4',
-    name: 'Seaside Restaurant',
-    type: 'food',
-    lat: 40.7595,
-    lng: -73.9845,
-    rating: 4.6,
-    distance: 1.5,
-    price: 55,
-    image: 'https://images.unsplash.com/photo-1676471932681-45fa972d848a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwZm9vZCUyMGRpbmluZ3xlbnwxfHx8fDE3NjAyNTkyMzd8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    address: '789 Beach Road',
-  },
-  {
-    id: '5',
-    name: 'Artisan Market',
-    type: 'gem',
-    lat: 40.7565,
-    lng: -73.9870,
-    rating: 4.5,
-    distance: 2.1,
-    price: 0,
-    image: 'https://images.unsplash.com/photo-1751857040028-5073d73c56a0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsb2NhbCUyMG1hcmtldCUyMHN0cmVldHxlbnwxfHx8fDE3NjAzNzU4MTF8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    address: '234 Market Square',
-  },
-];
+// Category type mapping for display
+const categoryMap = {
+  restaurant: { icon: UtensilsCrossed, color: '#27AE60', label: 'Food' },
+  cafe: { icon: Coffee, color: '#8B5CF6', label: 'Cafe' },
+  hotel: { icon: Hotel, color: '#2F80ED', label: 'Hotels' },
+  shopping: { icon: ShoppingBag, color: '#F2994A', label: 'Shopping' },
+  attraction: { icon: Gem, color: '#EC4899', label: 'Attractions' },
+};
 
 const Maps = () => {
   const { colors } = useTheme();
@@ -97,7 +50,75 @@ const Maps = () => {
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [showNearby, setShowNearby] = useState(false);
   const [showRoute, setShowRoute] = useState(false);
-  const [activeFilters, setActiveFilters] = useState(new Set(['food', 'hotel', 'gem']));
+  const [userLocation, setUserLocation] = useState(null);
+  const [activeFilters, setActiveFilters] = useState(new Set(['restaurant', 'cafe', 'hotel', 'shopping', 'attraction']));
+
+  // Fetch real businesses from API
+  const { data: businessData, isLoading, refetch } = useGetBusinessesQuery({
+    search: searchQuery,
+    limit: 50,
+  });
+
+  // Get user's location on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Denied', 'Location access is needed to show nearby places.');
+          return;
+        }
+        const location = await Location.getCurrentPositionAsync({});
+        setUserLocation({
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        });
+      } catch (error) {
+        console.log('Location error:', error);
+      }
+    })();
+  }, []);
+
+  // Transform API data to map format
+  const mapPlaces = React.useMemo(() => {
+    if (!businessData?.businesses) return [];
+    
+    return businessData.businesses.map((business) => ({
+      id: business._id,
+      name: business.businessName,
+      type: business.businessType || 'restaurant',
+      lat: business.address?.coordinates?.lat || 0,
+      lng: business.address?.coordinates?.lng || 0,
+      rating: business.rating || 0,
+      reviewCount: business.reviewCount || 0,
+      image: business.logo || business.galleryImages?.[0] || null,
+      address: `${business.address?.street || ''}, ${business.address?.city || ''}`.trim().replace(/^,\s*/, ''),
+      description: business.description,
+    }));
+  }, [businessData]);
+
+  // Calculate distance between two coordinates (Haversine formula)
+  const calculateDistance = (lat1, lng1, lat2, lng2) => {
+    if (!lat1 || !lng1 || !lat2 || !lng2) return null;
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return (R * c).toFixed(1);
+  };
+
+  // Add distance to places if user location available
+  const placesWithDistance = React.useMemo(() => {
+    return mapPlaces.map(place => ({
+      ...place,
+      distance: userLocation 
+        ? calculateDistance(userLocation.lat, userLocation.lng, place.lat, place.lng)
+        : null,
+    }));
+  }, [mapPlaces, userLocation]);
 
   const toggleFilter = (type) => {
     const newFilters = new Set(activeFilters);
@@ -109,32 +130,46 @@ const Maps = () => {
     setActiveFilters(newFilters);
   };
 
-  const filteredPlaces = mapPlaces.filter(place => activeFilters.has(place.type));
-  const nearbyPlaces = mapPlaces
-    .sort((a, b) => a.distance - b.distance)
+  const filteredPlaces = placesWithDistance.filter(place => activeFilters.has(place.type));
+  const nearbyPlaces = [...placesWithDistance]
+    .filter(p => p.distance !== null)
+    .sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance))
     .slice(0, 5);
 
   const getPinColor = (type) => {
-    switch (type) {
-      case 'food': return '#27AE60';
-      case 'hotel': return '#2F80ED';
-      case 'gem': return '#F2994A';
-      default: return '#4F4F4F';
-    }
+    return categoryMap[type]?.color || '#4F4F4F';
   };
 
   const getIcon = (type) => {
-    switch (type) {
-      case 'food': return UtensilsCrossed;
-      case 'hotel': return Hotel;
-      case 'gem': return Gem;
-      default: return MapPin;
-    }
+    return categoryMap[type]?.icon || MapPin;
   };
 
   const handleNavigate = (place) => {
-    setShowRoute(true);
-    Alert.alert('Route Calculated', `ETA: 12 min • $8 fare to ${place.name}`);
+    if (place.lat && place.lng) {
+      const url = Platform.select({
+        ios: `maps:0,0?q=${place.lat},${place.lng}(${encodeURIComponent(place.name)})`,
+        android: `geo:${place.lat},${place.lng}?q=${place.lat},${place.lng}(${encodeURIComponent(place.name)})`,
+      });
+      Linking.openURL(url).catch(() => {
+        // Fallback to Google Maps web
+        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`);
+      });
+    } else {
+      Alert.alert('Navigation', 'Location coordinates not available for this place.');
+    }
+  };
+
+  const handleLocateMe = async () => {
+    try {
+      const location = await Location.getCurrentPositionAsync({});
+      setUserLocation({
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+      });
+      Alert.alert('Location Updated', 'Map centered on your current location');
+    } catch (error) {
+      Alert.alert('Error', 'Could not get your location');
+    }
   };
 
   return (
@@ -167,8 +202,26 @@ const Maps = () => {
         <View className="flex-1 relative" style={{ backgroundColor: '#E3F2FD' }}>
           {/* Grid pattern background */}
           <View className="absolute inset-0">
+            {/* Loading state */}
+            {isLoading && (
+              <View className="absolute inset-0 items-center justify-center bg-white/50 z-20">
+                <View className="bg-white p-4 rounded-xl shadow-lg">
+                  <Text className="text-gray-600">Loading places...</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Empty state */}
+            {!isLoading && filteredPlaces.length === 0 && (
+              <View className="absolute inset-0 items-center justify-center z-10">
+                <MapPin size={64} color="#9CA3AF" />
+                <Text className="text-gray-500 mt-4 text-lg">No places found</Text>
+                <Text className="text-gray-400 text-sm">Try adjusting your filters</Text>
+              </View>
+            )}
+
             {/* Map Pins */}
-            {filteredPlaces.map((place, idx) => {
+            {filteredPlaces.slice(0, 10).map((place, idx) => {
               const Icon = getIcon(place.type);
               const pinColor = getPinColor(place.type);
               
@@ -206,58 +259,58 @@ const Maps = () => {
               );
             })}
 
-            {/* Current Location Pin */}
-            <View className="absolute" style={{ top: '50%', left: '50%', marginLeft: -8, marginTop: -8 }}>
-              <View
-                className="w-4 h-4 rounded-full border-4 border-white"
-                style={{
-                  backgroundColor: '#3B82F6',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.25,
-                  shadowRadius: 3.84,
-                  elevation: 5,
-                }}
-              />
-            </View>
+            {/* Current Location Pin - only show when location is available */}
+            {userLocation && (
+              <View className="absolute" style={{ top: '50%', left: '50%', marginLeft: -8, marginTop: -8 }}>
+                <View
+                  className="w-4 h-4 rounded-full border-4 border-white"
+                  style={{
+                    backgroundColor: '#3B82F6',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.25,
+                    shadowRadius: 3.84,
+                    elevation: 5,
+                  }}
+                />
+              </View>
+            )}
           </View>
         </View>
 
         {/* Filter Pills */}
         <View className="absolute top-20 left-0 right-0 px-4 z-10">
-          <View className="flex-row gap-2">
-            {[
-              { type: 'food', label: 'Food', icon: UtensilsCrossed, color: '#27AE60' },
-              { type: 'hotel', label: 'Hotels', icon: Hotel, color: '#2F80ED' },
-              { type: 'gem', label: 'Gems', icon: Gem, color: '#F2994A' },
-            ].map((filter) => {
-              const Icon = filter.icon;
-              const isActive = activeFilters.has(filter.type);
-              
-              return (
-                <TouchableOpacity
-                  key={filter.type}
-                  onPress={() => toggleFilter(filter.type)}
-                  className="px-3 py-2 rounded-full flex-row items-center gap-2"
-                  style={{
-                    backgroundColor: isActive ? '#fff' : 'rgba(255,255,255,0.5)',
-                    borderLeftWidth: isActive ? 3 : 0,
-                    borderLeftColor: filter.color,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 2,
-                    elevation: 3,
-                  }}
-                >
-                  <Icon size={14} color={isActive ? filter.color : '#666'} />
-                  <Text className={`text-sm ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>
-                    {filter.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View className="flex-row gap-2">
+              {Object.entries(categoryMap).map(([type, config]) => {
+                const Icon = config.icon;
+                const isActive = activeFilters.has(type);
+                
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    onPress={() => toggleFilter(type)}
+                    className="px-3 py-2 rounded-full flex-row items-center gap-2"
+                    style={{
+                      backgroundColor: isActive ? '#fff' : 'rgba(255,255,255,0.5)',
+                      borderLeftWidth: isActive ? 3 : 0,
+                      borderLeftColor: config.color,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.2,
+                      shadowRadius: 2,
+                      elevation: 3,
+                    }}
+                  >
+                    <Icon size={14} color={isActive ? config.color : '#666'} />
+                    <Text className={`text-sm ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>
+                      {config.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
         </View>
 
         {/* Action Buttons */}
@@ -276,7 +329,7 @@ const Maps = () => {
             <Layers size={24} color="#3B82F6" />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => Alert.alert('Location', 'Centering on your location...')}
+            onPress={handleLocateMe}
             className="w-14 h-14 rounded-full bg-white items-center justify-center"
             style={{
               shadowColor: '#000',
@@ -330,14 +383,21 @@ const Maps = () => {
                         <View className="flex-row items-center gap-2 mb-2">
                           <View className="flex-row items-center gap-1">
                             <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                            <Text className="text-sm">{selectedPlace.rating}</Text>
+                            <Text className="text-sm">{selectedPlace.rating?.toFixed(1) || 'New'}</Text>
+                            {selectedPlace.reviewCount > 0 && (
+                              <Text className="text-sm text-gray-500">({selectedPlace.reviewCount})</Text>
+                            )}
                           </View>
-                          <View className="flex-row items-center gap-1">
-                            <Navigation size={12} color="#666" />
-                            <Text className="text-sm text-gray-600">{selectedPlace.distance} km</Text>
-                          </View>
+                          {selectedPlace.distance && (
+                            <View className="flex-row items-center gap-1">
+                              <Navigation size={12} color="#666" />
+                              <Text className="text-sm text-gray-600">{selectedPlace.distance} km</Text>
+                            </View>
+                          )}
                         </View>
-                        <Text className="text-sm text-gray-600 mb-3">{selectedPlace.address}</Text>
+                        <Text className="text-sm text-gray-600 mb-3" numberOfLines={2}>
+                          {selectedPlace.address || selectedPlace.description || 'No address available'}
+                        </Text>
 
                         <View className="flex-row gap-2">
                           <WanderButton
@@ -349,35 +409,9 @@ const Maps = () => {
                               <Text className="text-white font-semibold">Navigate</Text>
                             </View>
                           </WanderButton>
-                          <WanderButton variant="outline" style={{ paddingHorizontal: 16 }}>
-                            <View className="flex-row items-center gap-1">
-                              <DollarSign size={16} color="#3B82F6" />
-                              <Text className="text-blue-500 font-semibold">{selectedPlace.price}</Text>
-                            </View>
-                          </WanderButton>
                         </View>
                       </View>
                     </View>
-
-                    {/* Route Info */}
-                    {showRoute && (
-                      <View className="mt-4 pt-4 border-t border-gray-200">
-                        <View className="flex-row items-center justify-between">
-                          <View>
-                            <Text className="text-sm text-gray-600">Estimated Time</Text>
-                            <Text className="text-blue-500 font-semibold">12 minutes</Text>
-                          </View>
-                          <View>
-                            <Text className="text-sm text-gray-600">Distance</Text>
-                            <Text className="font-semibold">{selectedPlace.distance} km</Text>
-                          </View>
-                          <View>
-                            <Text className="text-sm text-gray-600">Est. Fare</Text>
-                            <Text className="text-orange-500 font-semibold">$8</Text>
-                          </View>
-                        </View>
-                      </View>
-                    )}
                   </View>
                 )}
               </View>
@@ -407,51 +441,70 @@ const Maps = () => {
                   </View>
 
                   <ScrollView className="space-y-3" showsVerticalScrollIndicator={false}>
-                    {nearbyPlaces.map((place, idx) => {
-                      const Icon = getIcon(place.type);
-                      const pinColor = getPinColor(place.type);
-                      
-                      return (
-                        <TouchableOpacity
-                          key={place.id}
-                          onPress={() => {
-                            setSelectedPlace(place);
-                            setShowNearby(false);
-                          }}
-                          style={{ marginBottom: 12 }}
-                        >
-                          <WanderCard padding="sm">
-                            <View className="flex-row gap-3">
-                              <View className="relative w-12 h-12 rounded-lg overflow-hidden">
-                                <ImageWithFallback
-                                  source={{ uri: place.image }}
-                                  style={{ width: '100%', height: '100%' }}
-                                  resizeMode="cover"
-                                />
-                                <View
-                                  className="absolute -top-1 -left-1 w-6 h-6 rounded-full items-center justify-center"
-                                  style={{ backgroundColor: pinColor }}
-                                >
-                                  <Text className="text-white text-xs font-bold">{idx + 1}</Text>
+                    {isLoading ? (
+                      // Loading skeletons
+                      [1, 2, 3, 4, 5].map((i) => (
+                        <ListItemSkeleton key={i} style={{ marginBottom: 12 }} />
+                      ))
+                    ) : nearbyPlaces.length === 0 ? (
+                      <View className="py-8 items-center">
+                        <MapPin size={48} color="#9CA3AF" />
+                        <Text className="text-gray-500 mt-2">No nearby places found</Text>
+                        <Text className="text-gray-400 text-sm">Enable location to see nearby businesses</Text>
+                      </View>
+                    ) : (
+                      nearbyPlaces.map((place, idx) => {
+                        const Icon = getIcon(place.type);
+                        const pinColor = getPinColor(place.type);
+                        
+                        return (
+                          <TouchableOpacity
+                            key={place.id}
+                            onPress={() => {
+                              setSelectedPlace(place);
+                              setShowNearby(false);
+                            }}
+                            style={{ marginBottom: 12 }}
+                          >
+                            <WanderCard padding="sm">
+                              <View className="flex-row gap-3">
+                                <View className="relative w-12 h-12 rounded-lg overflow-hidden">
+                                  <ImageWithFallback
+                                    source={{ uri: place.image }}
+                                    style={{ width: '100%', height: '100%' }}
+                                    resizeMode="cover"
+                                  />
+                                  <View
+                                    className="absolute -top-1 -left-1 w-6 h-6 rounded-full items-center justify-center"
+                                    style={{ backgroundColor: pinColor }}
+                                  >
+                                    <Text className="text-white text-xs font-bold">{idx + 1}</Text>
+                                  </View>
+                                </View>
+                                <View className="flex-1">
+                                  <Text className="font-semibold mb-1" numberOfLines={1}>
+                                    {place.name}
+                                  </Text>
+                                  <View className="flex-row items-center gap-2">
+                                    {place.distance && (
+                                      <>
+                                        <Navigation size={10} color="#666" />
+                                        <Text className="text-xs text-gray-600">{place.distance} km</Text>
+                                        <Text className="text-xs text-gray-600">•</Text>
+                                      </>
+                                    )}
+                                    <Star size={10} color="#F59E0B" fill="#F59E0B" />
+                                    <Text className="text-xs text-gray-600">
+                                      {place.rating?.toFixed(1) || 'New'}
+                                    </Text>
+                                  </View>
                                 </View>
                               </View>
-                              <View className="flex-1">
-                                <Text className="font-semibold mb-1" numberOfLines={1}>
-                                  {place.name}
-                                </Text>
-                                <View className="flex-row items-center gap-2">
-                                  <Navigation size={10} color="#666" />
-                                  <Text className="text-xs text-gray-600">{place.distance} km</Text>
-                                  <Text className="text-xs text-gray-600">•</Text>
-                                  <Star size={10} color="#F59E0B" fill="#F59E0B" />
-                                  <Text className="text-xs text-gray-600">{place.rating}</Text>
-                                </View>
-                              </View>
-                            </View>
-                          </WanderCard>
-                        </TouchableOpacity>
-                      );
-                    })}
+                            </WanderCard>
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
                   </ScrollView>
                 </View>
               </View>
