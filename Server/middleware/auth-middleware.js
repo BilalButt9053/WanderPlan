@@ -3,7 +3,6 @@ const User = require("../modals/user-modals");
 
 const authMiddleware =async (req,res,next) =>{
     const token = req.headers?.authorization;
-    console.log("Received token:", token); // Debugging log
     if(!token) res.status(401).json({message:"Unauthorized HTTP , Token not provided 123"});
     
     const jwtToken = token.split(" ")[1];

@@ -35,7 +35,7 @@ const trips = () => {
     isLoading: tripsLoading,
     error: tripsError,
     refetch: refetchTrips,
-  } = useGetTripsQuery({}, { skip: !isAuthenticated });
+  } = useGetTripsQuery({ includeItinerary: true }, { skip: !isAuthenticated });
 
   const [createTrip, { isLoading: isCreating }] = useCreateTripMutation();
   const [deleteTrip] = useDeleteTripMutation();
@@ -229,6 +229,16 @@ const trips = () => {
     }
   };
 
+  const handleDeleteTrip = async (tripId) => {
+    try {
+      await deleteTrip(tripId).unwrap();
+      refetchTrips();
+      Alert.alert('Deleted', 'Trip deleted successfully');
+    } catch (error) {
+      Alert.alert('Error', error?.data?.message || 'Failed to delete trip');
+    }
+  };
+
   const handleSaveTrip = () => {
     Alert.alert('Success', 'Trip saved successfully!');
     refetchTrips();
@@ -287,6 +297,7 @@ const trips = () => {
         <TripHistoryScreen
           onCreateNew={handleCreateNew}
           onReopenTrip={handleReopenTrip}
+          onDeleteTrip={handleDeleteTrip}
           trips={tripsData?.trips || []}
           isLoading={tripsLoading}
           onRefresh={refetchTrips}

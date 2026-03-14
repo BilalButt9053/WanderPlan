@@ -12,6 +12,8 @@
  */
 
 const Trip = require("../modals/trip-modal");
+const SavedItinerary = require("../modals/saved-itinerary-modal");
+const Business = require("../modals/business-modal");
 const budgetService = require("../services/budget-service");
 
 /**
@@ -160,6 +162,7 @@ const createTrip = async (req, res, next) => {
  * @query {number} page - Page number for pagination (default: 1)
  * @query {string} sort - Sort field (startDate, createdAt, totalBudget)
  * @query {string} order - Sort order (asc, desc)
+ * @query {boolean} includeItinerary - Include itinerary day/activity data
  */
 const getUserTrips = async (req, res, next) => {
     try {
@@ -170,7 +173,8 @@ const getUserTrips = async (req, res, next) => {
             page = 1,
             sort = 'startDate',
             order = 'desc',
-            tripType
+            tripType,
+            includeItinerary = 'false'
         } = req.query;
 
         // Build filter
@@ -219,6 +223,37 @@ const getUserTrips = async (req, res, next) => {
             
             return trip;
         });
+
+        if (includeItinerary === 'true' && tripsWithDetails.length > 0) {
+            const tripIds = tripsWithDetails.map((trip) => trip._id);
+            const itineraries = await SavedItinerary.find({
+                userId,
+                tripId: { $in: tripIds },
+                isDeleted: false
+            })
+            .select('tripId days estimatedCosts')
+            .lean();
+
+            const itineraryMap = new Map(
+                itineraries.map((it) => [it.tripId.toString(), it])
+            );
+
+            tripsWithDetails.forEach((trip) => {
+                const itinerary = itineraryMap.get(trip._id.toString());
+                if (itinerary) {
+                    trip.itinerary = {
+                        days: itinerary.days || [],
+                        estimatedCosts: itinerary.estimatedCosts || null,
+                        totalActivities: (itinerary.days || []).reduce(
+                            (sum, day) => sum + ((day.activities || []).length),
+                            0
+                        )
+                    };
+                } else {
+                    trip.itinerary = null;
+                }
+            });
+        }
 
         res.status(200).json({
             success: true,
@@ -731,6 +766,170 @@ const estimateTripBudget = async (req, res, next) => {
     }
 };
 
+/**
+ * Add business activity into a trip itinerary
+ * POST /api/trips/:id/add-activity
+ */
+const addActivityToTrip = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const { id } = req.params;
+        const {
+            businessId,
+            title,
+            estimatedCost = 0,
+            source = 'business',
+            day = 1
+        } = req.body;
+
+        if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid trip ID format'
+            });
+        }
+
+        if (!businessId || !businessId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Valid businessId is required'
+            });
+        }
+
+        const trip = await Trip.findOne({
+            _id: id,
+            userId,
+            isDeleted: false
+        });
+
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                message: 'Trip not found'
+            });
+        }
+
+        const business = await Business.findById(businessId)
+            .select('businessName businessType description address');
+
+        if (!business) {
+            return res.status(404).json({
+                success: false,
+                message: 'Business not found'
+            });
+        }
+
+        let savedItinerary = await SavedItinerary.findOne({
+            tripId: trip._id,
+            userId,
+            isDeleted: false
+        });
+
+        if (!savedItinerary) {
+            const totalDays = Math.max(1, Math.ceil((trip.endDate - trip.startDate) / (1000 * 60 * 60 * 24)) + 1);
+
+            savedItinerary = new SavedItinerary({
+                tripId: trip._id,
+                userId,
+                destination: {
+                    name: trip.destination?.name || 'Unknown',
+                    city: trip.destination?.city || '',
+                    country: trip.destination?.country || ''
+                },
+                tripSnapshot: {
+                    title: trip.title,
+                    startDate: trip.startDate,
+                    endDate: trip.endDate,
+                    travelers: trip.travelers,
+                    totalBudget: trip.totalBudget,
+                    travelStyle: trip.tripType || 'moderate'
+                },
+                totalDays,
+                days: Array.from({ length: totalDays }, (_, index) => ({
+                    day: index + 1,
+                    activities: [],
+                    estimatedDayCost: 0
+                })),
+                isManuallyCreated: true,
+                generationDetails: {
+                    travelStyle: trip.tripType || 'moderate',
+                    generatedAt: new Date(),
+                    aiActivitiesCount: 0,
+                    businessActivitiesCount: 0,
+                    userActivitiesCount: 0
+                }
+            });
+        }
+
+        const normalizedDay = Math.max(1, parseInt(day) || 1);
+        let targetDay = savedItinerary.days.find((d) => d.day === normalizedDay);
+
+        if (!targetDay) {
+            targetDay = { day: normalizedDay, activities: [], estimatedDayCost: 0 };
+            savedItinerary.days.push(targetDay);
+            savedItinerary.days.sort((a, b) => a.day - b.day);
+        }
+
+        const categoryMap = {
+            hotel: 'accommodation',
+            restaurant: 'food',
+            transport: 'transport'
+        };
+
+        const typeMap = {
+            hotel: 'hotel',
+            restaurant: 'food',
+            transport: 'transport',
+            activity: 'attraction',
+            tour: 'attraction',
+            other: 'other'
+        };
+
+        const activity = {
+            title: title || business.businessName,
+            description: business.description || '',
+            type: typeMap[business.businessType] || 'other',
+            category: categoryMap[business.businessType] || 'activities',
+            time: '',
+            estimatedCost: Number(estimatedCost) || 0,
+            costConfidence: 'user_selected',
+            source,
+            businessId: business._id,
+            businessName: business.businessName,
+            location: {
+                name: business.businessName,
+                address: [business.address?.street, business.address?.city, business.address?.country]
+                    .filter(Boolean)
+                    .join(', ')
+            }
+        };
+
+        targetDay.activities.push(activity);
+        savedItinerary.totalDays = Math.max(savedItinerary.totalDays || 0, savedItinerary.days.length);
+        savedItinerary.isManuallyCreated = true;
+        savedItinerary.generationDetails.businessActivitiesCount =
+            (savedItinerary.generationDetails.businessActivitiesCount || 0) + 1;
+        savedItinerary.generationDetails.generatedAt = new Date();
+
+        savedItinerary.recalculateCosts();
+        if (trip.budgetBreakdown) {
+            savedItinerary.updateBudgetStatus(trip.budgetBreakdown);
+        }
+
+        await savedItinerary.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Activity added to trip itinerary',
+            tripId: trip._id,
+            itinerary: savedItinerary
+        });
+    } catch (error) {
+        console.error('[trips] Add activity to trip error:', error);
+        next(error);
+    }
+};
+
 module.exports = {
     createTrip,
     getUserTrips,
@@ -738,6 +937,7 @@ module.exports = {
     updateTrip,
     deleteTrip,
     addExpense,
+    addActivityToTrip,
     getBudgetDetails,
     getUserTripStats,
     estimateTripBudget

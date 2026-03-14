@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Text, 
   View, 
   TouchableOpacity, 
   ScrollView,
   TextInput,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,10 +19,11 @@ import {
 import ImageWithFallback from '../components/ImageWithFallback';
 import WanderCard from '../components/wander-card';
 import WanderChip from '../components/wander-chip';
+import { useGetCompletedTripsQuery } from '../../redux/api/businessItemsApi';
 
 const { width } = Dimensions.get('window');
 
-const allExperiences = [
+const fallbackExperiences = [
   {
     id: 1,
     title: 'Hunza Valley Beauty',
@@ -103,6 +105,50 @@ export default function ExperiencesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
+  const { data: completedTripsData, isLoading } = useGetCompletedTripsQuery({ limit: 100 });
+
+  const allExperiences = useMemo(() => {
+    const trips = completedTripsData?.trips || [];
+
+    if (!trips.length) return [];
+
+    const categoryMap = {
+      adventure: 'Adventure',
+      leisure: 'Nature',
+      family: 'Culture',
+      business: 'Culture',
+      honeymoon: 'Culture',
+      solo: 'Nature',
+      group: 'Adventure',
+      other: 'Nature',
+    };
+
+    return trips.map((trip) => {
+      let imageUrl = 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=1080';
+      if (trip.coverImage) {
+        if (typeof trip.coverImage === 'string') imageUrl = trip.coverImage;
+        else if (trip.coverImage?.url) imageUrl = trip.coverImage.url;
+      }
+
+      const location = [trip.destination?.city, trip.destination?.country]
+        .filter(Boolean)
+        .join(', ') || trip.destination?.name || 'Unknown location';
+
+      return {
+        id: trip._id,
+        title: trip.title || trip.destination?.name || 'Completed Trip',
+        location,
+        image: imageUrl,
+        rating: 4.8,
+        reviews: 0,
+        description: `Completed ${trip.durationDays || 1}-day trip with budget ${trip.currency || 'PKR'} ${trip.totalBudget || 0}.`,
+        duration: `${trip.durationDays || 1} day${(trip.durationDays || 1) > 1 ? 's' : ''}`,
+        price: `${trip.currency || 'PKR'} ${trip.totalBudget || 0}`,
+        category: categoryMap[trip.tripType] || 'Nature',
+      };
+    });
+  }, [completedTripsData]);
+
   const filteredExperiences = allExperiences.filter((exp) => {
     const matchesSearch = exp.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          exp.location.toLowerCase().includes(searchQuery.toLowerCase());
@@ -113,7 +159,7 @@ export default function ExperiencesScreen() {
   const handleExperiencePress = (experience) => {
     router.push({
       pathname: '/screens/experience-detail-screen',
-      params: { experienceId: experience.id }
+      params: { tripId: experience.id }
     });
   };
 
@@ -130,7 +176,7 @@ export default function ExperiencesScreen() {
           </TouchableOpacity>
           <View className="flex-1">
             <Text className="text-xl font-bold text-gray-900">Experiences</Text>
-            <Text className="text-xs text-gray-500">{filteredExperiences.length} experiences found</Text>
+            <Text className="text-xs text-gray-500">{filteredExperiences.length} completed trips found</Text>
           </View>
         </View>
 
@@ -183,6 +229,12 @@ export default function ExperiencesScreen() {
       {/* Experiences Grid */}
       <ScrollView className="flex-1 px-4 py-4">
         <View className="gap-4 pb-4">
+          {isLoading && allExperiences.length === 0 ? (
+            <View className="py-10 items-center">
+              <ActivityIndicator size="small" color="#2563EB" />
+            </View>
+          ) : null}
+
           {filteredExperiences.map((exp) => (
             <TouchableOpacity 
               key={exp.id}

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {
+  getCompletedTrips,
   getBusinesses,
   getBusinessDetail,
   getMenuItems,
@@ -15,6 +16,9 @@ const {
 
 // Search across all
 router.get('/search', searchAll);
+
+// Completed trips feed
+router.get('/completed-trips', getCompletedTrips);
 
 // Categories
 router.get('/categories', getCategories);

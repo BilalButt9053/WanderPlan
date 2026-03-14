@@ -46,9 +46,10 @@ export const tripsApi = createApi({
      * GET /api/trips
      */
     getTrips: builder.query({
-      query: ({ page = 1, limit = 20, status } = {}) => {
+      query: ({ page = 1, limit = 20, status, includeItinerary = false } = {}) => {
         let url = `/trips?page=${page}&limit=${limit}`;
         if (status) url += `&status=${status}`;
+        if (includeItinerary) url += `&includeItinerary=true`;
         return url;
       },
       providesTags: (result) =>
@@ -123,6 +124,22 @@ export const tripsApi = createApi({
         { type: "Trip", id: tripId },
       ],
     }),
+
+    /**
+     * Add activity to trip itinerary
+     * POST /api/trips/:id/add-activity
+     */
+    addActivityToTrip: builder.mutation({
+      query: ({ tripId, ...body }) => ({
+        url: `/trips/${tripId}/add-activity`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (result, error, { tripId }) => [
+        { type: "Trip", id: tripId },
+        "Trips",
+      ],
+    }),
   }),
 });
 
@@ -136,4 +153,5 @@ export const {
   useDeleteTripMutation,
   useGetBudgetEstimateMutation,
   useAddExpenseMutation,
+  useAddActivityToTripMutation,
 } = tripsApi;

@@ -1,383 +1,501 @@
-import React, { useState } from 'react';
-import { 
-  Text, 
-  View, 
-  TouchableOpacity, 
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
   ScrollView,
-  Dimensions,
-  Share
+  Share,
+  Text,
+  TouchableOpacity,
+  View,
+  Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { 
+import {
   ChevronLeft,
-  Star,
-  MapPin,
-  Clock,
-  Users,
-  Calendar,
   Heart,
+  MapPin,
+  Plus,
   Share2,
-  Phone,
-  Mail,
-  Globe,
-  CheckCircle
+  Star,
+  X,
 } from 'lucide-react-native';
+import { useSelector } from 'react-redux';
 import ImageWithFallback from '../components/ImageWithFallback';
 import WanderCard from '../components/wander-card';
 import WanderChip from '../components/wander-chip';
 import { WanderButton } from '../components/wander-button';
+import { useGetBusinessDetailQuery } from '../../redux/api/businessItemsApi';
+import { useGetTripsQuery, useAddActivityToTripMutation, useGetTripQuery } from '../../redux/api/tripsApi';
+import { useGetReviewsQuery } from '../../redux/api/reviewsApi';
+import { useGetItineraryQuery } from '../../redux/api/itineraryApi';
+import { selectIsAuthenticated } from '../../redux/slices/authSlice';
 
-const { width } = Dimensions.get('window');
+const isObjectId = (value) => /^[0-9a-fA-F]{24}$/.test(String(value || ''));
 
-// Mock data - in real app, this would come from API
-const experiencesData = {
-  1: {
-    id: 1,
-    title: 'Hunza Valley Beauty',
-    location: 'Hunza, Gilgit-Baltistan',
-    image: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxodW56YSUyMHZhbGxleSUyMHBha2lzdGFufGVufDF8fHx8MTczMjYxMjAwMHww&ixlib=rb-4.1.0&q=80&w=1080',
-    rating: 4.9,
-    reviews: 2834,
-    description: 'Experience the breathtaking beauty of Hunza Valley with its snow-capped mountains, crystal clear rivers, and ancient forts. This tour includes visits to Baltit Fort, Altit Fort, Eagle\'s Nest viewpoint, and the stunning Attabad Lake.',
-    duration: '3-5 days',
-    price: 'PKR 45,000',
-    category: 'Nature',
-    images: [
-      'https://images.unsplash.com/photo-1609137144813-7d9921338f24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxodW56YSUyMHZhbGxleSUyMHBha2lzdGFufGVufDF8fHx8MTczMjYxMjAwMHww&ixlib=rb-4.1.0&q=80&w=1080',
-      'https://images.unsplash.com/photo-1589308078059-be1415eab4c3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzd2F0JTIwdmFsbGV5fGVufDF8fHx8MTczMjYxMjAwMHww&ixlib=rb-4.1.0&q=80&w=1080',
-      'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYWlyeSUyMG1lYWRvd3MlMjBwYWtpc3RhbnxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    ],
-    highlights: [
-      'Visit to Baltit & Altit Forts',
-      'Eagle\'s Nest viewpoint',
-      'Attabad Lake boat ride',
-      'Local cultural experiences',
-      'Traditional Hunza cuisine',
-      'Professional tour guide',
-    ],
-    included: [
-      'Transportation',
-      'Accommodation',
-      'Breakfast & Dinner',
-      'Entry tickets',
-      'Tour guide',
-    ],
-    groupSize: '4-12 people',
-    languages: ['English', 'Urdu'],
-    contact: {
-      phone: '+92 300 1234567',
-      email: 'tours@wanderplan.pk',
-      website: 'www.wanderplan.pk',
-    },
-  },
-  2: {
-    id: 2,
-    title: 'Fairy Meadows Trek',
-    location: 'Nanga Parbat, KPK',
-    image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYWlyeSUyMG1lYWRvd3MlMjBwYWtpc3RhbnxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    rating: 4.8,
-    reviews: 1567,
-    description: 'Trek through the magical Fairy Meadows with stunning views of Nanga Parbat, the ninth highest mountain in the world. This adventure includes camping under the stars and experiencing the raw beauty of the Himalayas.',
-    duration: '4-6 days',
-    price: 'PKR 38,000',
-    category: 'Adventure',
-    images: [
-      'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYWlyeSUyMG1lYWRvd3MlMjBwYWtpc3RhbnxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      'https://images.unsplash.com/photo-1609137144813-7d9921338f24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxodW56YSUyMHZhbGxleSUyMHBha2lzdGFufGVufDF8fHx8MTczMjYxMjAwMHww&ixlib=rb-4.1.0&q=80&w=1080',
-    ],
-    highlights: [
-      'Nanga Parbat base camp trek',
-      'Camping in Fairy Meadows',
-      'Sunrise at Beyal Camp',
-      'Jeep safari adventure',
-      'Mountain photography',
-      'Experienced trekking guide',
-    ],
-    included: [
-      'Transportation from Islamabad',
-      'Camping equipment',
-      'All meals',
-      'Trekking guide',
-      'Porter services',
-    ],
-    groupSize: '6-15 people',
-    languages: ['English', 'Urdu'],
-    contact: {
-      phone: '+92 300 1234567',
-      email: 'tours@wanderplan.pk',
-      website: 'www.wanderplan.pk',
-    },
-  },
-  3: {
-    id: 3,
-    title: 'Lahore Fort Heritage',
-    location: 'Lahore, Punjab',
-    image: 'https://images.unsplash.com/photo-1571847027516-1df28ffc1e29?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYWhvcmUlMjBmb3J0JTIwcGFraXN0YW58ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    rating: 4.7,
-    reviews: 3245,
-    description: 'Explore the historic Lahore Fort, a UNESCO World Heritage site showcasing Mughal architecture and rich history. Visit the Sheesh Mahal, Alamgiri Gate, and learn about the glorious Mughal era.',
-    duration: '1 day',
-    price: 'PKR 5,000',
-    category: 'Heritage',
-    images: [
-      'https://images.unsplash.com/photo-1571847027516-1df28ffc1e29?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYWhvcmUlMjBmb3J0JTIwcGFraXN0YW58ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    ],
-    highlights: [
-      'Lahore Fort tour',
-      'Sheesh Mahal (Palace of Mirrors)',
-      'Alamgiri Gate',
-      'Badshahi Mosque visit',
-      'Old city food street',
-      'Historical storytelling',
-    ],
-    included: [
-      'Entry tickets',
-      'Professional guide',
-      'Lunch at food street',
-      'Transportation within Lahore',
-    ],
-    groupSize: '2-20 people',
-    languages: ['English', 'Urdu', 'Punjabi'],
-    contact: {
-      phone: '+92 300 1234567',
-      email: 'tours@wanderplan.pk',
-      website: 'www.wanderplan.pk',
-    },
-  },
+const getImageList = (business) => {
+  if (!business) return [];
+  const gallery = (business.galleryImages || []).map((img) => (typeof img === 'string' ? img : img?.url));
+  return [business.logo, ...gallery].filter(Boolean);
+};
+
+const extractTripUsage = (trips, businessId) => {
+  if (!trips?.length || !businessId) return [];
+
+  return trips
+    .map((trip) => {
+      const days = trip.itinerary?.days || [];
+      const matches = [];
+
+      days.forEach((day) => {
+        (day.activities || []).forEach((activity) => {
+          if (String(activity.businessId) === String(businessId)) {
+            matches.push({
+              day: day.day,
+              title: activity.title || 'Activity',
+              estimatedCost: Number(activity.estimatedCost || 0),
+            });
+          }
+        });
+      });
+
+      if (!matches.length) return null;
+
+      return {
+        tripId: trip._id,
+        title: trip.title || trip.destination?.name || 'Untitled Trip',
+        durationDays: trip.durationDays || 1,
+        matches,
+      };
+    })
+    .filter(Boolean);
 };
 
 export default function ExperienceDetailScreen() {
   const router = useRouter();
-  const { experienceId } = useLocalSearchParams();
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const { experienceId, tripId } = useLocalSearchParams();
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
-  const experience = experiencesData[experienceId] || experiencesData[1];
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [showTripSelector, setShowTripSelector] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  const validExperienceId = isObjectId(experienceId);
+  const validTripId = isObjectId(tripId);
+  const isTripMode = validTripId;
+
+  const {
+    data: businessData,
+    isLoading: businessLoading,
+    error: businessError,
+  } = useGetBusinessDetailQuery(experienceId, { skip: !validExperienceId || isTripMode });
+
+  const {
+    data: tripDetailData,
+    isLoading: tripLoading,
+    error: tripError,
+  } = useGetTripQuery(tripId, { skip: !isAuthenticated || !validTripId });
+
+  const {
+    data: itineraryData,
+    isLoading: itineraryLoading,
+  } = useGetItineraryQuery(tripId, { skip: !isAuthenticated || !validTripId });
+
+  const {
+    data: tripsData,
+    isLoading: tripsLoading,
+    refetch: refetchTrips,
+  } = useGetTripsQuery({ includeItinerary: true }, { skip: !isAuthenticated });
+
+  const {
+    data: reviewsData,
+    isLoading: reviewsLoading,
+  } = useGetReviewsQuery({ category: 'all', limit: 20 });
+
+  const [addActivityToTrip, { isLoading: isAddingToTrip }] = useAddActivityToTripMutation();
+
+  const business = businessData?.business;
+  const trip = tripDetailData?.trip;
+  const itineraryDays = itineraryData?.itinerary?.days || [];
+  const images = useMemo(() => getImageList(business), [business]);
+
+  const tripImage = useMemo(() => {
+    if (!trip) return null;
+    if (typeof trip.coverImage === 'string') return trip.coverImage;
+    if (trip.coverImage?.url) return trip.coverImage.url;
+    return null;
+  }, [trip]);
+
+  const activeTrips = useMemo(() => {
+    const allTrips = tripsData?.trips || [];
+    return allTrips.filter((trip) => !['cancelled', 'completed'].includes(trip.status));
+  }, [tripsData]);
+
+  const usedInTrips = useMemo(() => {
+    return extractTripUsage(tripsData?.trips || [], business?._id);
+  }, [tripsData, business?._id]);
+
+  const reviewsForBusiness = useMemo(() => {
+    const items = reviewsData?.items || [];
+    if (!business?.businessName) return [];
+
+    const keyword = business.businessName.toLowerCase();
+    return items.filter((review) => String(review.place || '').toLowerCase().includes(keyword)).slice(0, 4);
+  }, [reviewsData, business?.businessName]);
+
+  const locationText = [
+    business?.address?.street,
+    business?.address?.city,
+    business?.address?.state,
+    business?.address?.country,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   const handleShare = async () => {
+    if (!business) return;
     try {
       await Share.share({
-        message: `Check out this amazing experience: ${experience.title} - ${experience.location}`,
-        title: experience.title,
+        title: business.businessName,
+        message: `Check out ${business.businessName} on WanderPlan${locationText ? `\n${locationText}` : ''}`,
       });
     } catch (error) {
-      console.error('Error sharing:', error);
+      console.log('Share error:', error);
     }
   };
 
-  const handleBookNow = () => {
-    // Navigate to booking screen or show booking modal
-    console.log('Book now:', experience.title);
+  const handleAddToTrip = async (tripId) => {
+    if (!business?._id) return;
+
+    try {
+      await addActivityToTrip({
+        tripId,
+        businessId: business._id,
+        title: business.businessName,
+        estimatedCost: 1500,
+        source: 'business',
+      }).unwrap();
+
+      setShowTripSelector(false);
+      Alert.alert('Success', 'Experience added to trip itinerary');
+      refetchTrips();
+    } catch (error) {
+      Alert.alert('Error', error?.data?.message || 'Failed to add activity to trip');
+    }
   };
 
-  return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView className="flex-1">
-        {/* Image Gallery */}
-        <View className="relative">
-          <View className="h-80">
+  if (!validExperienceId && !validTripId) {
+    return (
+      <SafeAreaView className="flex-1 bg-white items-center justify-center px-8">
+        <Text className="text-lg font-semibold text-gray-800 mb-2">Invalid Experience</Text>
+        <Text className="text-sm text-gray-500 text-center mb-6">This experience link is invalid.</Text>
+        <WanderButton onPress={() => router.back()}>Go Back</WanderButton>
+      </SafeAreaView>
+    );
+  }
+
+  if (isTripMode) {
+    if (tripLoading) {
+      return (
+        <SafeAreaView className="flex-1 bg-white items-center justify-center">
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text className="text-gray-500 mt-3">Loading trip details...</Text>
+        </SafeAreaView>
+      );
+    }
+
+    if (tripError || !trip) {
+      return (
+        <SafeAreaView className="flex-1 bg-white items-center justify-center px-8">
+          <Text className="text-lg font-semibold text-gray-800 mb-2">Trip Not Found</Text>
+          <Text className="text-sm text-gray-500 text-center mb-6">Could not load this trip detail.</Text>
+          <WanderButton onPress={() => router.back()}>Go Back</WanderButton>
+        </SafeAreaView>
+      );
+    }
+
+    const tripLocation = [trip.destination?.name, trip.destination?.city, trip.destination?.country]
+      .filter(Boolean)
+      .join(', ');
+
+    return (
+      <SafeAreaView className="flex-1 bg-white">
+        <ScrollView className="flex-1">
+          <View className="relative">
             <ImageWithFallback
-              src={experience.images?.[selectedImageIndex] || experience.image}
-              alt={experience.title}
-              className="w-full h-full"
+              src={tripImage}
+              style={{ width: '100%', height: 260 }}
               resizeMode="cover"
             />
-          </View>
-
-          {/* Header Overlay */}
-          <View className="absolute top-0 left-0 right-0 flex-row items-center justify-between p-4">
-            <TouchableOpacity 
-              onPress={() => router.back()}
-              className="w-10 h-10 rounded-full bg-white/90 items-center justify-center shadow-sm"
-            >
-              <ChevronLeft size={24} color="#1F2937" />
-            </TouchableOpacity>
-            <View className="flex-row items-center gap-2">
-              <TouchableOpacity 
-                onPress={() => setIsFavorite(!isFavorite)}
-                className="w-10 h-10 rounded-full bg-white/90 items-center justify-center shadow-sm"
-              >
-                <Heart 
-                  size={20} 
-                  color={isFavorite ? "#EF4444" : "#6B7280"} 
-                  fill={isFavorite ? "#EF4444" : "transparent"}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={handleShare}
-                className="w-10 h-10 rounded-full bg-white/90 items-center justify-center shadow-sm"
-              >
-                <Share2 size={20} color="#6B7280" />
+            <View className="absolute top-0 left-0 right-0 p-4">
+              <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 rounded-full bg-white/90 items-center justify-center">
+                <ChevronLeft size={22} color="#111827" />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Image Indicators */}
-          {experience.images && experience.images.length > 1 && (
-            <View className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-2">
-              {experience.images.map((_, index) => (
+          <View className="px-4 pt-5 pb-8">
+            <Text className="text-2xl font-bold text-gray-900">{trip.title || 'Trip Details'}</Text>
+            <View className="flex-row items-center mt-2">
+              <MapPin size={14} color="#6B7280" />
+              <Text className="text-sm text-gray-500 ml-1" numberOfLines={1}>{tripLocation || 'Unknown location'}</Text>
+            </View>
+
+            <View className="mt-4" style={{ gap: 10 }}>
+              <WanderCard>
+                <Text className="text-sm text-gray-600">Budget: PKR {trip.totalBudget || 0}</Text>
+                <Text className="text-sm text-gray-600 mt-1">Remaining: PKR {trip.remainingBudget ?? ((trip.totalBudget || 0) - (trip.totalSpent || 0))}</Text>
+                <Text className="text-sm text-gray-600 mt-1">Activities: {itineraryDays.reduce((sum, day) => sum + ((day.activities || []).length), 0)}</Text>
+              </WanderCard>
+            </View>
+
+            <View className="mt-5">
+              <Text className="text-lg font-bold text-gray-900 mb-2">Itinerary</Text>
+              {itineraryLoading ? (
+                <WanderCard>
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                </WanderCard>
+              ) : itineraryDays.length === 0 ? (
+                <WanderCard>
+                  <Text className="text-sm text-gray-500">No itinerary available for this trip.</Text>
+                </WanderCard>
+              ) : (
+                <View style={{ gap: 10 }}>
+                  {itineraryDays.map((day) => (
+                    <WanderCard key={`day-${day.day}`}>
+                      <Text className="text-base font-semibold text-gray-900">Day {day.day}</Text>
+                      <View style={{ gap: 4, marginTop: 8 }}>
+                        {(day.activities || []).map((activity, index) => (
+                          <Text key={`a-${day.day}-${index}`} className="text-sm text-gray-600">
+                            • {activity.title || 'Activity'} {activity.estimatedCost ? `• PKR ${activity.estimatedCost}` : ''}
+                          </Text>
+                        ))}
+                      </View>
+                    </WanderCard>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (businessLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="text-gray-500 mt-3">Loading experience...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (businessError || !business) {
+    return (
+      <SafeAreaView className="flex-1 bg-white items-center justify-center px-8">
+        <Text className="text-lg font-semibold text-gray-800 mb-2">Experience Not Found</Text>
+        <Text className="text-sm text-gray-500 text-center mb-6">Could not load this business detail.</Text>
+        <WanderButton onPress={() => router.back()}>Go Back</WanderButton>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-white">
+      <ScrollView className="flex-1">
+        <View className="relative">
+          <ImageWithFallback
+            src={images[selectedImageIndex]}
+            style={{ width: '100%', height: 280 }}
+            resizeMode="cover"
+          />
+
+          <View className="absolute top-0 left-0 right-0 flex-row items-center justify-between p-4">
+            <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 rounded-full bg-white/90 items-center justify-center">
+              <ChevronLeft size={22} color="#111827" />
+            </TouchableOpacity>
+            <View className="flex-row" style={{ gap: 8 }}>
+              <TouchableOpacity onPress={() => setIsFavorite((v) => !v)} className="w-10 h-10 rounded-full bg-white/90 items-center justify-center">
+                <Heart size={18} color={isFavorite ? '#EF4444' : '#6B7280'} fill={isFavorite ? '#EF4444' : 'transparent'} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleShare} className="w-10 h-10 rounded-full bg-white/90 items-center justify-center">
+                <Share2 size={18} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {images.length > 1 && (
+            <View className="absolute bottom-3 left-0 right-0 flex-row justify-center" style={{ gap: 6 }}>
+              {images.map((_, index) => (
                 <TouchableOpacity
                   key={index}
                   onPress={() => setSelectedImageIndex(index)}
-                  className={`h-2 rounded-full ${
-                    selectedImageIndex === index 
-                      ? 'w-8 bg-white' 
-                      : 'w-2 bg-white/50'
-                  }`}
+                  style={{
+                    width: selectedImageIndex === index ? 24 : 8,
+                    height: 8,
+                    borderRadius: 99,
+                    backgroundColor: selectedImageIndex === index ? '#FFFFFF' : 'rgba(255,255,255,0.55)',
+                  }}
                 />
               ))}
             </View>
           )}
         </View>
 
-        {/* Content */}
-        <View className="px-4 py-6">
-          {/* Title & Rating */}
+        <View className="px-4 pt-5 pb-8">
           <View className="mb-4">
-            <View className="flex-row items-start justify-between mb-2">
-              <View className="flex-1 pr-4">
-                <Text className="text-2xl font-bold text-gray-900 mb-2">
-                  {experience.title}
-                </Text>
-                <View className="flex-row items-center gap-1">
-                  <MapPin size={16} color="#6B7280" />
-                  <Text className="text-sm text-gray-500">{experience.location}</Text>
-                </View>
-              </View>
-              <WanderChip variant="secondary" size="sm">
-                {experience.category}
-              </WanderChip>
-            </View>
-
-            <View className="flex-row items-center gap-4 mt-3">
-              <View className="flex-row items-center gap-1">
-                <Star size={16} fill="#10B981" color="#10B981" />
-                <Text className="text-base font-semibold text-gray-900">
-                  {experience.rating}
-                </Text>
-                <Text className="text-sm text-gray-500">
-                  ({experience.reviews.toLocaleString()} reviews)
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Quick Info */}
-          <WanderCard className="mb-6">
-            <View className="flex-row items-center justify-between">
-              <View className="flex-1 items-center border-r border-gray-200 pr-4">
-                <Clock size={20} color="#2563EB" />
-                <Text className="text-xs text-gray-500 mt-1">Duration</Text>
-                <Text className="text-sm font-semibold text-gray-900 mt-1">
-                  {experience.duration}
-                </Text>
-              </View>
-              <View className="flex-1 items-center border-r border-gray-200 px-4">
-                <Users size={20} color="#2563EB" />
-                <Text className="text-xs text-gray-500 mt-1">Group Size</Text>
-                <Text className="text-sm font-semibold text-gray-900 mt-1">
-                  {experience.groupSize}
-                </Text>
-              </View>
-              <View className="flex-1 items-center pl-4">
-                <Calendar size={20} color="#2563EB" />
-                <Text className="text-xs text-gray-500 mt-1">Available</Text>
-                <Text className="text-sm font-semibold text-gray-900 mt-1">
-                  Year-round
-                </Text>
-              </View>
-            </View>
-          </WanderCard>
-
-          {/* Description */}
-          <View className="mb-6">
-            <Text className="text-lg font-bold text-gray-900 mb-3">About</Text>
-            <Text className="text-sm text-gray-600 leading-6">
-              {experience.description}
-            </Text>
-          </View>
-
-          {/* Highlights */}
-          <View className="mb-6">
-            <Text className="text-lg font-bold text-gray-900 mb-3">Highlights</Text>
-            <View className="gap-2">
-              {experience.highlights.map((highlight, index) => (
-                <View key={index} className="flex-row items-start gap-2">
-                  <CheckCircle size={18} color="#10B981" className="mt-0.5" />
-                  <Text className="flex-1 text-sm text-gray-600">{highlight}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* What's Included */}
-          <View className="mb-6">
-            <Text className="text-lg font-bold text-gray-900 mb-3">What's Included</Text>
-            <WanderCard className="bg-green-50">
-              <View className="gap-2">
-                {experience.included.map((item, index) => (
-                  <View key={index} className="flex-row items-center gap-2">
-                    <View className="w-2 h-2 rounded-full bg-green-600" />
-                    <Text className="text-sm text-gray-700">{item}</Text>
+            <View className="flex-row items-start justify-between">
+              <View className="flex-1 pr-2">
+                <Text className="text-2xl font-bold text-gray-900">{business.businessName}</Text>
+                {locationText ? (
+                  <View className="flex-row items-center mt-2">
+                    <MapPin size={14} color="#6B7280" />
+                    <Text className="text-sm text-gray-500 ml-1" numberOfLines={1}>{locationText}</Text>
                   </View>
+                ) : null}
+              </View>
+              <WanderChip variant="secondary" size="sm">{business.businessType || 'other'}</WanderChip>
+            </View>
+
+            <View className="flex-row items-center mt-3">
+              <Star size={15} color="#F59E0B" fill="#F59E0B" />
+              <Text className="text-sm font-semibold text-gray-800 ml-1">
+                {business.rating ? Number(business.rating).toFixed(1) : 'New'}
+              </Text>
+              <Text className="text-sm text-gray-500 ml-2">({business.reviewCount || 0} reviews)</Text>
+            </View>
+          </View>
+
+          {business.description ? (
+            <View className="mb-5">
+              <Text className="text-lg font-bold text-gray-900 mb-2">Description</Text>
+              <Text className="text-sm text-gray-600 leading-6">{business.description}</Text>
+            </View>
+          ) : null}
+
+          {locationText ? (
+            <View className="mb-5">
+              <Text className="text-lg font-bold text-gray-900 mb-2">Location</Text>
+              <WanderCard>
+                <View className="flex-row items-start">
+                  <MapPin size={18} color="#3B82F6" />
+                  <Text className="text-sm text-gray-700 ml-2 flex-1">{locationText}</Text>
+                </View>
+              </WanderCard>
+            </View>
+          ) : null}
+
+          <View className="mb-5">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-lg font-bold text-gray-900">Used in Your Trips</Text>
+              {tripsLoading ? <ActivityIndicator size="small" color="#3B82F6" /> : null}
+            </View>
+
+            {usedInTrips.length === 0 ? (
+              <WanderCard>
+                <Text className="text-sm text-gray-500">This experience is not used in any trip yet.</Text>
+              </WanderCard>
+            ) : (
+              <View style={{ gap: 10 }}>
+                {usedInTrips.map((entry) => (
+                  <WanderCard key={entry.tripId}>
+                    <Text className="text-base font-semibold text-gray-900">{entry.title} ({entry.durationDays} days)</Text>
+                    <View style={{ gap: 4, marginTop: 8 }}>
+                      {entry.matches.map((m, idx) => (
+                        <Text key={`${entry.tripId}-${idx}`} className="text-sm text-gray-600">
+                          Day {m.day} - {m.title} {m.estimatedCost ? `• PKR ${m.estimatedCost}` : ''}
+                        </Text>
+                      ))}
+                    </View>
+                  </WanderCard>
                 ))}
               </View>
-            </WanderCard>
+            )}
           </View>
 
-          {/* Languages */}
-          <View className="mb-6">
-            <Text className="text-lg font-bold text-gray-900 mb-3">Languages</Text>
-            <View className="flex-row items-center gap-2">
-              {experience.languages.map((lang, index) => (
-                <WanderChip key={index} variant="secondary" size="sm">
-                  {lang}
-                </WanderChip>
-              ))}
-            </View>
-          </View>
-
-          {/* Contact Information */}
-          <View className="mb-6">
-            <Text className="text-lg font-bold text-gray-900 mb-3">Contact</Text>
-            <WanderCard>
-              <View className="gap-3">
-                <View className="flex-row items-center gap-3">
-                  <Phone size={18} color="#2563EB" />
-                  <Text className="text-sm text-gray-700">{experience.contact.phone}</Text>
-                </View>
-                <View className="flex-row items-center gap-3">
-                  <Mail size={18} color="#2563EB" />
-                  <Text className="text-sm text-gray-700">{experience.contact.email}</Text>
-                </View>
-                <View className="flex-row items-center gap-3">
-                  <Globe size={18} color="#2563EB" />
-                  <Text className="text-sm text-gray-700">{experience.contact.website}</Text>
-                </View>
+          <View>
+            <Text className="text-lg font-bold text-gray-900 mb-2">Reviews</Text>
+            {reviewsLoading ? (
+              <WanderCard>
+                <ActivityIndicator size="small" color="#3B82F6" />
+              </WanderCard>
+            ) : reviewsForBusiness.length === 0 ? (
+              <WanderCard>
+                <Text className="text-sm text-gray-500">No direct reviews found for this place yet.</Text>
+              </WanderCard>
+            ) : (
+              <View style={{ gap: 10 }}>
+                {reviewsForBusiness.map((review) => (
+                  <WanderCard key={review._id}>
+                    <View className="flex-row items-center justify-between mb-1">
+                      <Text className="text-sm font-semibold text-gray-800">{review.user?.name || 'Anonymous'}</Text>
+                      <View className="flex-row items-center">
+                        <Star size={12} color="#F59E0B" fill="#F59E0B" />
+                        <Text className="text-xs text-gray-600 ml-1">{review.rating}</Text>
+                      </View>
+                    </View>
+                    <Text className="text-sm text-gray-600" numberOfLines={3}>{review.text}</Text>
+                  </WanderCard>
+                ))}
               </View>
-            </WanderCard>
+            )}
           </View>
         </View>
       </ScrollView>
 
-      {/* Bottom Bar */}
-      <View className="bg-white border-t border-gray-200 px-4 py-4">
-        <View className="flex-row items-center justify-between gap-4">
-          <View>
-            <Text className="text-xs text-gray-500">Starting from</Text>
-            <Text className="text-2xl font-bold text-blue-600">{experience.price}</Text>
-          </View>
-          <View className="flex-1">
-            <WanderButton 
-              onPress={handleBookNow}
-              className="w-full"
-            >
-              Book Now
-            </WanderButton>
+      <View className="px-4 py-4 border-t border-gray-200 bg-white">
+        <TouchableOpacity
+          onPress={() => {
+            if (!isAuthenticated) {
+              Alert.alert('Login Required', 'Please sign in to add this experience to a trip.');
+              return;
+            }
+            setShowTripSelector(true);
+          }}
+          className="bg-blue-600 rounded-2xl py-4 items-center justify-center flex-row"
+          style={{ gap: 8 }}
+          disabled={isAddingToTrip}
+        >
+          <Plus size={18} color="#fff" />
+          <Text className="text-white font-semibold text-base">
+            {isAddingToTrip ? 'Adding...' : 'Add to Trip'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <Modal visible={showTripSelector} transparent animationType="slide" onRequestClose={() => setShowTripSelector(false)}>
+        <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}>
+          <View className="bg-white rounded-t-3xl px-4 pt-4 pb-8" style={{ maxHeight: '70%' }}>
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-lg font-bold text-gray-900">Select Trip</Text>
+              <TouchableOpacity onPress={() => setShowTripSelector(false)} className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center">
+                <X size={16} color="#111827" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView>
+              {activeTrips.length === 0 ? (
+                <Text className="text-sm text-gray-500">No active trips available.</Text>
+              ) : (
+                <View style={{ gap: 10 }}>
+                  {activeTrips.map((trip) => (
+                    <TouchableOpacity
+                      key={trip._id}
+                      onPress={() => handleAddToTrip(trip._id)}
+                      className="border border-gray-200 rounded-xl p-3"
+                      disabled={isAddingToTrip}
+                    >
+                      <Text className="text-base font-semibold text-gray-900">{trip.title || trip.destination?.name}</Text>
+                      <Text className="text-sm text-gray-500 mt-1">{trip.destination?.name || 'Unknown destination'}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
           </View>
         </View>
-      </View>
+      </Modal>
     </SafeAreaView>
   );
 }

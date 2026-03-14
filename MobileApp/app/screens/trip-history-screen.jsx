@@ -1,11 +1,14 @@
 import React from 'react';
 import {
+  Alert,
+  Platform,
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  ToastAndroid,
 } from 'react-native';
 import {
   Plus,
@@ -61,15 +64,21 @@ const getStatusText = (status) => {
   }
 };
 
-function TripCard({ trip, onReopen }) {
+function TripCard({ trip, onReopen, onDelete }) {
   const { colors } = useTheme();
-  const budgetPercentage = trip.spent 
-    ? Math.round((Number(trip.spent) / Number(trip.budget)) * 100)
+  const budgetPercentage = trip.spent
+    ? Math.round((Number(trip.spent) / Math.max(Number(trip.totalBudget || 1), 1)) * 100)
     : 0;
   const statusStyle = getStatusColor(trip.status);
 
   return (
     <WanderCard padding="none" hover>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={onReopen}
+        onLongPress={onDelete}
+        delayLongPress={300}
+      >
       <View style={{ flexDirection: 'row', gap: 12, padding: 12 }}>
         {/* Thumbnail */}
         <View style={{ width: 96, height: 96, borderRadius: 12, overflow: 'hidden', position: 'relative' }}>
@@ -94,7 +103,10 @@ function TripCard({ trip, onReopen }) {
 
         {/* Info */}
         <View style={{ flex: 1, minWidth: 0, justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 4, color: colors.text }} numberOfLines={1}>
+          <Text style={{ fontSize: 16, fontWeight: '700', marginBottom: 2, color: colors.text }} numberOfLines={1}>
+            {trip.title}
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 6 }} numberOfLines={1}>
             {trip.destination}
           </Text>
           
@@ -112,36 +124,17 @@ function TripCard({ trip, onReopen }) {
             </Text>
           </View>
 
-          {/* Budget Summary */}
-          {trip.status === 'completed' ? (
-            <View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 11, color: colors.textSecondary }}>Budget used</Text>
-                <Text style={{ fontSize: 11, color: budgetPercentage > 100 ? '#DC2626' : '#059669', fontWeight: '600' }}>
-                  {budgetPercentage}%
-                </Text>
-              </View>
-              <View style={{ height: 6, backgroundColor: colors.input, borderRadius: 3, overflow: 'hidden' }}>
-                <View
-                  style={{
-                    height: '100%',
-                    width: `${Math.min(budgetPercentage, 100)}%`,
-                    backgroundColor: budgetPercentage > 100 ? '#DC2626' : '#059669'
-                  }}
-                />
-              </View>
-              <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>
-                {trip.currency} {trip.spent} / {trip.budget}
-              </Text>
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <DollarSign size={14} color="#059669" />
-              <Text style={{ fontSize: 14, color: '#059669', fontWeight: '600' }}>
-                {trip.currency} {trip.budget}
-              </Text>
-            </View>
-          )}
+          <View style={{ gap: 4 }}>
+            <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+              Budget: {trip.currency} {trip.totalBudget}
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+              Remaining: {trip.currency} {trip.remainingBudget}
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+              Activities: {trip.activitiesCount}
+            </Text>
+          </View>
         </View>
 
         {/* Action Button */}
@@ -160,6 +153,7 @@ function TripCard({ trip, onReopen }) {
           <ChevronRight size={20} color="#3B82F6" />
         </TouchableOpacity>
       </View>
+      </TouchableOpacity>
     </WanderCard>
   );
 }
@@ -167,6 +161,7 @@ function TripCard({ trip, onReopen }) {
 export default function TripHistoryScreen({ 
   onCreateNew, 
   onReopenTrip,
+  onDeleteTrip,
   trips = [],
   isLoading = false,
   onRefresh,
@@ -189,19 +184,43 @@ export default function TripHistoryScreen({
       
       return {
         id: trip._id,
+        title: trip.title || trip.destination?.name || 'Untitled Trip',
         destination: trip.destination?.name || trip.destination?.city || 'Unknown',
         dates: trip.startDate && trip.endDate 
           ? `${new Date(trip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(trip.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
           : 'Not scheduled',
         duration: `${trip.durationDays || Math.ceil((new Date(trip.endDate) - new Date(trip.startDate)) / (1000 * 60 * 60 * 24)) + 1 || 1} days`,
-        budget: trip.totalBudget?.toString() || '0',
+        totalBudget: trip.totalBudget?.toString() || '0',
+        remainingBudget: (trip.remainingBudget ?? (trip.totalBudget - (trip.totalSpent || 0)) ?? 0).toString(),
         spent: trip.totalSpent?.toString() || '0',
+        activitiesCount: trip.itinerary?.totalActivities || 0,
         currency: trip.currency || 'PKR',
         image: imageUrl,
         status: trip.status || 'draft',
       };
     });
   }, [trips]);
+
+  const handleConfirmDelete = (trip) => {
+    if (!onDeleteTrip) return;
+    Alert.alert(
+      'Delete Trip?',
+      'This action cannot be undone',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await onDeleteTrip(trip.id);
+            if (Platform.OS === 'android') {
+              ToastAndroid.show('Trip deleted successfully', ToastAndroid.SHORT);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const completedTrips = normalizedTrips.filter(t => t.status === 'completed');
   const upcomingTrips = normalizedTrips.filter(t => t.status === 'upcoming' || t.status === 'confirmed');
@@ -318,6 +337,7 @@ export default function TripHistoryScreen({
                     key={trip.id}
                     trip={trip}
                     onReopen={() => onReopenTrip(trip.id)}
+                    onDelete={() => handleConfirmDelete(trip)}
                   />
                 ))}
               </View>
@@ -337,6 +357,7 @@ export default function TripHistoryScreen({
                     key={trip.id}
                     trip={trip}
                     onReopen={() => onReopenTrip(trip.id)}
+                    onDelete={() => handleConfirmDelete(trip)}
                   />
                 ))}
               </View>
@@ -353,6 +374,7 @@ export default function TripHistoryScreen({
                     key={trip.id}
                     trip={trip}
                     onReopen={() => onReopenTrip(trip.id)}
+                    onDelete={() => handleConfirmDelete(trip)}
                   />
                 ))}
               </View>
@@ -369,6 +391,7 @@ export default function TripHistoryScreen({
                     key={trip.id}
                     trip={trip}
                     onReopen={() => onReopenTrip(trip.id)}
+                    onDelete={() => handleConfirmDelete(trip)}
                   />
                 ))}
               </View>

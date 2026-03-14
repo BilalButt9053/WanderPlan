@@ -33,35 +33,9 @@ import WanderChip from '../components/wander-chip';
 import { WanderButton } from '../components/wander-button';
 import Progress from '../components/ui/progress';
 import { useGetDealsQuery } from '../../redux/api/businessItemsApi';
+import { useGetCompletedTripsQuery } from '../../redux/api/businessItemsApi';
 
 const { width } = Dimensions.get('window');
-
-const experiences = [
-  {
-    id: 1,
-    title: 'Hunza Valley Beauty',
-    location: 'Hunza, Gilgit-Baltistan',
-    image: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxodW56YSUyMHZhbGxleSUyMHBha2lzdGFufGVufDF8fHx8MTczMjYxMjAwMHww&ixlib=rb-4.1.0&q=80&w=1080',
-    rating: 4.9,
-    reviews: 2834,
-  },
-  {
-    id: 2,
-    title: 'Fairy Meadows Trek',
-    location: 'Nanga Parbat, KPK',
-    image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYWlyeSUyMG1lYWRvd3MlMjBwYWtpc3RhbnxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    rating: 4.8,
-    reviews: 1567,
-  },
-  {
-    id: 3,
-    title: 'Lahore Fort Heritage',
-    location: 'Lahore, Punjab',
-    image: 'https://images.unsplash.com/photo-1571847027516-1df28ffc1e29?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYWhvcmUlMjBmb3J0JTIwcGFraXN0YW58ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    rating: 4.7,
-    reviews: 3245,
-  },
-];
 
 const staticDeals = [
   {
@@ -117,17 +91,11 @@ export default function Page() {
   // Fetch deals from API
   const { data: dealsData, isLoading: dealsLoading, error: dealsError } = useGetDealsQuery({ limit: 10 });
 
-  // Debug logging
-  console.log('[Home] Deals API response:', dealsData);
-  console.log('[Home] Deals error:', dealsError);
-
   // Transform API deals to match expected format
   const deals = React.useMemo(() => {
     if (!dealsData?.deals || dealsData.deals.length === 0) {
-      console.log('[Home] No API deals, using static fallback');
       return staticDeals; // Fallback to static deals
     }
-    console.log('[Home] Using', dealsData.deals.length, 'deals from API');
     return dealsData.deals.map(deal => {
       const discountText = deal.discountType === 'percentage' 
         ? `${deal.discountValue}% OFF` 
@@ -157,6 +125,34 @@ export default function Page() {
       };
     });
   }, [dealsData]);
+
+  const {
+    data: tripsData,
+    isLoading: completedTripsLoading,
+  } = useGetCompletedTripsQuery({ limit: 20 });
+
+  const completedTrips = React.useMemo(() => {
+    const trips = tripsData?.trips || [];
+    return trips.map((trip) => {
+      let imageUrl = 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=1080';
+      if (trip.coverImage) {
+        if (typeof trip.coverImage === 'string') {
+          imageUrl = trip.coverImage;
+        } else if (trip.coverImage?.url) {
+          imageUrl = trip.coverImage.url;
+        }
+      }
+
+      return {
+        id: trip._id,
+        title: trip.title || trip.destination?.name || 'Completed Trip',
+        location: [trip.destination?.city, trip.destination?.country].filter(Boolean).join(', ') || trip.destination?.name || 'Unknown location',
+        image: imageUrl,
+        rating: 4.8,
+        reviews: 0,
+      };
+    });
+  }, [tripsData]);
 
   const handleToggleTheme = () => {
     dispatch(toggleTheme());
@@ -230,7 +226,7 @@ export default function Page() {
           <View className="flex-row items-center justify-between mb-4">
             <View>
               <Text style={{ color: colors.text }} className="text-2xl font-bold mb-1">Experiences</Text>
-              <Text style={{ color: colors.textSecondary }} className="text-sm">Discover amazing places</Text>
+              <Text style={{ color: colors.textSecondary }} className="text-sm">Completed trips</Text>
             </View>
             <TouchableOpacity 
               className="flex-row items-center gap-1"
@@ -248,13 +244,24 @@ export default function Page() {
             className="pb-4"
             contentContainerStyle={{ gap: 16 }}
           >
-            {experiences.map((exp) => (
+            {completedTripsLoading && completedTrips.length === 0 ? (
+              <View style={{ width: width * 0.75, alignItems: 'center', justifyContent: 'center', paddingVertical: 32 }}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+              </View>
+            ) : completedTrips.length === 0 ? (
+              <View style={{ width: width * 0.75 }}>
+                <WanderCard className="p-4">
+                  <Text style={{ color: colors.text }} className="text-base font-semibold mb-1">No completed trips yet</Text>
+                  <Text style={{ color: colors.textSecondary }} className="text-sm">Complete a trip and it will appear here.</Text>
+                </WanderCard>
+              </View>
+            ) : completedTrips.map((exp) => (
               <TouchableOpacity 
                 key={exp.id} 
                 style={{ width: width * 0.75 }}
                 onPress={() => router.push({
                   pathname: '/screens/experience-detail-screen',
-                  params: { experienceId: exp.id }
+                  params: { tripId: exp.id }
                 })}
                 activeOpacity={0.9}
               >
@@ -279,7 +286,7 @@ export default function Page() {
                       <Text style={{ color: colors.textSecondary }} className="text-sm">{exp.location}</Text>
                     </View>
                     <Text style={{ color: colors.textTertiary }} className="text-xs mt-2">
-                      {exp.reviews.toLocaleString()} reviews
+                      Completed trip
                     </Text>
                   </View>
                 </WanderCard>

@@ -4,8 +4,17 @@ import { BASE_URL } from "../../config";
 export const businessItemsApi = createApi({
   reducerPath: "businessItemsApi",
   baseQuery: fetchBaseQuery({ baseUrl: BASE_URL }),
-  tagTypes: ['Items', 'Deals', 'Businesses'],
+  tagTypes: ['Items', 'Deals', 'Businesses', 'CompletedTrips'],
   endpoints: (builder) => ({
+    // Get completed trips (public)
+    getCompletedTrips: builder.query({
+      query: (params) => ({
+        url: "/public/completed-trips",
+        params,
+      }),
+      providesTags: ['CompletedTrips'],
+    }),
+
     // Get all businesses
     getBusinesses: builder.query({
       query: (params) => ({
@@ -67,6 +76,7 @@ export const businessItemsApi = createApi({
 });
 
 export const {
+  useGetCompletedTripsQuery,
   useGetBusinessesQuery,
   useGetBusinessDetailQuery,
   useGetMenuItemsQuery,

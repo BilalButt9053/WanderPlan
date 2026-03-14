@@ -17,6 +17,7 @@ const {
     updateTrip,
     deleteTrip,
     addExpense,
+    addActivityToTrip,
     getBudgetDetails,
     getUserTripStats,
     estimateTripBudget
@@ -76,6 +77,13 @@ router.put("/:id", validate(updateTripSchema), updateTrip);
 router.delete("/:id", deleteTrip);
 
 // ==================== BUDGET OPERATIONS ====================
+
+/**
+ * POST /api/trips/:id/add-activity
+ * Add business activity to itinerary of a trip
+ * Body: { businessId, title, estimatedCost, source, day }
+ */
+router.post("/:id/add-activity", addActivityToTrip);
 
 /**
  * GET /api/trips/:id/budget

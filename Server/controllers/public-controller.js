@@ -1,6 +1,67 @@
 const Business = require('../modals/business-modal');
 const MenuItem = require('../modals/menu-item-modal');
 const Deal = require('../modals/deal-modal');
+const Trip = require('../modals/trip-modal');
+
+// Get completed trips (public feed)
+const getCompletedTrips = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, search } = req.query;
+
+    const filter = {
+      isDeleted: false,
+      status: 'completed',
+    };
+
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { 'destination.name': { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const limitNum = Math.min(parseInt(limit), 100);
+    const skip = (parseInt(page) - 1) * limitNum;
+
+    const [trips, total] = await Promise.all([
+      Trip.find(filter)
+        .select('title destination coverImage totalBudget totalSpent currency startDate endDate tripType createdAt')
+        .sort({ endDate: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Trip.countDocuments(filter),
+    ]);
+
+    const normalizedTrips = trips.map((trip) => {
+      const startDate = trip.startDate ? new Date(trip.startDate) : null;
+      const endDate = trip.endDate ? new Date(trip.endDate) : null;
+      const durationDays = startDate && endDate
+        ? Math.ceil(Math.abs(endDate - startDate) / (1000 * 60 * 60 * 24)) + 1
+        : 1;
+
+      return {
+        ...trip,
+        durationDays,
+        remainingBudget: (trip.totalBudget || 0) - (trip.totalSpent || 0),
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      trips: normalizedTrips,
+      pagination: {
+        page: parseInt(page),
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error('[public] Get completed trips error:', error);
+    next(error);
+  }
+};
 
 // Get all verified businesses (public)
 const getBusinesses = async (req, res, next) => {
@@ -325,6 +386,7 @@ const searchAll = async (req, res, next) => {
 };
 
 module.exports = {
+  getCompletedTrips,
   getBusinesses,
   getBusinessDetail,
   getMenuItems,
