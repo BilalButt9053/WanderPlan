@@ -4,6 +4,7 @@ import { reviewsApi } from "./api/reviewsApi";
 import { businessItemsApi } from "./api/businessItemsApi";
 import { itineraryApi } from "./api/itineraryApi";
 import { tripsApi } from "./api/tripsApi";
+import { complaintsApi } from "./api/complaintsApi";
 
 
 import authReducer from "./slices/authSlice";
@@ -16,6 +17,7 @@ export const store = configureStore({
     [businessItemsApi.reducerPath]: businessItemsApi.reducer,
     [itineraryApi.reducerPath]: itineraryApi.reducer,
     [tripsApi.reducerPath]: tripsApi.reducer,
+    [complaintsApi.reducerPath]: complaintsApi.reducer,
     auth: authReducer,
     theme: themeReducer,
   },
@@ -25,5 +27,6 @@ export const store = configureStore({
       .concat(reviewsApi.middleware)
       .concat(businessItemsApi.middleware)
       .concat(itineraryApi.middleware)
-      .concat(tripsApi.middleware),
+      .concat(tripsApi.middleware)
+      .concat(complaintsApi.middleware),
 });
