@@ -10,7 +10,7 @@
  * - Pull to refresh
  */
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { 
   View,
   Text,
@@ -55,6 +55,7 @@ import {
   useCommitBudgetMutation,
   useUpdateItineraryMutation,
 } from '../../redux/api/itineraryApi';
+import { useGetTripQuery } from '../../redux/api/tripsApi';
 
 // Map activity types to icons
 const getActivityIcon = (type) => {
@@ -115,6 +116,7 @@ export default function GeneratedPlanScreen({
   const [regenerateItinerary, { isLoading: isRegenerating }] = useRegenerateItineraryMutation();
   const [commitBudget, { isLoading: isCommitting }] = useCommitBudgetMutation();
   const [updateItinerary, { isLoading: isUpdating }] = useUpdateItineraryMutation();
+  const { data: tripData } = useGetTripQuery(tripId, { skip: !tripId });
 
   // Extract data from itineraryData or use budgetData as fallback
   // Handle both generate response (root level) and fetch response (in itinerary document)
@@ -122,7 +124,12 @@ export default function GeneratedPlanScreen({
   const rawDestination = itineraryData?.destination || itineraryData?.itinerary?.destination || budgetData?.destination || 'Unknown';
   const destination = typeof rawDestination === 'object' ? (rawDestination.name || rawDestination.city || 'Unknown') : rawDestination;
   const currency = itineraryData?.budgetInfo?.currency || itineraryData?.itinerary?.currency || budgetData?.currency || 'PKR';
-  const totalBudget = itineraryData?.budgetInfo?.totalBudget || itineraryData?.itinerary?.totalBudget || parseInt(budgetData?.budget) || 0;
+  const totalBudget =
+    tripData?.trip?.totalBudget ||
+    itineraryData?.budgetInfo?.totalBudget ||
+    itineraryData?.itinerary?.totalBudget ||
+    parseInt(budgetData?.budget) ||
+    0;
   const totalDays = itineraryData?.days || itineraryData?.itinerary?.totalDays || parseInt(budgetData?.duration) || 1;
   
   // Handle different API response structures:
@@ -145,6 +152,11 @@ export default function GeneratedPlanScreen({
   
   // Use edited days if in edit mode, otherwise use original
   const currentDays = getItineraryDays();
+  
+  // After a successful refresh (server copy updated), drop the local edited override.
+  useEffect(() => {
+    if (!isEditMode) setEditedDays(null);
+  }, [itineraryData, isEditMode]);
 
   // Itinerary days from API or edited state
   const itineraryDays = useMemo(() => {
@@ -164,7 +176,7 @@ export default function GeneratedPlanScreen({
           title: activity.title,
           type: activity.type || activity.category || 'other',
           location: locationStr,
-          price: activity.estimatedCost || 0,
+          price: activity.actualCost ?? activity.estimatedCost ?? 0,
           source: activity.source || 'ai',
           category: activity.category || 'activities',
           description: activity.description || '',
@@ -180,7 +192,9 @@ export default function GeneratedPlanScreen({
     for (const day of currentDays) {
       for (const activity of (day.activities || [])) {
         const category = activity.category || 'activities';
-        const cost = activity.estimatedCost || activity.price || 0;
+        // Activity-driven spending:
+        // Use actualCost if present, otherwise estimatedCost.
+        const cost = activity.actualCost ?? activity.estimatedCost ?? activity.price ?? 0;
         costs[category] = (costs[category] || 0) + cost;
         costs.total += cost;
       }
@@ -189,49 +203,65 @@ export default function GeneratedPlanScreen({
     return costs;
   }, [currentDays]);
 
-  // Use API costs or calculated costs
-  // Handle both generate response (estimatedCosts at root) and fetch response (in itinerary document)
-  const apiCosts = itineraryData?.estimatedCosts || itineraryData?.itinerary?.estimatedCosts;
-  const estimatedCosts = isEditMode ? calculatedCosts : (apiCosts || calculatedCosts);
-  const budgetStatus = itineraryData?.budgetStatus || itineraryData?.itinerary?.budgetStatus || {};
-  
-  const budgetAllocation = useMemo(() => {
-    const total = estimatedCosts.total || 1;
-    return [
-      { 
-        name: 'Accommodation', 
-        value: Math.round((estimatedCosts.accommodation || 0) / total * 100) || 0,
-        amount: estimatedCosts.accommodation || 0,
-        color: categoryColors.accommodation,
-      },
-      { 
-        name: 'Food', 
-        value: Math.round((estimatedCosts.food || 0) / total * 100) || 0,
-        amount: estimatedCosts.food || 0,
-        color: categoryColors.food,
-      },
-      { 
-        name: 'Transport', 
-        value: Math.round((estimatedCosts.transport || 0) / total * 100) || 0,
-        amount: estimatedCosts.transport || 0,
-        color: categoryColors.transport,
-      },
-      { 
-        name: 'Activities', 
-        value: Math.round((estimatedCosts.activities || 0) / total * 100) || 0,
-        amount: estimatedCosts.activities || 0,
-        color: categoryColors.activities,
-      },
-    ].filter(item => item.value > 0);
-  }, [estimatedCosts]);
+  const estimatedCosts = calculatedCosts;
+  const plannedBreakdown = tripData?.trip?.budgetBreakdown || null;
+
+  const categoryBreakdown = useMemo(() => {
+    const categories = [
+      { key: 'accommodation', label: 'Accommodation' },
+      { key: 'food', label: 'Food' },
+      { key: 'transport', label: 'Transport' },
+      { key: 'activities', label: 'Activities' },
+    ];
+
+    const safeTotalBudget = Math.max(totalBudget, 1);
+
+    return categories.map(({ key, label }) => {
+      const spent = estimatedCosts[key] || 0;
+      const actualPct = Math.round((spent / safeTotalBudget) * 100);
+
+      const plannedPct =
+        plannedBreakdown?.[key]?.percentage ??
+        (key === 'accommodation' ? 40 : key === 'food' ? 25 : key === 'transport' ? 20 : 15);
+
+      const isOver = actualPct > plannedPct;
+      const overBy = isOver ? actualPct - plannedPct : 0;
+
+      return {
+        key,
+        label,
+        spent,
+        actualPct,
+        plannedPct,
+        isOver,
+        overBy,
+        color: isOver ? '#DC2626' : '#059669',
+        barColor: isOver ? '#DC2626' : (categoryColors[key] || '#3B82F6'),
+      };
+    });
+  }, [estimatedCosts, plannedBreakdown, totalBudget]);
+
+  const budgetWarnings = useMemo(() => {
+    return categoryBreakdown
+      .filter((c) => c.isOver)
+      .map((c) => `⚠️ You exceeded ${c.label} budget by ${c.overBy}%`);
+  }, [categoryBreakdown]);
 
   // Remaining budget
   const remainingBudget = totalBudget - estimatedCosts.total;
   const isOverBudget = remainingBudget < 0;
+  const overByAmount = isOverBudget ? Math.abs(remainingBudget) : 0;
+  const underByAmount = !isOverBudget ? remainingBudget : 0;
+
 
   // Enter edit mode
   const handleEnterEditMode = () => {
-    setEditedDays([...itineraryData?.itinerary || []]);
+    // itineraryData.itinerary can be either:
+    // - an array of days (generate/regenerate responses)
+    // - a document containing { days: [...] } (get existing response)
+    // Use currentDays which already normalizes both cases.
+    const daysToEdit = Array.isArray(currentDays) ? currentDays : [];
+    setEditedDays(daysToEdit.map((d) => ({ ...d, activities: [...(d.activities || [])] })));
     setIsEditMode(true);
   };
 
@@ -249,8 +279,8 @@ export default function GeneratedPlanScreen({
       await updateItinerary({ tripId, days: editedDays }).unwrap();
       Alert.alert('Success', 'Itinerary updated successfully!');
       setIsEditMode(false);
-      setEditedDays(null);
-      onRefresh?.();
+      // Keep editedDays as the visible source until refreshed data arrives.
+      await onRefresh?.();
     } catch (error) {
       Alert.alert('Error', error?.data?.message || 'Failed to save changes');
     }
@@ -365,8 +395,35 @@ export default function GeneratedPlanScreen({
           text: 'Regenerate',
           onPress: async () => {
             try {
-              await regenerateItinerary({ tripId, forceAI: true }).unwrap();
+              const res = await regenerateItinerary({ tripId, forceAI: true }).unwrap();
               Alert.alert('Success', 'Itinerary regenerated!');
+              onRefresh?.();
+            } catch (error) {
+              Alert.alert('Error', error?.data?.message || 'Failed to regenerate');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRegenerateCheaper = async () => {
+    if (!tripId) {
+      Alert.alert('Error', 'No trip selected');
+      return;
+    }
+
+    Alert.alert(
+      'Regenerate Cheaper Plan',
+      `We’ll regenerate using budget-friendly options to reduce the estimated cost by approximately ${currency} ${overByAmount.toLocaleString()}. Continue?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Regenerate',
+          onPress: async () => {
+            try {
+              await regenerateItinerary({ tripId, forceAI: true, travelStyle: 'budget' }).unwrap();
+              Alert.alert('Success', 'Generated a cheaper itinerary!');
               onRefresh?.();
             } catch (error) {
               Alert.alert('Error', error?.data?.message || 'Failed to regenerate');
@@ -386,7 +443,7 @@ export default function GeneratedPlanScreen({
 
     Alert.alert(
       'Commit to Budget',
-      `This will add ${currency} ${estimatedCosts.total || 0} to your trip expenses. Continue?`,
+      `This will commit your itinerary’s activity costs (${currency} ${estimatedCosts.total || 0}) into your trip’s budget tracking. Continue?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -564,10 +621,10 @@ export default function GeneratedPlanScreen({
             {currency} {totalBudget.toLocaleString()}
           </Text>
           
-          {/* Estimated vs Remaining */}
+          {/* Spent vs Remaining */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
             <View>
-              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Estimated Cost</Text>
+              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Total Spent</Text>
               <Text style={{ fontSize: 16, color: '#ffffff', fontWeight: '600' }}>
                 {currency} {(estimatedCosts.total || 0).toLocaleString()}
               </Text>
@@ -575,92 +632,206 @@ export default function GeneratedPlanScreen({
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Remaining</Text>
               <Text style={{ fontSize: 16, color: '#ffffff', fontWeight: '600' }}>
-                {currency} {remainingBudget.toLocaleString()}
+                {isOverBudget
+                  ? `Over by ${currency} ${overByAmount.toLocaleString()}`
+                  : `${currency} ${underByAmount.toLocaleString()}`}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Budget Warnings */}
-        {budgetStatus.warnings?.length > 0 && (
-          <View style={{ gap: 8 }}>
-            {budgetStatus.warnings.map((warning, idx) => (
-              <View
-                key={idx}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: 12,
-                  backgroundColor: '#FEF3C7',
-                  borderRadius: 12,
-                }}
-              >
-                <AlertTriangle size={16} color="#D97706" />
-                <Text style={{ fontSize: 13, color: '#92400E', flex: 1 }}>
-                  {warning.message || warning}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Budget Allocation */}
-        {budgetAllocation.length > 0 && (
+        {/* Budget Insight Banner (AI vs Budget) */}
+        {tripId && (
           <WanderCard>
-            <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 16, color: colors.text }}>
-              Budget Allocation
-            </Text>
-            
-            {/* Bar representation */}
-            <View style={{ marginBottom: 16 }}>
-              <View style={{ 
-                height: 40, 
-                borderRadius: 12, 
-                overflow: 'hidden',
-                flexDirection: 'row',
-                backgroundColor: colors.input,
-              }}>
-                {budgetAllocation.map((item) => (
-                  <View 
-                    key={item.name}
-                    style={{ 
-                      width: `${item.value}%`, 
-                      backgroundColor: item.color,
-                      justifyContent: 'center',
-                      alignItems: 'center'
+            {isOverBudget ? (
+              <View style={{ gap: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
+                    <AlertTriangle size={18} color="#DC2626" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>
+                      Over budget by {currency} {overByAmount.toLocaleString()}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+                      This is based on the itinerary’s estimated costs. You can regenerate a cheaper plan.
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={handleRegenerateCheaper}
+                  disabled={isRegenerating}
+                  style={{
+                    backgroundColor: '#DC2626',
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    alignItems: 'center',
+                    opacity: isRegenerating ? 0.7 : 1,
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>
+                    {isRegenerating ? 'Regenerating...' : 'Regenerate Cheaper Plan'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ gap: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center' }}>
+                    <CheckCircle size={18} color="#059669" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>
+                      Within budget
+                    </Text>
+                    <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+                      You still have {currency} {underByAmount.toLocaleString()} available based on itinerary estimates.
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity
+                    onPress={handleRegenerate}
+                    disabled={isRegenerating}
+                    style={{
+                      flex: 1,
+                      backgroundColor: colors.input,
+                      paddingVertical: 12,
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      opacity: isRegenerating ? 0.7 : 1,
+                      borderWidth: 1,
+                      borderColor: colors.border,
                     }}
                   >
-                    {item.value >= 10 && (
-                      <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '600' }}>
-                        {item.value}%
-                      </Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            <View style={{ gap: 12 }}>
-              {budgetAllocation.map((item) => (
-                <View key={item.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View
-                    style={{ 
-                      width: 12, 
-                      height: 12, 
-                      borderRadius: 6, 
-                      backgroundColor: item.color 
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>
+                      Regenerate
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => regenerateItinerary({ tripId, forceAI: true, travelStyle: 'luxury' }).unwrap()
+                      .then(() => { Alert.alert('Success', 'Generated an upgraded itinerary!'); onRefresh?.(); })
+                      .catch((error) => Alert.alert('Error', error?.data?.message || 'Failed to regenerate'))}
+                    disabled={isRegenerating}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#3B82F6',
+                      paddingVertical: 12,
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      opacity: isRegenerating ? 0.7 : 1,
                     }}
-                  />
-                  <Text style={{ fontSize: 14, color: colors.textSecondary, flex: 1 }}>{item.name}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>
-                    {currency} {item.amount.toLocaleString()}
-                  </Text>
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>
+                      Upgrade Plan
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </WanderCard>
+        )}
+
+        {/* 💰 Budget Overview (single unified budget system) */}
+        <WanderCard>
+          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12, color: colors.text }}>
+            💰 Budget Overview
+          </Text>
+
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.input }}>
+              <Text style={{ fontSize: 12, color: colors.textSecondary }}>Total Budget</Text>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>
+                {currency} {Number(totalBudget || 0).toLocaleString()}
+              </Text>
+            </View>
+            <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.input }}>
+              <Text style={{ fontSize: 12, color: colors.textSecondary }}>Total Spent</Text>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>
+                {currency} {Number(estimatedCosts.total || 0).toLocaleString()}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.input }}>
+            <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+              Remaining Budget
+            </Text>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: isOverBudget ? '#DC2626' : '#059669' }}>
+              {isOverBudget
+                ? `Over by ${currency} ${Number(overByAmount || 0).toLocaleString()}`
+                : `${currency} ${Number(underByAmount || 0).toLocaleString()}`}
+            </Text>
+            <Text style={{ marginTop: 6, fontSize: 12, color: colors.textSecondary }}>
+              Based on itinerary activities (uses actualCost if provided, otherwise estimatedCost).
+            </Text>
+          </View>
+        </WanderCard>
+
+        {/* Category breakdown (actual vs planned %) */}
+        <WanderCard>
+          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12, color: colors.text }}>
+            📊 Category Breakdown
+          </Text>
+
+          <View style={{ gap: 12 }}>
+            {categoryBreakdown.map((cat) => {
+              const pctForBar = Math.min(Math.max(cat.actualPct, 0), 100);
+              return (
+                <View key={cat.key} style={{ gap: 6 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>
+                      {cat.label}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: cat.isOver ? '#DC2626' : '#059669' }}>
+                      {cat.actualPct}% (Planned: {cat.plannedPct}%){cat.isOver ? '  ⚠️' : '  ✅'}
+                    </Text>
+                  </View>
+
+                  <View style={{ height: 8, borderRadius: 999, backgroundColor: colors.input, overflow: 'hidden' }}>
+                    <View
+                      style={{
+                        width: `${pctForBar}%`,
+                        height: '100%',
+                        backgroundColor: cat.barColor,
+                      }}
+                    />
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                      Spent: {currency} {Number(cat.spent || 0).toLocaleString()}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: cat.isOver ? '#DC2626' : colors.textSecondary }}>
+                      {cat.isOver ? `Over budget by ${cat.overBy}%` : 'Within plan'}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          {budgetWarnings.length > 0 && (
+            <View style={{ marginTop: 14, gap: 8 }}>
+              {budgetWarnings.map((w, idx) => (
+                <View
+                  key={idx}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: 12,
+                    backgroundColor: '#FEF3C7',
+                    borderRadius: 12,
+                  }}
+                >
+                  <AlertTriangle size={16} color="#D97706" />
+                  <Text style={{ fontSize: 13, color: '#92400E', flex: 1 }}>{w}</Text>
                 </View>
               ))}
             </View>
-          </WanderCard>
-        )}
+          )}
+        </WanderCard>
 
         {/* Stats */}
         {itineraryData?.stats && (
