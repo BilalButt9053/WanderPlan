@@ -20,6 +20,8 @@ const notificationRoute = require("./router/notification-router");
 const publicRoute = require("./router/public-router");
 const tripRoute = require("./router/trip-router");
 const itineraryRoute = require("./router/itinerary-router");
+const complaintRoute = require("./router/complaint-router");
+const adminComplaintRoute = require("./router/admin-complaint-router");
 
 
 app.use(cors({
@@ -48,6 +50,8 @@ app.use("/api/business/notifications", notificationRoute);
 app.use("/api/public", publicRoute);
 app.use("/api/trips", tripRoute);
 app.use("/api/itineraries", itineraryRoute);
+app.use("/api/complaints", complaintRoute);
+app.use("/api/admin/complaints", adminComplaintRoute);
 app.use(errorMiddleware);
 
 const port = process.env.PORT || 5000;
