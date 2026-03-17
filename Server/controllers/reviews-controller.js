@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Review = require('../modals/review-models');
+const gamificationService = require('../services/gamification-service');
 
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(process.cwd(), 'server', 'uploads');
 
@@ -27,6 +28,15 @@ exports.create = async (req, res, next) => {
       images,
       tags,
     });
+
+    // Gamification: award points for contributing a review
+    // (Keeps the system aligned with the FYP "contributor rewards" requirement.)
+    try {
+      await gamificationService.awardPoints(req.user?._id, 50, 'review_created');
+    } catch (e) {
+      console.warn('[reviews] Failed to award points:', e.message);
+    }
+
     res.status(201).json(doc);
   } catch (err) {
     next(err);
