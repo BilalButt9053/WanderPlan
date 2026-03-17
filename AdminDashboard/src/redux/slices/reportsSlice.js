@@ -1,8 +1,8 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
-  reports: [],
-  selectedReport: null,
+  complaints: [],
+  selectedComplaint: null,
   loading: false,
   error: null,
   filters: {
@@ -21,8 +21,8 @@ const reportsSlice = createSlice({
   name: 'reports',
   initialState,
   reducers: {
-    setReports: (state, action) => {
-      state.reports = action.payload;
+    setComplaints: (state, action) => {
+      state.complaints = action.payload;
       state.loading = false;
     },
     setLoading: (state, action) => {
@@ -32,13 +32,13 @@ const reportsSlice = createSlice({
       state.error = action.payload;
       state.loading = false;
     },
-    setSelectedReport: (state, action) => {
-      state.selectedReport = action.payload;
+    setSelectedComplaint: (state, action) => {
+      state.selectedComplaint = action.payload;
     },
-    updateReport: (state, action) => {
-      const index = state.reports.findIndex(report => report.id === action.payload.id);
+    updateComplaint: (state, action) => {
+      const index = state.complaints.findIndex(c => c._id === action.payload._id);
       if (index !== -1) {
-        state.reports[index] = { ...state.reports[index], ...action.payload };
+        state.complaints[index] = { ...state.complaints[index], ...action.payload };
       }
     },
     setFilters: (state, action) => {
@@ -51,11 +51,11 @@ const reportsSlice = createSlice({
 });
 
 export const {
-  setReports,
+  setComplaints,
   setLoading,
   setError,
-  setSelectedReport,
-  updateReport,
+  setSelectedComplaint,
+  updateComplaint,
   setFilters,
   setStats,
 } = reportsSlice.actions;
