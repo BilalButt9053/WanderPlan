@@ -64,10 +64,10 @@ export const itineraryApi = createApi({
      * PUT /api/itineraries/trip/:tripId/regenerate
      */
     regenerateItinerary: builder.mutation({
-      query: ({ tripId, forceAI = false }) => ({
+      query: ({ tripId, forceAI = false, travelStyle } = {}) => ({
         url: `/itineraries/trip/${tripId}/regenerate`,
         method: "PUT",
-        body: { forceAI },
+        body: { forceAI, travelStyle },
       }),
       invalidatesTags: (result, error, { tripId }) => [
         { type: "Itinerary", id: tripId },
