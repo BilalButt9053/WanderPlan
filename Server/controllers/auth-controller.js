@@ -177,6 +177,7 @@ const login = async (req, res, next) => {
                     profilePhoto: userExist.profilePhoto,
                     isVerified: userExist.isVerified,
                     isAdmin: userExist.isAdmin || false,
+                    contribution: userExist.contribution || { points: 0, level: 1, badges: [] },
                 },
                 token
             });
@@ -440,6 +441,7 @@ const updateProfile = async (req, res, next) => {
                 email: updatedUser.email,
                 profilePhoto: updatedUser.profilePhoto,
                 isVerified: updatedUser.isVerified,
+                contribution: updatedUser.contribution || { points: 0, level: 1, badges: [] },
             }
         });
     } catch (error) {
