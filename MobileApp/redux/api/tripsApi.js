@@ -111,21 +111,6 @@ export const tripsApi = createApi({
     }),
 
     /**
-     * Add expense to trip
-     * POST /api/trips/:id/expenses
-     */
-    addExpense: builder.mutation({
-      query: ({ tripId, expense }) => ({
-        url: `/trips/${tripId}/expenses`,
-        method: "POST",
-        body: expense,
-      }),
-      invalidatesTags: (result, error, { tripId }) => [
-        { type: "Trip", id: tripId },
-      ],
-    }),
-
-    /**
      * Add activity to trip itinerary
      * POST /api/trips/:id/add-activity
      */
@@ -152,6 +137,5 @@ export const {
   useUpdateTripMutation,
   useDeleteTripMutation,
   useGetBudgetEstimateMutation,
-  useAddExpenseMutation,
   useAddActivityToTripMutation,
 } = tripsApi;
