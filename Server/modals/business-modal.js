@@ -37,7 +37,25 @@ const BusinessSchema = new mongoose.Schema({
         city: String,
         state: String,
         country: String,
-        zipCode: String
+        zipCode: String,
+        // Optional coordinates used by mobile "Maps/Nearby" features
+        // Stored both as simple lat/lng (easy consumption) and GeoJSON (efficient geo queries)
+        coordinates: {
+            lat: { type: Number, default: null },
+            lng: { type: Number, default: null }
+        }
+    },
+    // GeoJSON location for $geoNear queries (optional)
+    geoLocation: {
+        type: {
+            type: String,
+            enum: ['Point'],
+            default: undefined
+        },
+        coordinates: {
+            type: [Number], // [lng, lat]
+            default: undefined
+        }
     },
     description: {
         type: String,
@@ -133,6 +151,9 @@ const BusinessSchema = new mongoose.Schema({
         default: Date.now
     }
 });
+
+// Geo index for nearby queries (works even if field is missing on many documents)
+BusinessSchema.index({ geoLocation: '2dsphere' });
 
 // Hash password before saving
 BusinessSchema.pre('save', async function(next) {
