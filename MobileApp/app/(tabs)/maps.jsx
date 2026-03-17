@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import * as Location from 'expo-location';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import {
   Search,
   Filter,
@@ -33,7 +34,7 @@ import { WanderCard } from '../components/wander-card';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ListItemSkeleton } from '../components/Skeleton';
 import { useTheme } from '../../hooks/useTheme';
-import { useGetBusinessesQuery } from '../../redux/api/businessItemsApi';
+import { useGetBusinessesQuery, useGetNearbyBusinessesQuery } from '../../redux/api/businessItemsApi';
 
 // Category type mapping for display
 const categoryMap = {
@@ -53,11 +54,26 @@ const Maps = () => {
   const [userLocation, setUserLocation] = useState(null);
   const [activeFilters, setActiveFilters] = useState(new Set(['restaurant', 'cafe', 'hotel', 'shopping', 'attraction']));
 
-  // Fetch real businesses from API
-  const { data: businessData, isLoading, refetch } = useGetBusinessesQuery({
+  // Fetch businesses by text (fallback)
+  const { data: businessData, isLoading: isLoadingSearch, refetch } = useGetBusinessesQuery({
     search: searchQuery,
     limit: 50,
   });
+
+  // Fetch nearby businesses when we have GPS
+  const { data: nearbyData, isLoading: isLoadingNearby } = useGetNearbyBusinessesQuery(
+    userLocation
+      ? {
+          lat: userLocation.lat,
+          lng: userLocation.lng,
+          radiusKm: 10,
+          limit: 50,
+        }
+      : undefined,
+    { skip: !userLocation }
+  );
+
+  const isLoading = isLoadingNearby || isLoadingSearch;
 
   // Get user's location on mount
   useEffect(() => {
@@ -81,21 +97,27 @@ const Maps = () => {
 
   // Transform API data to map format
   const mapPlaces = React.useMemo(() => {
-    if (!businessData?.businesses) return [];
-    
-    return businessData.businesses.map((business) => ({
+    const businesses = (nearbyData?.businesses?.length ? nearbyData.businesses : businessData?.businesses) || [];
+    if (!businesses.length) return [];
+
+    return businesses.map((business) => ({
       id: business._id,
       name: business.businessName,
       type: business.businessType || 'restaurant',
-      lat: business.address?.coordinates?.lat || 0,
-      lng: business.address?.coordinates?.lng || 0,
+      lat:
+        business.address?.coordinates?.lat ??
+        (business.geoLocation?.coordinates?.[1] ?? null),
+      lng:
+        business.address?.coordinates?.lng ??
+        (business.geoLocation?.coordinates?.[0] ?? null),
       rating: business.rating || 0,
       reviewCount: business.reviewCount || 0,
       image: business.logo || business.galleryImages?.[0] || null,
       address: `${business.address?.street || ''}, ${business.address?.city || ''}`.trim().replace(/^,\s*/, ''),
       description: business.description,
+      distanceKm: business.distanceKm ?? null,
     }));
-  }, [businessData]);
+  }, [businessData, nearbyData]);
 
   // Calculate distance between two coordinates (Haversine formula)
   const calculateDistance = (lat1, lng1, lat2, lng2) => {
@@ -198,84 +220,51 @@ const Maps = () => {
           </View>
         </View>
 
-        {/* Map Mock */}
-        <View className="flex-1 relative" style={{ backgroundColor: '#E3F2FD' }}>
-          {/* Grid pattern background */}
-          <View className="absolute inset-0">
-            {/* Loading state */}
-            {isLoading && (
-              <View className="absolute inset-0 items-center justify-center bg-white/50 z-20">
-                <View className="bg-white p-4 rounded-xl shadow-lg">
-                  <Text className="text-gray-600">Loading places...</Text>
-                </View>
-              </View>
-            )}
-
-            {/* Empty state */}
-            {!isLoading && filteredPlaces.length === 0 && (
-              <View className="absolute inset-0 items-center justify-center z-10">
-                <MapPin size={64} color="#9CA3AF" />
-                <Text className="text-gray-500 mt-4 text-lg">No places found</Text>
-                <Text className="text-gray-400 text-sm">Try adjusting your filters</Text>
-              </View>
-            )}
-
-            {/* Map Pins */}
-            {filteredPlaces.slice(0, 10).map((place, idx) => {
-              const Icon = getIcon(place.type);
-              const pinColor = getPinColor(place.type);
-              
-              // Position pins in a scattered pattern
-              const top = 30 + (idx * 12) % 40;
-              const left = 20 + (idx * 15) % 60;
-              
-              return (
-                <TouchableOpacity
+        {/* Real Map */}
+        <View className="flex-1 relative">
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={{ flex: 1 }}
+            showsUserLocation={!!userLocation}
+            showsMyLocationButton={false}
+            initialRegion={{
+              latitude: userLocation?.lat ?? 33.6844, // Islamabad fallback
+              longitude: userLocation?.lng ?? 73.0479,
+              latitudeDelta: 0.15,
+              longitudeDelta: 0.15,
+            }}
+          >
+            {filteredPlaces
+              .filter((p) => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)))
+              .map((place) => (
+                <Marker
                   key={place.id}
+                  coordinate={{ latitude: Number(place.lat), longitude: Number(place.lng) }}
+                  title={place.name}
+                  description={place.address || place.description || ''}
                   onPress={() => setSelectedPlace(place)}
-                  className="absolute"
-                  style={{
-                    top: `${top}%`,
-                    left: `${left}%`,
-                  }}
-                >
-                  <View
-                    className="w-10 h-10 rounded-full items-center justify-center"
-                    style={{
-                      backgroundColor: pinColor,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.25,
-                      shadowRadius: 3.84,
-                      elevation: 5,
-                    }}
-                  >
-                    <Icon size={20} color="#fff" />
-                  </View>
-                  {selectedPlace?.id === place.id && (
-                    <View className="absolute -bottom-2 left-1/2 w-2 h-2 rounded-full bg-white" style={{ marginLeft: -4 }} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-
-            {/* Current Location Pin - only show when location is available */}
-            {userLocation && (
-              <View className="absolute" style={{ top: '50%', left: '50%', marginLeft: -8, marginTop: -8 }}>
-                <View
-                  className="w-4 h-4 rounded-full border-4 border-white"
-                  style={{
-                    backgroundColor: '#3B82F6',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 3.84,
-                    elevation: 5,
-                  }}
+                  pinColor={getPinColor(place.type)}
                 />
+              ))}
+          </MapView>
+
+          {/* Loading overlay */}
+          {isLoading && (
+            <View className="absolute inset-0 items-center justify-center bg-white/50 z-20">
+              <View className="bg-white p-4 rounded-xl shadow-lg">
+                <Text className="text-gray-600">Loading places...</Text>
               </View>
-            )}
-          </View>
+            </View>
+          )}
+
+          {/* Empty state */}
+          {!isLoading && filteredPlaces.length === 0 && (
+            <View className="absolute inset-0 items-center justify-center z-10">
+              <MapPin size={64} color="#9CA3AF" />
+              <Text className="text-gray-500 mt-4 text-lg">No places found</Text>
+              <Text className="text-gray-400 text-sm">Try adjusting your filters</Text>
+            </View>
+          )}
         </View>
 
         {/* Filter Pills */}

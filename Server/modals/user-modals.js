@@ -48,6 +48,14 @@ const SignUp = new mongoose.Schema({
             default: Date.now
         }
     }]
+    ,
+    // Gamification / contributor profile (used by Rewards/Profile screens)
+    contribution: {
+        points: { type: Number, default: 0 },
+        level: { type: Number, default: 1 },
+        badges: [{ type: String, trim: true }],
+        lastAwardedAt: { type: Date, default: null }
+    }
 });
 
 

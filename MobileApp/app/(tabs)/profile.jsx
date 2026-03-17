@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -160,7 +160,20 @@ const Profile = () => {
   const user = useSelector((state) => state.auth.user);
   const { isDarkMode, colors } = useTheme();
   const [activeTab, setActiveTab] = useState('overview');
-  const [userProfile] = useState(userProfileData);
+  const userProfile = useMemo(() => {
+    const points = user?.contribution?.points ?? userProfileData.points ?? 0;
+    const level = user?.contribution?.level ?? userProfileData.level ?? 1;
+    const nextLevelPoints = Math.max((level + 1) * 500, userProfileData.nextLevelPoints || 0);
+
+    return {
+      ...userProfileData,
+      name: user?.fullName || userProfileData.name,
+      username: user?.email || userProfileData.username,
+      level,
+      points,
+      nextLevelPoints,
+    };
+  }, [user]);
   const [showSettings, setShowSettings] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editName, setEditName] = useState('');
@@ -168,7 +181,7 @@ const Profile = () => {
   // RTK Query mutation for profile update
   const [updateProfile, { isLoading: isUpdating }] = useUpdateProfileMutation();
 
-  const progressPercentage = (userProfile.points / userProfile.nextLevelPoints) * 100;
+  const progressPercentage = (userProfile.points / Math.max(userProfile.nextLevelPoints, 1)) * 100;
 
   const handleOpenSettings = () => {
     setShowSettings(true);
