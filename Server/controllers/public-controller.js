@@ -70,7 +70,7 @@ const getBusinesses = async (req, res, next) => {
     
     const filter = { 
       isVerified: true,
-      status: 'active'
+      status: 'approved'
     };
     
     if (category) filter.businessType = category;
@@ -86,7 +86,7 @@ const getBusinesses = async (req, res, next) => {
     
     const [businesses, total] = await Promise.all([
       Business.find(filter)
-        .select('businessName description logo businessType address rating reviewCount galleryImages')
+        .select('businessName description logo businessType address geoLocation rating reviewCount galleryImages')
         .skip(skip)
         .limit(parseInt(limit))
         .sort({ rating: -1 }),
@@ -105,6 +105,74 @@ const getBusinesses = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[public] Get businesses error:', error);
+    next(error);
+  }
+};
+
+// Get nearby businesses (public, geo-based)
+// GET /api/public/nearby?lat=..&lng=..&radiusKm=5&category=restaurant&limit=30
+const getNearbyBusinesses = async (req, res, next) => {
+  try {
+    const { lat, lng, radiusKm = 5, category, limit = 30 } = req.query;
+
+    const latNum = Number(lat);
+    const lngNum = Number(lng);
+    const radiusNum = Math.max(0.1, Number(radiusKm) || 5);
+    const limitNum = Math.min(Math.max(parseInt(limit) || 30, 1), 100);
+
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+      return res.status(400).json({ message: 'lat and lng are required numeric query params' });
+    }
+
+    const maxDistanceMeters = radiusNum * 1000;
+
+    const match = {
+      isVerified: true,
+      status: 'approved'
+    };
+    if (category) {
+      match.businessType = category;
+    }
+
+    const results = await Business.aggregate([
+      {
+        $geoNear: {
+          near: { type: 'Point', coordinates: [lngNum, latNum] },
+          distanceField: 'distanceMeters',
+          maxDistance: maxDistanceMeters,
+          spherical: true,
+          query: {
+            ...match,
+            geoLocation: { $exists: true }
+          }
+        }
+      },
+      { $limit: limitNum },
+      {
+        $project: {
+          businessName: 1,
+          description: 1,
+          logo: 1,
+          businessType: 1,
+          address: 1,
+          geoLocation: 1,
+          rating: 1,
+          reviewCount: 1,
+          galleryImages: 1,
+          distanceMeters: 1
+        }
+      }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      businesses: results.map((b) => ({
+        ...b,
+        distanceKm: b.distanceMeters != null ? Math.round((b.distanceMeters / 1000) * 10) / 10 : null
+      }))
+    });
+  } catch (error) {
+    console.error('[public] Get nearby businesses error:', error);
     next(error);
   }
 };
@@ -303,7 +371,7 @@ const getDealDetail = async (req, res, next) => {
 const getCategories = async (req, res, next) => {
   try {
     const categories = await Business.aggregate([
-      { $match: { isVerified: true, status: 'active' } },
+      { $match: { isVerified: true, status: 'approved' } },
       { $group: { _id: '$businessType', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
@@ -332,14 +400,14 @@ const searchAll = async (req, res, next) => {
     // Get verified business IDs
     const verifiedBusinesses = await Business.find({ 
       isVerified: true, 
-      status: 'active' 
+      status: 'approved' 
     }).select('_id');
     const verifiedIds = verifiedBusinesses.map(b => b._id);
     
     const [businesses, items, deals] = await Promise.all([
       Business.find({
         isVerified: true,
-        status: 'active',
+        status: 'approved',
         $or: [
           { businessName: searchRegex },
           { description: searchRegex }
@@ -394,5 +462,6 @@ module.exports = {
   getDeals,
   getDealDetail,
   getCategories,
-  searchAll
+  searchAll,
+  getNearbyBusinesses
 };
