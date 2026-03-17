@@ -4,6 +4,7 @@ const {
   getCompletedTrips,
   getBusinesses,
   getBusinessDetail,
+  getNearbyBusinesses,
   getMenuItems,
   getMenuItemDetail,
   getDeals,
@@ -26,6 +27,7 @@ router.get('/categories', getCategories);
 // Businesses
 router.get('/businesses', getBusinesses);
 router.get('/businesses/:id', getBusinessDetail);
+router.get('/nearby', getNearbyBusinesses);
 
 // Menu Items
 router.get('/items', getMenuItems);
