@@ -456,7 +456,7 @@ const getTripItinerary = async (req, res, next) => {
 const regenerateTripItinerary = async (req, res, next) => {
     try {
         const { tripId } = req.params;
-        const { forceAI = false } = req.body;
+        const { forceAI = false, travelStyle } = req.body || {};
         const userId = req.user._id;
 
         // Validate tripId format
@@ -481,13 +481,19 @@ const regenerateTripItinerary = async (req, res, next) => {
             (new Date(trip.endDate) - new Date(trip.startDate)) / (1000 * 60 * 60 * 24)
         ) + 1;
 
+        // Allow client to override travel style for regeneration (e.g. "budget" cheaper plan)
+        const allowedStyles = ['budget', 'moderate', 'luxury'];
+        const finalStyle = travelStyle && allowedStyles.includes(travelStyle)
+            ? travelStyle
+            : (trip.tripType || 'moderate');
+
         // Regenerate
         const result = await itineraryService.generateHybridItinerary({
             tripId,
             userId,
             destination,
             days: Math.min(Math.max(days, 1), 30),
-            travelStyle: trip.tripType || 'moderate',
+            travelStyle: finalStyle,
             travelers: trip.travelers || 1,
             saveToDb: true
         });
