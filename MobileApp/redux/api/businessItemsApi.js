@@ -23,6 +23,15 @@ export const businessItemsApi = createApi({
       }),
       providesTags: ['Businesses'],
     }),
+
+    // Get nearby businesses (geo query)
+    getNearbyBusinesses: builder.query({
+      query: (params) => ({
+        url: "/public/nearby",
+        params,
+      }),
+      providesTags: ['Businesses'],
+    }),
     
     // Get single business detail
     getBusinessDetail: builder.query({
@@ -78,6 +87,7 @@ export const businessItemsApi = createApi({
 export const {
   useGetCompletedTripsQuery,
   useGetBusinessesQuery,
+  useGetNearbyBusinessesQuery,
   useGetBusinessDetailQuery,
   useGetMenuItemsQuery,
   useGetItemDetailQuery,
