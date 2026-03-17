@@ -41,6 +41,20 @@ const trips = () => {
   const [deleteTrip] = useDeleteTripMutation();
   const [generateItinerary, { isLoading: isGenerating }] = useGenerateItineraryMutation();
   const [triggerGetItinerary] = useLazyGetItineraryQuery();
+  
+  const refreshSelectedItinerary = useCallback(async () => {
+    const id = selectedTrip?._id;
+    if (!id) return null;
+    try {
+      const result = await triggerGetItinerary(id);
+      if (result?.data) {
+        setItineraryData(result.data);
+      }
+      return result?.data || null;
+    } catch (e) {
+      return null;
+    }
+  }, [selectedTrip?._id, triggerGetItinerary]);
 
   // Create new trip and generate itinerary
   const handleGeneratePlan = async (data) => {
@@ -321,7 +335,7 @@ const trips = () => {
           tripId={selectedTrip?._id}
           onBack={handleBack}
           onSave={handleSaveTrip}
-          onRefresh={() => triggerGetItinerary(selectedTrip?._id)}
+          onRefresh={refreshSelectedItinerary}
         />
       )}
 
