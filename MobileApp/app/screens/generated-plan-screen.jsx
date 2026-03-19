@@ -585,188 +585,105 @@ export default function GeneratedPlanScreen({
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Budget Overview */}
-        <View style={{
-          backgroundColor: isOverBudget ? '#DC2626' : '#3B82F6',
-          borderRadius: 16,
-          padding: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 5
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#ffffff' }}>Total Budget</Text>
-            <View style={{ 
-              paddingHorizontal: 12, 
-              paddingVertical: 6, 
-              borderRadius: 12,
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
+        {/* Budget Card */}
+        {(() => {
+          const spentPercent = totalBudget > 0 ? Math.min((estimatedCosts.total / totalBudget) * 100, 100) : 0;
+          const remainingPercent = totalBudget > 0 ? (remainingBudget / totalBudget) * 100 : 0;
+          const isNearLimit = remainingPercent > 0 && remainingPercent <= 20;
+
+          let statusText = "Within Budget";
+          let cardColor = "#3B82F6";
+
+          if (isOverBudget) {
+            statusText = "Over Budget";
+            cardColor = "#DC2626";
+          } else if (isNearLimit) {
+            statusText = "Near Limit";
+            cardColor = "#D97706";
+          }
+
+          return (
+            <View style={{
+              backgroundColor: cardColor,
+              borderRadius: 16,
+              padding: 20,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 5
             }}>
-              {isOverBudget ? (
-                <AlertTriangle size={12} color="#ffffff" />
-              ) : (
-                <CheckCircle size={12} color="#ffffff" />
-              )}
-              <Text style={{ fontSize: 12, color: '#ffffff', fontWeight: '600' }}>
-                {totalDays} days
-              </Text>
-            </View>
-          </View>
-          <Text style={{ fontSize: 32, fontWeight: '700', color: '#ffffff', marginBottom: 4 }}>
-            {currency} {totalBudget.toLocaleString()}
-          </Text>
-          
-          {/* Spent vs Remaining */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-            <View>
-              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Total Spent</Text>
-              <Text style={{ fontSize: 16, color: '#ffffff', fontWeight: '600' }}>
-                {currency} {(estimatedCosts.total || 0).toLocaleString()}
-              </Text>
-            </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Remaining</Text>
-              <Text style={{ fontSize: 16, color: '#ffffff', fontWeight: '600' }}>
-                {isOverBudget
-                  ? `Over by ${currency} ${overByAmount.toLocaleString()}`
-                  : `${currency} ${underByAmount.toLocaleString()}`}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Budget Insight Banner (AI vs Budget) */}
-        {tripId && (
-          <WanderCard>
-            {isOverBudget ? (
-              <View style={{ gap: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
-                    <AlertTriangle size={18} color="#DC2626" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>
-                      Over budget by {currency} {overByAmount.toLocaleString()}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: colors.textSecondary }}>
-                      This is based on the itinerary’s estimated costs. You can regenerate a cheaper plan.
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  onPress={handleRegenerateCheaper}
-                  disabled={isRegenerating}
-                  style={{
-                    backgroundColor: '#DC2626',
-                    paddingVertical: 12,
-                    borderRadius: 12,
-                    alignItems: 'center',
-                    opacity: isRegenerating ? 0.7 : 1,
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>
-                    {isRegenerating ? 'Regenerating...' : 'Regenerate Cheaper Plan'}
+              {/* Header */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <Text style={{ fontSize: 18, fontWeight: "600", color: "#ffffff" }}>Trip Budget</Text>
+                <View style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 12,
+                  backgroundColor: "rgba(255,255,255,0.2)",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                }}>
+                  {isOverBudget ? (
+                    <AlertTriangle size={12} color="#ffffff" />
+                  ) : isNearLimit ? (
+                    <AlertTriangle size={12} color="#ffffff" />
+                  ) : (
+                    <CheckCircle size={12} color="#ffffff" />
+                  )}
+                  <Text style={{ fontSize: 12, color: "#ffffff", fontWeight: "600" }}>
+                    {statusText}
                   </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={{ gap: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center' }}>
-                    <CheckCircle size={18} color="#059669" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>
-                      Within budget
-                    </Text>
-                    <Text style={{ fontSize: 13, color: colors.textSecondary }}>
-                      You still have {currency} {underByAmount.toLocaleString()} available based on itinerary estimates.
-                    </Text>
-                  </View>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity
-                    onPress={handleRegenerate}
-                    disabled={isRegenerating}
-                    style={{
-                      flex: 1,
-                      backgroundColor: colors.input,
-                      paddingVertical: 12,
-                      borderRadius: 12,
-                      alignItems: 'center',
-                      opacity: isRegenerating ? 0.7 : 1,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: '700' }}>
-                      Regenerate
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => regenerateItinerary({ tripId, forceAI: true, travelStyle: 'luxury' }).unwrap()
-                      .then(() => { Alert.alert('Success', 'Generated an upgraded itinerary!'); onRefresh?.(); })
-                      .catch((error) => Alert.alert('Error', error?.data?.message || 'Failed to regenerate'))}
-                    disabled={isRegenerating}
-                    style={{
-                      flex: 1,
-                      backgroundColor: '#3B82F6',
-                      paddingVertical: 12,
-                      borderRadius: 12,
-                      alignItems: 'center',
-                      opacity: isRegenerating ? 0.7 : 1,
-                    }}
-                  >
-                    <Text style={{ color: '#fff', fontWeight: '700' }}>
-                      Upgrade Plan
-                    </Text>
-                  </TouchableOpacity>
                 </View>
               </View>
-            )}
-          </WanderCard>
-        )}
 
-        {/* 💰 Budget Overview (single unified budget system) */}
-        <WanderCard>
-          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12, color: colors.text }}>
-            💰 Budget Overview
-          </Text>
-
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.input }}>
-              <Text style={{ fontSize: 12, color: colors.textSecondary }}>Total Budget</Text>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>
-                {currency} {Number(totalBudget || 0).toLocaleString()}
+              {/* Total Budget */}
+              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>Total Budget</Text>
+              <Text style={{ fontSize: 28, fontWeight: "700", color: "#ffffff", marginBottom: 16 }}>
+                {currency} {totalBudget.toLocaleString()}
               </Text>
-            </View>
-            <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.input }}>
-              <Text style={{ fontSize: 12, color: colors.textSecondary }}>Total Spent</Text>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>
-                {currency} {Number(estimatedCosts.total || 0).toLocaleString()}
-              </Text>
-            </View>
-          </View>
 
-          <View style={{ marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.input }}>
-            <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-              Remaining Budget
-            </Text>
-            <Text style={{ fontSize: 16, fontWeight: '800', color: isOverBudget ? '#DC2626' : '#059669' }}>
-              {isOverBudget
-                ? `Over by ${currency} ${Number(overByAmount || 0).toLocaleString()}`
-                : `${currency} ${Number(underByAmount || 0).toLocaleString()}`}
-            </Text>
-            <Text style={{ marginTop: 6, fontSize: 12, color: colors.textSecondary }}>
-              Based on itinerary activities (uses actualCost if provided, otherwise estimatedCost).
-            </Text>
-          </View>
-        </WanderCard>
+              {/* Progress Bar */}
+              <View style={{ marginBottom: 16 }}>
+                <View style={{
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: "rgba(255,255,255,0.3)",
+                  overflow: "hidden"
+                }}>
+                  <View style={{
+                    width: `${Math.min(spentPercent, 100)}%`,
+                    height: "100%",
+                    backgroundColor: "#ffffff",
+                    borderRadius: 4,
+                  }} />
+                </View>
+                <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 4, textAlign: "right" }}>
+                  {spentPercent.toFixed(0)}% spent
+                </Text>
+              </View>
+
+              {/* Spent vs Remaining */}
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>Total Spent</Text>
+                  <Text style={{ fontSize: 18, color: "#ffffff", fontWeight: "700" }}>
+                    {currency} {(estimatedCosts.total || 0).toLocaleString()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, alignItems: "flex-end" }}>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>Remaining</Text>
+                  <Text style={{ fontSize: 18, color: "#ffffff", fontWeight: "700" }}>
+                    {isOverBudget
+                      ? `-${currency} ${overByAmount.toLocaleString()}`
+                      : `${currency} ${underByAmount.toLocaleString()}`}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Category breakdown (actual vs planned %) */}
         <WanderCard>
@@ -921,7 +838,10 @@ export default function GeneratedPlanScreen({
                   <View style={{ gap: 12 }}>
                     {day.items.map((item, idx) => {
                       const Icon = getActivityIcon(item.type);
-                      
+                      // Calculate budget impact percentage
+                      const budgetImpact = totalBudget > 0 ? ((item.price || 0) / totalBudget) * 100 : 0;
+                      const impactColor = budgetImpact > 10 ? '#DC2626' : budgetImpact > 5 ? '#D97706' : '#059669';
+
                       return (
                         <View
                           key={item.id || idx}
@@ -972,7 +892,7 @@ export default function GeneratedPlanScreen({
                                 </TouchableOpacity>
                               )}
                             </View>
-                            
+
                             {item.location && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                                 <MapPin size={12} color={colors.textSecondary} />
@@ -981,29 +901,44 @@ export default function GeneratedPlanScreen({
                                 </Text>
                               </View>
                             )}
-                            
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                              <DollarSign size={14} color="#059669" />
-                              {isEditMode ? (
-                                <TextInput
-                                  value={String(item.price || 0)}
-                                  onChangeText={(text) => handleUpdateActivityCost(day.day, idx, text)}
-                                  keyboardType="numeric"
-                                  style={{
-                                    backgroundColor: '#D1FAE5',
-                                    borderRadius: 6,
-                                    paddingHorizontal: 8,
-                                    paddingVertical: 4,
-                                    fontSize: 14,
-                                    fontWeight: '600',
-                                    color: '#059669',
-                                    minWidth: 70,
-                                  }}
-                                />
-                              ) : (
-                                <Text style={{ fontSize: 14, color: '#059669', fontWeight: '600' }}>
-                                  {currency} {item.price?.toLocaleString() || 0}
-                                </Text>
+
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <DollarSign size={14} color="#059669" />
+                                {isEditMode ? (
+                                  <TextInput
+                                    value={String(item.price || 0)}
+                                    onChangeText={(text) => handleUpdateActivityCost(day.day, idx, text)}
+                                    keyboardType="numeric"
+                                    style={{
+                                      backgroundColor: '#D1FAE5',
+                                      borderRadius: 6,
+                                      paddingHorizontal: 8,
+                                      paddingVertical: 4,
+                                      fontSize: 14,
+                                      fontWeight: '600',
+                                      color: '#059669',
+                                      minWidth: 70,
+                                    }}
+                                  />
+                                ) : (
+                                  <Text style={{ fontSize: 14, color: '#059669', fontWeight: '600' }}>
+                                    {currency} {item.price?.toLocaleString() || 0}
+                                  </Text>
+                                )}
+                              </View>
+                              {/* Budget impact indicator */}
+                              {budgetImpact > 0 && !isEditMode && (
+                                <View style={{
+                                  backgroundColor: `${impactColor}15`,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 3,
+                                  borderRadius: 12,
+                                }}>
+                                  <Text style={{ fontSize: 11, color: impactColor, fontWeight: '600' }}>
+                                    {budgetImpact.toFixed(1)}% of budget
+                                  </Text>
+                                </View>
                               )}
                             </View>
                           </View>
