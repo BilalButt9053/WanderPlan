@@ -15,6 +15,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout, updateUser, selectCurrentUser } from '../../redux/slices/authSlice';
 import { useUpdateProfileMutation } from '../../redux/api/authApi';
+import {
+  useGetProfileStatsQuery,
+  useGetRewardsQuery,
+  useGetNotificationsQuery,
+} from '../../redux/api/userProfileApi';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
 import {
@@ -52,107 +57,24 @@ import RewardsTab from '../components/profile/RewardsTab';
 import MyReviewsTab from '../components/profile/MyReviewsTab';
 import SavedReviewsTab from '../components/profile/SavedReviewsTab';
 
-const userProfileData = {
-  name: 'John Doe',
-  username: '@johndoe',
-  avatar: 'JD',
-  level: 7,
-  points: 2450,
-  nextLevelPoints: 3000,
-  location: 'New York, USA',
-  memberSince: 'January 2024',
+// Fallback data in case API fails
+const fallbackProfileData = {
+  name: 'User',
+  username: '@user',
+  avatar: 'U',
+  level: 1,
+  points: 0,
+  nextLevelPoints: 100,
+  location: 'Pakistan',
+  memberSince: 'New member',
   stats: {
-    reviews: 42,
-    trips: 15,
-    saved: 28,
-    helpful: 156,
+    reviews: 0,
+    trips: 0,
+    saved: 0,
+    helpful: 0,
   },
-  badges: [
-    { id: '1', name: 'Top Contributor', icon: '🏆', description: '50+ reviews', unlocked: true },
-    { id: '2', name: 'Travel Expert', icon: '✈️', description: '10+ trips', unlocked: true },
-    { id: '3', name: 'Helpful Guide', icon: '👍', description: '100+ helpful votes', unlocked: true },
-    { id: '4', name: 'Food Critic', icon: '🍽️', description: '25+ food reviews', unlocked: true, progress: 80 },
-    { id: '5', name: 'Explorer', icon: '🗺️', description: '5 different countries', unlocked: false, progress: 60 },
-  ],
+  badges: [],
 };
-
-const rewardsData = [
-  {
-    id: '1',
-    title: '20% Off at Grand Hotel',
-    discount: '20%',
-    type: 'hotel',
-    expiresAt: '2024-12-31',
-    isRedeemed: false,
-    code: 'WANDER20',
-  },
-  {
-    id: '2',
-    title: '15% Off Restaurant Voucher',
-    discount: '15%',
-    type: 'restaurant',
-    expiresAt: '2024-11-30',
-    isRedeemed: false,
-    code: 'FOOD15',
-  },
-  {
-    id: '3',
-    title: '10% Travel Discount',
-    discount: '10%',
-    type: 'travel',
-    expiresAt: '2024-10-31',
-    isRedeemed: true,
-    code: 'TRIP10',
-  },
-];
-
-const savedTripsData = [
-  {
-    id: '1',
-    destination: 'Paris, France',
-    image: 'https://images.unsplash.com/photo-1431274172761-fca41d930114?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwYXJpcyUyMGVpZmZlbCUyMHRvd2VyfGVufDF8fHx8MTc2MDMyODIyMnww&ixlib=rb-4.1.0&q=80&w=1080',
-    budget: 3500,
-    savedAt: '2 weeks ago',
-  },
-  {
-    id: '2',
-    destination: 'Tokyo, Japan',
-    image: 'https://images.unsplash.com/photo-1602283662099-1c6c158ee94d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0b2t5byUyMGphcGFuJTIwY2l0eXxlbnwxfHx8fDE3NjAzMjgyMjJ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    budget: 4000,
-    savedAt: '1 month ago',
-  },
-];
-
-const notificationsData = [
-  {
-    id: '1',
-    type: 'like',
-    text: 'Sarah M. liked your review of La Bella Cucina',
-    timestamp: '2 hours ago',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'reward',
-    text: 'You unlocked a 20% hotel discount coupon! 🎉',
-    timestamp: '1 day ago',
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'badge',
-    text: 'Congratulations! You earned the "Top Contributor" badge',
-    timestamp: '3 days ago',
-    read: true,
-  },
-  {
-    id: '4',
-    type: 'reply',
-    text: 'Alex replied to your review',
-    timestamp: '5 days ago',
-    read: true,
-  },
-];
 
 const Profile = () => {
   const dispatch = useDispatch();
@@ -160,24 +82,88 @@ const Profile = () => {
   const user = useSelector((state) => state.auth.user);
   const { isDarkMode, colors } = useTheme();
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Fetch profile data from API
+  const { data: profileData, isLoading: profileLoading, refetch: refetchProfile } = useGetProfileStatsQuery();
+  const { data: rewardsData, isLoading: rewardsLoading } = useGetRewardsQuery('all');
+  const { data: notificationsData, isLoading: notificationsLoading } = useGetNotificationsQuery({ page: 1, limit: 20 });
+
   const userProfile = useMemo(() => {
-    const points = user?.contribution?.points ?? userProfileData.points ?? 0;
-    const level = user?.contribution?.level ?? userProfileData.level ?? 1;
-    const nextLevelPoints = Math.max((level + 1) * 500, userProfileData.nextLevelPoints || 0);
+    if (profileData?.success) {
+      const { profile, gamification, stats } = profileData;
+      return {
+        name: profile.name || user?.fullName || fallbackProfileData.name,
+        username: profile.username || user?.email || fallbackProfileData.username,
+        avatar: profile.avatar || fallbackProfileData.avatar,
+        level: gamification.level || 1,
+        points: gamification.points || 0,
+        nextLevelPoints: gamification.nextLevelPoints || 100,
+        location: 'Pakistan',
+        memberSince: profile.memberSince || 'New member',
+        stats: {
+          reviews: stats.reviews || 0,
+          trips: stats.trips || 0,
+          saved: stats.saved || 0,
+          helpful: stats.helpful || 0,
+        },
+        badges: gamification.badges || [],
+        fullStats: stats, // Include full stats for detailed views
+      };
+    }
+    // Fallback to local user data if API fails
+    const points = user?.contribution?.points ?? fallbackProfileData.points ?? 0;
+    const level = user?.contribution?.level ?? fallbackProfileData.level ?? 1;
+    const nextLevelPoints = Math.max((level + 1) * 500, fallbackProfileData.nextLevelPoints || 0);
 
     return {
-      ...userProfileData,
-      name: user?.fullName || userProfileData.name,
-      username: user?.email || userProfileData.username,
+      ...fallbackProfileData,
+      name: user?.fullName || fallbackProfileData.name,
+      username: user?.email || fallbackProfileData.username,
       level,
       points,
       nextLevelPoints,
     };
-  }, [user]);
+  }, [profileData, user]);
+
+  // Transform notifications for the tab
+  const notifications = useMemo(() => {
+    if (notificationsData?.notifications) {
+      return notificationsData.notifications.map(n => ({
+        id: n._id,
+        type: n.type,
+        text: n.message,
+        timestamp: new Date(n.createdAt).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric'
+        }),
+        read: n.read,
+      }));
+    }
+    return [];
+  }, [notificationsData]);
+
+  // Transform rewards for the tab
+  const rewards = useMemo(() => {
+    if (rewardsData?.rewards) {
+      return rewardsData.rewards.map(r => ({
+        id: r._id,
+        title: r.title,
+        discount: `${r.discountValue}%`,
+        type: r.type,
+        expiresAt: r.validUntil,
+        isRedeemed: r.isUsed,
+        code: r.code,
+        isActive: r.isActive,
+      }));
+    }
+    return [];
+  }, [rewardsData]);
+
+  const nextRewardInfo = rewardsData?.nextReward || null;
+
   const [showSettings, setShowSettings] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editName, setEditName] = useState('');
-  
+
   // RTK Query mutation for profile update
   const [updateProfile, { isLoading: isUpdating }] = useUpdateProfileMutation();
 
@@ -426,11 +412,15 @@ const Profile = () => {
 
           <View className="p-4">
             <TabsContent value="overview">
-              <OverviewTab profile={userProfile} />
+              <OverviewTab profile={userProfile} isLoading={profileLoading} />
             </TabsContent>
 
             <TabsContent value="notifications">
-              <NotificationsTab notifications={notificationsData} />
+              <NotificationsTab
+                notifications={notifications}
+                unreadCount={notificationsData?.unreadCount || 0}
+                isLoading={notificationsLoading}
+              />
             </TabsContent>
 
             <TabsContent value="reviews">
@@ -442,7 +432,11 @@ const Profile = () => {
             </TabsContent>
 
             <TabsContent value="rewards">
-              <RewardsTab rewards={rewardsData} />
+              <RewardsTab
+                rewards={rewards}
+                nextRewardInfo={nextRewardInfo}
+                isLoading={rewardsLoading}
+              />
             </TabsContent>
           </View>
         </Tabs>
