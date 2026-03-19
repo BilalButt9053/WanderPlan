@@ -1,11 +1,35 @@
 import React from 'react';
-import { View, Text } from 'react-native';
-import { Star, MapPin, Bookmark, ThumbsUp, TrendingUp } from 'lucide-react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { Star, MapPin, Bookmark, ThumbsUp, TrendingUp, Camera } from 'lucide-react-native';
 import { WanderCard } from '../wander-card';
 import { WanderChip } from '../wander-chip';
 import { Progress } from '../ui/progress';
 
-export default function OverviewTab({ profile }) {
+// Badge icon mapping
+const getBadgeIcon = (badgeId) => {
+  const icons = {
+    first_review: '⭐',
+    explorer: '🧭',
+    foodie: '🍽️',
+    helpful: '👍',
+    photographer: '📷',
+    seasoned: '🏆',
+  };
+  return icons[badgeId] || '🎖️';
+};
+
+export default function OverviewTab({ profile, isLoading }) {
+  if (isLoading) {
+    return (
+      <View className="items-center justify-center py-12">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="text-gray-500 mt-4">Loading profile...</Text>
+      </View>
+    );
+  }
+
+  const fullStats = profile.fullStats || {};
+
   return (
     <View style={{ gap: 16 }}>
       {/* Stats Grid */}
@@ -57,15 +81,19 @@ export default function OverviewTab({ profile }) {
         <View style={{ gap: 12 }}>
           <View className="flex-row items-center justify-between">
             <Text className="text-sm text-gray-600">Total Impact Score</Text>
-            <Text className="text-blue-500 font-semibold">2,450 pts</Text>
+            <Text className="text-blue-500 font-semibold">{profile.points.toLocaleString()} pts</Text>
           </View>
           <View className="flex-row items-center justify-between">
             <Text className="text-sm text-gray-600">Reviews This Month</Text>
-            <Text className="font-semibold">8</Text>
+            <Text className="font-semibold">{fullStats.reviewsThisMonth || 0}</Text>
           </View>
           <View className="flex-row items-center justify-between">
             <Text className="text-sm text-gray-600">Avg. Rating Given</Text>
-            <Text className="font-semibold">4.6 ⭐</Text>
+            <Text className="font-semibold">{fullStats.avgRating || 0} ⭐</Text>
+          </View>
+          <View className="flex-row items-center justify-between">
+            <Text className="text-sm text-gray-600">Photos Uploaded</Text>
+            <Text className="font-semibold">{fullStats.photos || 0}</Text>
           </View>
           <View className="flex-row items-center justify-between">
             <Text className="text-sm text-gray-600">Member Since</Text>
@@ -80,31 +108,31 @@ export default function OverviewTab({ profile }) {
           <Text className="text-lg font-semibold">Badges</Text>
           <WanderChip variant="primary">
             <Text className="text-xs text-blue-600">
-              {profile.badges.filter(b => b.unlocked).length}/{profile.badges.length}
+              {profile.badges?.filter(b => b.earned).length || 0} earned
             </Text>
           </WanderChip>
         </View>
-        <View className="flex-row flex-wrap gap-3">
-          {profile.badges.map((badge) => (
-            <View
-              key={badge.id}
-              className="w-[30%] items-center p-3 rounded-xl"
-              style={{
-                backgroundColor: badge.unlocked ? 'rgba(59, 130, 246, 0.1)' : '#F3F4F6',
-                opacity: badge.unlocked ? 1 : 0.5,
-              }}
-            >
-              <Text className="text-3xl mb-2">{badge.icon}</Text>
-              <Text className="text-xs text-center" numberOfLines={1}>{badge.name}</Text>
-              {badge.progress && !badge.unlocked && (
-                <View className="w-full mt-2">
-                  <Progress value={badge.progress} className="h-1" />
-                  <Text className="text-xs text-gray-600 text-center mt-1">{badge.progress}%</Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
+        {profile.badges?.length > 0 ? (
+          <View className="flex-row flex-wrap gap-3">
+            {profile.badges.map((badge, index) => (
+              <View
+                key={badge.id || index}
+                className="w-[30%] items-center p-3 rounded-xl"
+                style={{
+                  backgroundColor: badge.earned ? 'rgba(59, 130, 246, 0.1)' : '#F3F4F6',
+                  opacity: badge.earned ? 1 : 0.5,
+                }}
+              >
+                <Text className="text-3xl mb-2">{getBadgeIcon(badge.id)}</Text>
+                <Text className="text-xs text-center" numberOfLines={1}>{badge.name}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View className="items-center py-4">
+            <Text className="text-gray-500 text-sm">Complete activities to earn badges!</Text>
+          </View>
+        )}
       </WanderCard>
     </View>
   );
