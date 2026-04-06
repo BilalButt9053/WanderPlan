@@ -14,7 +14,7 @@ export const businessApi = createApi({
       return headers
     },
   }),
-  tagTypes: ['Business', 'Profile', 'MenuItems', 'Deals', 'Notifications'],
+  tagTypes: ['Business', 'Profile', 'MenuItems', 'Deals', 'Notifications', 'Analytics', 'Reviews'],
   endpoints: (builder) => ({
     // Register business
     registerBusiness: builder.mutation({
@@ -24,7 +24,7 @@ export const businessApi = createApi({
         body: credentials,
       }),
     }),
-    
+
     // Verify email with OTP
     verifyBusinessEmail: builder.mutation({
       query: ({ businessId, otp }) => ({
@@ -33,7 +33,7 @@ export const businessApi = createApi({
         body: { businessId, otp },
       }),
     }),
-    
+
     // Login business
     loginBusiness: builder.mutation({
       query: (credentials) => ({
@@ -42,13 +42,13 @@ export const businessApi = createApi({
         body: credentials,
       }),
     }),
-    
+
     // Get business profile
     getBusinessProfile: builder.query({
       query: () => '/business/profile',
       providesTags: ['Profile'],
     }),
-    
+
     // Update business profile
     updateBusinessProfile: builder.mutation({
       query: (updates) => ({
@@ -77,7 +77,7 @@ export const businessApi = createApi({
       }),
       invalidatesTags: ['Profile'],
     }),
-    
+
     // Resend OTP
     resendOTP: builder.mutation({
       query: (businessId) => ({
@@ -86,7 +86,7 @@ export const businessApi = createApi({
         body: { userId: businessId },
       }),
     }),
-    
+
     // Upload logo
     uploadLogo: builder.mutation({
       query: (file) => {
@@ -99,7 +99,7 @@ export const businessApi = createApi({
         };
       },
     }),
-    
+
     // Upload gallery images
     uploadGalleryImages: builder.mutation({
       query: (files) => {
@@ -114,7 +114,7 @@ export const businessApi = createApi({
         };
       },
     }),
-    
+
     // Upload document
     uploadDocument: builder.mutation({
       query: ({ file, type }) => {
@@ -128,13 +128,84 @@ export const businessApi = createApi({
         };
       },
     }),
-    
+
     // Delete uploaded file
     deleteUploadedFile: builder.mutation({
       query: (publicId) => ({
         url: `/business/upload/${publicId}`,
         method: 'DELETE',
       }),
+    }),
+
+    // Analytics Endpoints
+    getDashboardAnalytics: builder.query({
+      query: () => '/business/analytics/dashboard',
+      providesTags: ['Analytics'],
+    }),
+
+    getDealAnalytics: builder.query({
+      query: (period = '30days') => `/business/analytics/deals?period=${period}`,
+      providesTags: ['Analytics'],
+    }),
+
+    getMenuAnalytics: builder.query({
+      query: () => '/business/analytics/menu',
+      providesTags: ['Analytics'],
+    }),
+
+    getReviewAnalytics: builder.query({
+      query: (period = '30days') => `/business/analytics/reviews?period=${period}`,
+      providesTags: ['Analytics', 'Reviews'],
+    }),
+
+    getEngagementTrend: builder.query({
+      query: (period = '30days') => `/business/analytics/engagement?period=${period}`,
+      providesTags: ['Analytics'],
+    }),
+
+    // Business Reviews
+    getBusinessReviews: builder.query({
+      query: (params) => ({
+        url: '/business/reviews',
+        params,
+      }),
+      providesTags: ['Reviews'],
+    }),
+
+    getReviewById: builder.query({
+      query: (id) => `/business/reviews/${id}`,
+      providesTags: ['Reviews'],
+    }),
+
+    getReviewStats: builder.query({
+      query: () => '/business/reviews/stats',
+      providesTags: ['Reviews'],
+    }),
+
+    replyToReview: builder.mutation({
+      query: ({ id, text }) => ({
+        url: `/business/reviews/${id}/reply`,
+        method: 'POST',
+        body: { text },
+      }),
+      invalidatesTags: ['Reviews'],
+    }),
+
+    updateReviewReply: builder.mutation({
+      query: ({ id, text }) => ({
+        url: `/business/reviews/${id}/reply`,
+        method: 'PUT',
+        body: { text },
+      }),
+      invalidatesTags: ['Reviews'],
+    }),
+
+    deleteReviewReply: builder.mutation({
+      query: (id) => ({
+        url: `/business/reviews/${id}/reply`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Reviews'],
     }),
 
     // Menu Items
@@ -301,11 +372,26 @@ export const {
   useUploadGalleryImagesMutation,
   useUploadDocumentMutation,
   useDeleteUploadedFileMutation,
+  // Analytics
+  useGetDashboardAnalyticsQuery,
+  useGetDealAnalyticsQuery,
+  useGetMenuAnalyticsQuery,
+  useGetReviewAnalyticsQuery,
+  useGetEngagementTrendQuery,
+  // Reviews
+  useGetBusinessReviewsQuery,
+  useGetReviewByIdQuery,
+  useGetReviewStatsQuery,
+  useReplyToReviewMutation,
+  useUpdateReviewReplyMutation,
+  useDeleteReviewReplyMutation,
+  // Menu items
   useGetMenuItemsQuery,
   useGetMenuItemQuery,
   useCreateMenuItemMutation,
   useUpdateMenuItemMutation,
   useDeleteMenuItemMutation,
+  // Deals
   useGetDealsQuery,
   useGetDealQuery,
   useGetDealStatsQuery,
@@ -313,6 +399,7 @@ export const {
   useUpdateDealMutation,
   useDeleteDealMutation,
   useToggleDealStatusMutation,
+  // Notifications
   useGetNotificationsQuery,
   useGetUnreadCountQuery,
   useMarkNotificationAsReadMutation,
