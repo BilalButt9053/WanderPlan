@@ -22,6 +22,16 @@ const tripRoute = require("./router/trip-router");
 const itineraryRoute = require("./router/itinerary-router");
 const complaintRoute = require("./router/complaint-router");
 const adminComplaintRoute = require("./router/admin-complaint-router");
+const userProfileRoute = require("./router/user-profile-router");
+const placesRoute = require("./router/places-router");
+// New admin routes
+const adminStatsRoute = require("./router/admin-stats-router");
+const adminReviewRoute = require("./router/admin-review-router");
+const adminRewardRoute = require("./router/admin-reward-router");
+const adminNotificationRoute = require("./router/admin-notification-router");
+// New business routes
+const businessAnalyticsRoute = require("./router/business-analytics-router");
+const businessReviewRoute = require("./router/business-review-router");
 
 
 app.use(cors({
@@ -52,6 +62,16 @@ app.use("/api/trips", tripRoute);
 app.use("/api/itineraries", itineraryRoute);
 app.use("/api/complaints", complaintRoute);
 app.use("/api/admin/complaints", adminComplaintRoute);
+app.use("/api/user", userProfileRoute);
+app.use("/api/places", placesRoute);
+// New admin routes
+app.use("/api/admin/stats", adminStatsRoute);
+app.use("/api/admin/reviews", adminReviewRoute);
+app.use("/api/admin/rewards", adminRewardRoute);
+app.use("/api/admin/notifications", adminNotificationRoute);
+// New business routes
+app.use("/api/business/analytics", businessAnalyticsRoute);
+app.use("/api/business/reviews", businessReviewRoute);
 app.use(errorMiddleware);
 
 const port = process.env.PORT || 5000;
