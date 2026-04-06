@@ -165,6 +165,16 @@ const TripSchema = new mongoose.Schema({
     isDeleted: {
         type: Boolean,
         default: false
+    },
+
+    // Trip started tracking
+    isStarted: {
+        type: Boolean,
+        default: false
+    },
+    startedAt: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true,
