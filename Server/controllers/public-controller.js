@@ -182,10 +182,10 @@ const getBusinessDetail = async (req, res, next) => {
   try {
     const { id } = req.params;
     
-    const business = await Business.findOne({ 
-      _id: id, 
+    const business = await Business.findOne({
+      _id: id,
       isVerified: true,
-      status: 'active'
+      status: 'approved'
     }).select('-password -documents -settings');
     
     if (!business) {
