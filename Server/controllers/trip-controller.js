@@ -930,6 +930,477 @@ const addActivityToTrip = async (req, res, next) => {
     }
 };
 
+/**
+ * Add Google Place to trip itinerary
+ * POST /api/trips/:id/add-place
+ */
+const addPlaceToTrip = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const { id } = req.params;
+        const {
+            placeId,
+            title,
+            type = 'other',
+            category = 'activities',
+            location,
+            estimatedCost = 0,
+            day = 1,
+            source = 'user'
+        } = req.body;
+
+        if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid trip ID format'
+            });
+        }
+
+        if (!placeId || !title) {
+            return res.status(400).json({
+                success: false,
+                message: 'placeId and title are required'
+            });
+        }
+
+        const trip = await Trip.findOne({
+            _id: id,
+            userId,
+            isDeleted: false
+        });
+
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                message: 'Trip not found'
+            });
+        }
+
+        let savedItinerary = await SavedItinerary.findOne({
+            tripId: trip._id,
+            userId,
+            isDeleted: false
+        });
+
+        if (!savedItinerary) {
+            const totalDays = Math.max(1, Math.ceil((trip.endDate - trip.startDate) / (1000 * 60 * 60 * 24)) + 1);
+
+            savedItinerary = new SavedItinerary({
+                tripId: trip._id,
+                userId,
+                destination: {
+                    name: trip.destination?.name || 'Unknown',
+                    city: trip.destination?.city || '',
+                    country: trip.destination?.country || ''
+                },
+                tripSnapshot: {
+                    title: trip.title,
+                    startDate: trip.startDate,
+                    endDate: trip.endDate,
+                    travelers: trip.travelers,
+                    totalBudget: trip.totalBudget,
+                    travelStyle: trip.tripType || 'moderate'
+                },
+                totalDays,
+                days: Array.from({ length: totalDays }, (_, index) => ({
+                    day: index + 1,
+                    activities: [],
+                    estimatedDayCost: 0
+                })),
+                isManuallyCreated: true,
+                generationDetails: {
+                    travelStyle: trip.tripType || 'moderate',
+                    generatedAt: new Date(),
+                    aiActivitiesCount: 0,
+                    businessActivitiesCount: 0,
+                    userActivitiesCount: 0
+                }
+            });
+        }
+
+        const normalizedDay = Math.max(1, parseInt(day) || 1);
+        let targetDay = savedItinerary.days.find((d) => d.day === normalizedDay);
+
+        if (!targetDay) {
+            targetDay = { day: normalizedDay, activities: [], estimatedDayCost: 0 };
+            savedItinerary.days.push(targetDay);
+            savedItinerary.days.sort((a, b) => a.day - b.day);
+        }
+
+        const activity = {
+            title,
+            description: '',
+            type,
+            category,
+            time: '',
+            estimatedCost: Number(estimatedCost) || 0,
+            costConfidence: 'user_selected',
+            source,
+            location: {
+                name: location?.name || title,
+                address: location?.address || '',
+                coordinates: {
+                    lat: location?.coordinates?.lat || null,
+                    lng: location?.coordinates?.lng || null
+                },
+                placeId: placeId
+            }
+        };
+
+        targetDay.activities.push(activity);
+        savedItinerary.totalDays = Math.max(savedItinerary.totalDays || 0, savedItinerary.days.length);
+        savedItinerary.isManuallyCreated = true;
+        savedItinerary.generationDetails.userActivitiesCount =
+            (savedItinerary.generationDetails.userActivitiesCount || 0) + 1;
+        savedItinerary.generationDetails.generatedAt = new Date();
+
+        savedItinerary.recalculateCosts();
+        if (trip.budgetBreakdown) {
+            savedItinerary.updateBudgetStatus(trip.budgetBreakdown);
+        }
+
+        await savedItinerary.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Place added to trip itinerary',
+            tripId: trip._id,
+            itinerary: savedItinerary
+        });
+    } catch (error) {
+        console.error('[trips] Add place to trip error:', error);
+        next(error);
+    }
+};
+
+/**
+ * Start a trip - changes status from planning/upcoming to ongoing
+ * POST /api/trips/:id/start
+ */
+const startTrip = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const { id } = req.params;
+
+        if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid trip ID format'
+            });
+        }
+
+        const trip = await Trip.findOne({
+            _id: id,
+            userId,
+            isDeleted: false
+        });
+
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                message: 'Trip not found'
+            });
+        }
+
+        // Check if trip can be started
+        const validStatuses = ['planning', 'upcoming', 'confirmed', 'draft'];
+        if (!validStatuses.includes(trip.status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot start trip with status "${trip.status}". Trip must be in planning or upcoming state.`
+            });
+        }
+
+        // Check if current date is on or after start date (with 1 day buffer)
+        const now = new Date();
+        const startDate = new Date(trip.startDate);
+        const bufferMs = 24 * 60 * 60 * 1000; // 1 day buffer
+
+        if (now < startDate.getTime() - bufferMs) {
+            return res.status(400).json({
+                success: false,
+                message: 'Trip cannot be started more than 1 day before the start date'
+            });
+        }
+
+        // Update trip status
+        trip.status = 'ongoing';
+        trip.isStarted = true;
+        trip.startedAt = new Date();
+        await trip.save();
+
+        // Update itinerary status if exists
+        const itinerary = await SavedItinerary.findOne({
+            tripId: trip._id,
+            userId,
+            isDeleted: false
+        });
+
+        if (itinerary) {
+            itinerary.status = 'in-progress';
+            await itinerary.save();
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Trip started successfully',
+            trip: {
+                _id: trip._id,
+                title: trip.title,
+                status: trip.status,
+                isStarted: trip.isStarted,
+                startedAt: trip.startedAt,
+                startDate: trip.startDate,
+                endDate: trip.endDate,
+                destination: trip.destination,
+                totalBudget: trip.totalBudget,
+                totalSpent: trip.totalSpent,
+                budgetBreakdown: trip.budgetBreakdown,
+                currency: trip.currency,
+            },
+            itinerary: itinerary ? {
+                _id: itinerary._id,
+                days: itinerary.days,
+                totalActivities: itinerary.totalActivities,
+                totalEstimatedCost: itinerary.totalEstimatedCost,
+            } : null
+        });
+    } catch (error) {
+        console.error('[trips] Start trip error:', error);
+        next(error);
+    }
+};
+
+/**
+ * Add place from map to trip itinerary with transport cost
+ * POST /api/trips/:id/add-from-map
+ */
+const addFromMap = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const { id } = req.params;
+        const {
+            placeId,
+            name,
+            type = 'attraction',
+            category = 'activities',
+            address,
+            coordinates,
+            estimatedCost = 0,
+            day = 1,
+            rating,
+            photo,
+            transportCost = 0,
+            transportMode = 'car',
+            distanceKm = 0
+        } = req.body;
+
+        if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid trip ID format'
+            });
+        }
+
+        if (!placeId || !name) {
+            return res.status(400).json({
+                success: false,
+                message: 'placeId and name are required'
+            });
+        }
+
+        const trip = await Trip.findOne({
+            _id: id,
+            userId,
+            isDeleted: false
+        });
+
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                message: 'Trip not found'
+            });
+        }
+
+        let savedItinerary = await SavedItinerary.findOne({
+            tripId: trip._id,
+            userId,
+            isDeleted: false
+        });
+
+        // Check for duplicate place in itinerary
+        if (savedItinerary) {
+            const isDuplicate = savedItinerary.days.some(day =>
+                day.activities.some(activity =>
+                    activity.location?.placeId === placeId
+                )
+            );
+            if (isDuplicate) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'This place is already in your itinerary'
+                });
+            }
+        }
+
+        if (!savedItinerary) {
+            const totalDays = Math.max(1, Math.ceil((trip.endDate - trip.startDate) / (1000 * 60 * 60 * 24)) + 1);
+
+            savedItinerary = new SavedItinerary({
+                tripId: trip._id,
+                userId,
+                destination: {
+                    name: trip.destination?.name || 'Unknown',
+                    city: trip.destination?.city || '',
+                    country: trip.destination?.country || ''
+                },
+                tripSnapshot: {
+                    title: trip.title,
+                    startDate: trip.startDate,
+                    endDate: trip.endDate,
+                    travelers: trip.travelers,
+                    totalBudget: trip.totalBudget,
+                    travelStyle: trip.tripType || 'moderate'
+                },
+                totalDays,
+                days: Array.from({ length: totalDays }, (_, index) => ({
+                    day: index + 1,
+                    activities: [],
+                    estimatedDayCost: 0
+                })),
+                isManuallyCreated: true,
+                generationDetails: {
+                    travelStyle: trip.tripType || 'moderate',
+                    generatedAt: new Date(),
+                    aiActivitiesCount: 0,
+                    businessActivitiesCount: 0,
+                    userActivitiesCount: 0
+                }
+            });
+        }
+
+        const normalizedDay = Math.max(1, parseInt(day) || 1);
+        let targetDay = savedItinerary.days.find((d) => d.day === normalizedDay);
+
+        if (!targetDay) {
+            targetDay = { day: normalizedDay, activities: [], estimatedDayCost: 0 };
+            savedItinerary.days.push(targetDay);
+            savedItinerary.days.sort((a, b) => a.day - b.day);
+        }
+
+        // Map Google place type to activity type
+        const typeMapping = {
+            restaurant: 'food',
+            food: 'food',
+            cafe: 'food',
+            lodging: 'hotel',
+            hotel: 'hotel',
+            tourist_attraction: 'attraction',
+            attraction: 'attraction',
+            shopping_mall: 'shopping',
+            store: 'shopping',
+            shopping: 'shopping'
+        };
+
+        // Map category based on type
+        const categoryMapping = {
+            food: 'food',
+            hotel: 'accommodation',
+            attraction: 'activities',
+            shopping: 'activities'
+        };
+
+        const activityType = typeMapping[type] || 'attraction';
+        const budgetCategory = categoryMapping[activityType] || 'activities';
+
+        const activity = {
+            title: name,
+            description: `Added from map${rating ? ` - Rating: ${rating}★` : ''}`,
+            type: activityType,
+            category: budgetCategory,
+            time: '',
+            estimatedCost: Number(estimatedCost) || 0,
+            costConfidence: 'user_selected',
+            source: 'map',
+            rating: rating || null,
+            photo: photo || null,
+            location: {
+                name: name,
+                address: address || '',
+                coordinates: {
+                    lat: coordinates?.lat || null,
+                    lng: coordinates?.lng || null
+                },
+                placeId: placeId
+            },
+            addedAt: new Date()
+        };
+
+        targetDay.activities.push(activity);
+        savedItinerary.totalDays = Math.max(savedItinerary.totalDays || 0, savedItinerary.days.length);
+        savedItinerary.isManuallyCreated = true;
+        savedItinerary.generationDetails.userActivitiesCount =
+            (savedItinerary.generationDetails.userActivitiesCount || 0) + 1;
+        savedItinerary.generationDetails.generatedAt = new Date();
+
+        savedItinerary.recalculateCosts();
+        if (trip.budgetBreakdown) {
+            savedItinerary.updateBudgetStatus(trip.budgetBreakdown);
+        }
+
+        await savedItinerary.save();
+
+        // Add transport cost to trip budget if provided
+        const totalTransportCost = Number(transportCost) || 0;
+        if (totalTransportCost > 0) {
+            if (!trip.budgetBreakdown.transport) {
+                trip.budgetBreakdown.transport = { amount: 0, percentage: 0, spent: 0 };
+            }
+            trip.budgetBreakdown.transport.spent =
+                (trip.budgetBreakdown.transport.spent || 0) + totalTransportCost;
+            trip.totalSpent = (trip.totalSpent || 0) + totalTransportCost;
+            await trip.save();
+        }
+
+        // Add activity cost to trip budget
+        const activityCost = Number(estimatedCost) || 0;
+        if (activityCost > 0) {
+            if (!trip.budgetBreakdown[budgetCategory]) {
+                trip.budgetBreakdown[budgetCategory] = { amount: 0, percentage: 0, spent: 0 };
+            }
+            trip.budgetBreakdown[budgetCategory].spent =
+                (trip.budgetBreakdown[budgetCategory].spent || 0) + activityCost;
+            trip.totalSpent = (trip.totalSpent || 0) + activityCost;
+            await trip.save();
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Place added to trip',
+            activity: activity,
+            day: normalizedDay,
+            tripId: trip._id,
+            updatedBudget: {
+                totalBudget: trip.totalBudget,
+                totalSpent: trip.totalSpent,
+                remainingBudget: trip.totalBudget - trip.totalSpent,
+                breakdown: trip.budgetBreakdown,
+                transportCostAdded: totalTransportCost,
+                activityCostAdded: activityCost
+            },
+            itinerary: {
+                _id: savedItinerary._id,
+                days: savedItinerary.days,
+                totalActivities: savedItinerary.totalActivities,
+                totalEstimatedCost: savedItinerary.totalEstimatedCost
+            }
+        });
+    } catch (error) {
+        console.error('[trips] Add from map error:', error);
+        next(error);
+    }
+};
+
 module.exports = {
     createTrip,
     getUserTrips,
@@ -938,6 +1409,9 @@ module.exports = {
     deleteTrip,
     addExpense,
     addActivityToTrip,
+    addPlaceToTrip,
+    addFromMap,
+    startTrip,
     getBudgetDetails,
     getUserTripStats,
     estimateTripBudget
