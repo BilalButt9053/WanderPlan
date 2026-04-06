@@ -45,7 +45,7 @@ const getBusinessById = async (req, res, next) => {
 const approveBusiness = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const adminId = req.user.user_id;
+        const adminId = req.user._id; // From auth middleware (Mongoose document)
 
         const business = await Business.findById(id);
 
