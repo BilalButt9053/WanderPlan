@@ -16,7 +16,8 @@ import {
   DollarSign,
   MapPin,
   ChevronRight,
-  Clock
+  Clock,
+  Play
 } from 'lucide-react-native';
 import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
@@ -64,12 +65,32 @@ const getStatusText = (status) => {
   }
 };
 
-function TripCard({ trip, onReopen, onDelete }) {
+function TripCard({ trip, onReopen, onDelete, onStartTrip }) {
   const { colors } = useTheme();
   const budgetPercentage = trip.spent
     ? Math.round((Number(trip.spent) / Math.max(Number(trip.totalBudget || 1), 1)) * 100)
     : 0;
   const statusStyle = getStatusColor(trip.status);
+
+  // Check if trip can be started (upcoming/planning and start date reached)
+  const canStartTrip = () => {
+    if (!onStartTrip || !['upcoming', 'planning', 'confirmed'].includes(trip.status)) {
+      return false;
+    }
+    if (trip.isStarted) return false;
+    if (!trip.startDate) return false;
+
+    const now = new Date();
+    const startDate = new Date(trip.startDate);
+    const oneDayBefore = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+    return now >= oneDayBefore;
+  };
+
+  const handleStartTrip = () => {
+    if (canStartTrip()) {
+      onStartTrip(trip.id);
+    }
+  };
 
   return (
     <WanderCard padding="none" hover>
@@ -138,30 +159,48 @@ function TripCard({ trip, onReopen, onDelete }) {
         </View>
 
         {/* Action Button */}
-        <TouchableOpacity
-          onPress={onReopen}
-          style={{
-            alignSelf: 'center',
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            backgroundColor: '#DBEAFE',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          <ChevronRight size={20} color="#3B82F6" />
-        </TouchableOpacity>
+        {canStartTrip() ? (
+          <TouchableOpacity
+            onPress={handleStartTrip}
+            style={{
+              alignSelf: 'center',
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              backgroundColor: '#DCFCE7',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Play size={20} color="#059669" fill="#059669" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={onReopen}
+            style={{
+              alignSelf: 'center',
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              backgroundColor: '#DBEAFE',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <ChevronRight size={20} color="#3B82F6" />
+          </TouchableOpacity>
+        )}
       </View>
       </TouchableOpacity>
     </WanderCard>
   );
 }
 
-export default function TripHistoryScreen({ 
-  onCreateNew, 
+export default function TripHistoryScreen({
+  onCreateNew,
   onReopenTrip,
   onDeleteTrip,
+  onStartTrip,
   trips = [],
   isLoading = false,
   onRefresh,
@@ -197,6 +236,8 @@ export default function TripHistoryScreen({
         currency: trip.currency || 'PKR',
         image: imageUrl,
         status: trip.status || 'draft',
+        startDate: trip.startDate,
+        isStarted: trip.isStarted ?? false,
       };
     });
   }, [trips]);
@@ -338,6 +379,7 @@ export default function TripHistoryScreen({
                     trip={trip}
                     onReopen={() => onReopenTrip(trip.id)}
                     onDelete={() => handleConfirmDelete(trip)}
+                    onStartTrip={onStartTrip}
                   />
                 ))}
               </View>
@@ -358,6 +400,7 @@ export default function TripHistoryScreen({
                     trip={trip}
                     onReopen={() => onReopenTrip(trip.id)}
                     onDelete={() => handleConfirmDelete(trip)}
+                    onStartTrip={onStartTrip}
                   />
                 ))}
               </View>
@@ -375,6 +418,7 @@ export default function TripHistoryScreen({
                     trip={trip}
                     onReopen={() => onReopenTrip(trip.id)}
                     onDelete={() => handleConfirmDelete(trip)}
+                    onStartTrip={onStartTrip}
                   />
                 ))}
               </View>
@@ -392,6 +436,7 @@ export default function TripHistoryScreen({
                     trip={trip}
                     onReopen={() => onReopenTrip(trip.id)}
                     onDelete={() => handleConfirmDelete(trip)}
+                    onStartTrip={onStartTrip}
                   />
                 ))}
               </View>
