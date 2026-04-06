@@ -405,12 +405,14 @@ const socialLogin = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
     try {
         const userId = req.user._id;
-        const { fullName, profilePhoto } = req.body;
+        const { fullName, profilePhoto, notificationPreferences, privacySettings } = req.body;
 
         // Build update object with only provided fields
         const updateData = {};
         if (fullName !== undefined) updateData.fullName = fullName;
         if (profilePhoto !== undefined) updateData.profilePhoto = profilePhoto;
+        if (notificationPreferences !== undefined) updateData.notificationPreferences = notificationPreferences;
+        if (privacySettings !== undefined) updateData.privacySettings = privacySettings;
 
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({
@@ -442,6 +444,8 @@ const updateProfile = async (req, res, next) => {
                 profilePhoto: updatedUser.profilePhoto,
                 isVerified: updatedUser.isVerified,
                 contribution: updatedUser.contribution || { points: 0, level: 1, badges: [] },
+                notificationPreferences: updatedUser.notificationPreferences,
+                privacySettings: updatedUser.privacySettings,
             }
         });
     } catch (error) {
