@@ -1,25 +1,30 @@
 import React, { useState, useCallback } from 'react';
 import { Alert, View, ActivityIndicator, Text } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import TripHistoryScreen from '../screens/trip-history-screen';
 import BudgetInputScreen from '../screens/budget-input-screen';
 import GeneratedPlanScreen from '../screens/generated-plan-screen';
 import ManualTripBuilderScreen from '../screens/manual-trip-builder-screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentToken, selectIsAuthenticated } from '../../redux/slices/authSlice';
 import {
   useGetTripsQuery,
   useCreateTripMutation,
   useDeleteTripMutation,
+  useStartTripMutation,
 } from '../../redux/api/tripsApi';
 import {
   useGenerateItineraryMutation,
   useLazyGetItineraryQuery,
 } from '../../redux/api/itineraryApi';
+import { startTripFlow } from '../../utils/tripFlow';
 
 const trips = () => {
   const { colors } = useTheme();
+  const navigation = useNavigation();
+  const dispatch = useDispatch();
   const [currentScreen, setCurrentScreen] = useState('history');
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [itineraryData, setItineraryData] = useState(null);
@@ -39,6 +44,7 @@ const trips = () => {
 
   const [createTrip, { isLoading: isCreating }] = useCreateTripMutation();
   const [deleteTrip] = useDeleteTripMutation();
+  const [startTrip, { isLoading: isStarting }] = useStartTripMutation();
   const [generateItinerary, { isLoading: isGenerating }] = useGenerateItineraryMutation();
   const [triggerGetItinerary] = useLazyGetItineraryQuery();
   
@@ -98,11 +104,12 @@ const trips = () => {
 
       setSelectedTrip({ ...tripResult.trip, _id: tripId });
 
-      // Step 2: Generate itinerary for the trip
-      Alert.alert('Success', 'Creating your personalized plan...');
+      // Step 2: Generate itinerary for the trip with AI mode (uses real places)
+      Alert.alert('Success', 'Creating your personalized plan using real places...');
       
       const itineraryResult = await generateItinerary({
         tripId,
+        mode: 'ai', // AI mode: generates itinerary using real Google Places + DB businesses
         preferences: {
           travelStyle: 'moderate',
         },
@@ -226,7 +233,7 @@ const trips = () => {
               text: 'Generate',
               onPress: async () => {
                 try {
-                  const genResult = await generateItinerary({ tripId }).unwrap();
+                  const genResult = await generateItinerary({ tripId, mode: 'ai' }).unwrap();
                   setItineraryData(genResult);
                   setCurrentScreen('generated-plan');
                 } catch (err) {
@@ -250,6 +257,34 @@ const trips = () => {
       Alert.alert('Deleted', 'Trip deleted successfully');
     } catch (error) {
       Alert.alert('Error', error?.data?.message || 'Failed to delete trip');
+    }
+  };
+
+  const handleStartTrip = async (tripId) => {
+    try {
+      const trip = tripsData?.trips?.find((item) => item._id === tripId);
+      await startTripFlow({
+        trip,
+        tripId,
+        itinerary: trip?.itinerary,
+        dispatch,
+        navigation,
+        startTrip,
+      });
+
+      refetchTrips();
+
+      Alert.alert('Success', 'Trip started! Redirecting to map...', [
+        {
+          text: 'OK',
+          onPress: () => {},
+        },
+      ]);
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error?.data?.message || 'Failed to start trip. Please check if the date is correct.'
+      );
     }
   };
 
@@ -279,8 +314,8 @@ const trips = () => {
 
   // Loading overlay
   const renderLoadingOverlay = () => {
-    if (!isGenerating && !isCreating) return null;
-    
+    if (!isGenerating && !isCreating && !isStarting) return null;
+
     return (
       <View style={{
         position: 'absolute',
@@ -298,7 +333,7 @@ const trips = () => {
         }}>
           <ActivityIndicator size="large" color="#3B82F6" />
           <Text style={{ marginTop: 12, color: colors.text, fontSize: 16 }}>
-            {isCreating ? 'Creating trip...' : 'Generating itinerary...'}
+            {isCreating ? 'Creating trip...' : isGenerating ? 'Generating itinerary...' : 'Starting trip...'}
           </Text>
         </View>
       </View>
@@ -312,6 +347,7 @@ const trips = () => {
           onCreateNew={handleCreateNew}
           onReopenTrip={handleReopenTrip}
           onDeleteTrip={handleDeleteTrip}
+          onStartTrip={handleStartTrip}
           trips={tripsData?.trips || []}
           isLoading={tripsLoading}
           onRefresh={refetchTrips}
