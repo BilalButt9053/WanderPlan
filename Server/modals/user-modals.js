@@ -31,6 +31,18 @@ const SignUp = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    isBlocked: {
+        type: Boolean,
+        default: false
+    },
+    blockedAt: {
+        type: Date,
+        default: null
+    },
+    blockReason: {
+        type: String,
+        default: null
+    },
     twoFactorEnabled: {
         type: Boolean,
         default: false
@@ -55,6 +67,19 @@ const SignUp = new mongoose.Schema({
         level: { type: Number, default: 1 },
         badges: [{ type: String, trim: true }],
         lastAwardedAt: { type: Date, default: null }
+    },
+    // Notification preferences
+    notificationPreferences: {
+        pushNotifications: { type: Boolean, default: true },
+        emailNotifications: { type: Boolean, default: false },
+        reviewNotifications: { type: Boolean, default: true },
+        tripReminders: { type: Boolean, default: true }
+    },
+    // Privacy settings
+    privacySettings: {
+        showLocation: { type: Boolean, default: true },
+        showTrips: { type: Boolean, default: true },
+        showReviews: { type: Boolean, default: true }
     }
 });
 
