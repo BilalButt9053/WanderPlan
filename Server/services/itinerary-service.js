@@ -19,7 +19,13 @@
 const Trip = require('../modals/trip-modal');
 const ItineraryTemplate = require('../modals/itinerary-template-modal');
 const SavedItinerary = require('../modals/saved-itinerary-modal');
+const Business = require('../modals/business-modal');
 const openaiService = require('./openai-service');
+const axios = require('axios');
+
+// Google Places API config
+const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
+const PLACES_BASE_URL = 'https://maps.googleapis.com/maps/api/place';
 
 // Configuration
 const CONFIG = {
@@ -27,7 +33,9 @@ const CONFIG = {
     maxStaticTemplates: 5,         // Max templates to fetch from DB
     similarityThreshold: 0.7,      // Threshold for duplicate detection
     defaultTravelStyle: 'moderate',
-    budgetSafetyMargin: 0.1       // 10% safety margin on budget
+    budgetSafetyMargin: 0.1,       // 10% safety margin on budget
+    minRating: 3.5,                // Minimum rating for places
+    maxPlacesPerCategory: 10       // Max places to fetch per category
 };
 
 /**
@@ -847,6 +855,661 @@ const getSuggestedDestinations = async () => {
     }
 };
 
+// ==========================================
+// REAL DATA ITINERARY (AI PLAN WITH REAL PLACES)
+// ==========================================
+
+/**
+ * Map Google place types to our app categories
+ */
+const mapGooglePlaceType = (types) => {
+    if (!types || !types.length) return 'attraction';
+    
+    const typeMapping = {
+        restaurant: 'restaurant',
+        food: 'restaurant',
+        cafe: 'restaurant',
+        bar: 'restaurant',
+        bakery: 'restaurant',
+        lodging: 'hotel',
+        hotel: 'hotel',
+        tourist_attraction: 'attraction',
+        museum: 'attraction',
+        park: 'attraction',
+        amusement_park: 'attraction',
+        zoo: 'attraction',
+        aquarium: 'attraction',
+        art_gallery: 'attraction',
+        shopping_mall: 'shopping',
+        store: 'shopping',
+        spa: 'attraction',
+        mosque: 'attraction',
+        church: 'attraction',
+        temple: 'attraction',
+        point_of_interest: 'attraction'
+    };
+    
+    for (const type of types) {
+        if (typeMapping[type]) {
+            return typeMapping[type];
+        }
+    }
+    return 'attraction';
+};
+
+/**
+ * Fetch places from Google Places API by text search
+ * @param {string} destination - Destination city/location
+ * @param {string} category - Category to search (restaurant, attraction, hotel)
+ * @returns {Promise<Array>} Normalized places
+ */
+const fetchGooglePlaces = async (destination, category) => {
+    if (!GOOGLE_PLACES_API_KEY) {
+        console.warn('[itinerary-service] Google Places API key not configured');
+        return [];
+    }
+    
+    const categoryQueries = {
+        restaurant: `best restaurants in ${destination}`,
+        attraction: `tourist attractions in ${destination}`,
+        hotel: `hotels in ${destination}`,
+        activity: `things to do in ${destination}`
+    };
+    
+    const query = categoryQueries[category] || `${category} in ${destination}`;
+    
+    try {
+        const response = await axios.get(`${PLACES_BASE_URL}/textsearch/json`, {
+            params: {
+                query,
+                key: GOOGLE_PLACES_API_KEY
+            }
+        });
+        
+        if (response.data.status !== 'OK' && response.data.status !== 'ZERO_RESULTS') {
+            console.error('[itinerary-service] Google Places API error:', response.data.status);
+            return [];
+        }
+        
+        const places = (response.data.results || [])
+            .filter(place => {
+                // Filter: valid coordinates and minimum rating
+                const hasCoords = place.geometry?.location?.lat && place.geometry?.location?.lng;
+                const hasGoodRating = (place.rating || 0) >= CONFIG.minRating;
+                return hasCoords && hasGoodRating;
+            })
+            .slice(0, CONFIG.maxPlacesPerCategory)
+            .map(place => ({
+                id: place.place_id,
+                placeId: place.place_id,
+                name: place.name,
+                latitude: place.geometry.location.lat,
+                longitude: place.geometry.location.lng,
+                category: mapGooglePlaceType(place.types),
+                type: mapGooglePlaceType(place.types),
+                price_level: place.price_level || 2,
+                rating: place.rating || 0,
+                address: place.formatted_address || place.vicinity || '',
+                photo: place.photos?.[0]?.photo_reference 
+                    ? `${PLACES_BASE_URL}/photo?maxwidth=400&photo_reference=${place.photos[0].photo_reference}&key=${GOOGLE_PLACES_API_KEY}`
+                    : null,
+                source: 'google'
+            }));
+        
+        console.log(`[itinerary-service] Fetched ${places.length} ${category} places from Google for ${destination}`);
+        return places;
+        
+    } catch (error) {
+        console.error('[itinerary-service] Error fetching Google Places:', error.message);
+        return [];
+    }
+};
+
+/**
+ * Fetch businesses from database for a destination
+ * @param {string} destination - Destination city/location
+ * @returns {Promise<Array>} Normalized businesses
+ */
+const fetchDbBusinesses = async (destination) => {
+    try {
+        const businesses = await Business.find({
+            isVerified: true,
+            status: 'approved',
+            $or: [
+                { 'address.city': { $regex: destination, $options: 'i' } },
+                { 'address.area': { $regex: destination, $options: 'i' } }
+            ]
+        })
+        .select('businessName description businessType address geoLocation rating reviewCount')
+        .limit(30)
+        .lean();
+        
+        const normalized = businesses
+            .filter(b => b.geoLocation?.coordinates?.length === 2)
+            .map(b => ({
+                id: b._id.toString(),
+                businessId: b._id.toString(),
+                name: b.businessName,
+                latitude: b.geoLocation.coordinates[1], // GeoJSON: [lng, lat]
+                longitude: b.geoLocation.coordinates[0],
+                category: mapBusinessType(b.businessType),
+                type: mapBusinessType(b.businessType),
+                price_level: 2, // Default moderate
+                rating: b.rating || 4.0,
+                address: `${b.address?.area || ''}, ${b.address?.city || ''}`.trim(),
+                source: 'business'
+            }));
+        
+        console.log(`[itinerary-service] Fetched ${normalized.length} businesses from DB for ${destination}`);
+        return normalized;
+        
+    } catch (error) {
+        console.error('[itinerary-service] Error fetching DB businesses:', error.message);
+        return [];
+    }
+};
+
+/**
+ * Map business type to category
+ */
+const mapBusinessType = (businessType) => {
+    const typeMap = {
+        'restaurant': 'restaurant',
+        'cafe': 'restaurant',
+        'hotel': 'hotel',
+        'resort': 'hotel',
+        'hostel': 'hotel',
+        'tour_operator': 'attraction',
+        'attraction': 'attraction',
+        'shopping': 'shopping',
+        'transport': 'transport'
+    };
+    return typeMap[businessType?.toLowerCase()] || 'attraction';
+};
+
+/**
+ * Calculate distance between two points (Haversine formula)
+ * @param {number} lat1 
+ * @param {number} lon1 
+ * @param {number} lat2 
+ * @param {number} lon2 
+ * @returns {number} Distance in kilometers
+ */
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+};
+
+/**
+ * Remove duplicate places based on name similarity
+ * @param {Array} places - Array of places
+ * @returns {Array} Deduplicated places
+ */
+const deduplicatePlaces = (places) => {
+    const seen = new Set();
+    return places.filter(place => {
+        const key = place.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+};
+
+/**
+ * Build day-wise itinerary from available places using distance-based grouping
+ * @param {Array} places - All available places
+ * @param {number} days - Number of trip days
+ * @param {string} travelStyle - Travel style
+ * @returns {Array} Day-wise itinerary
+ */
+const buildDayWiseItinerary = (places, days, travelStyle) => {
+    // Group places by category
+    const byCategory = {
+        attraction: places.filter(p => p.category === 'attraction'),
+        restaurant: places.filter(p => p.category === 'restaurant'),
+        hotel: places.filter(p => p.category === 'hotel'),
+        shopping: places.filter(p => p.category === 'shopping')
+    };
+    
+    // Sort each category by rating
+    Object.keys(byCategory).forEach(cat => {
+        byCategory[cat].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    });
+    
+    const itinerary = [];
+    const usedPlaces = new Set();
+    
+    for (let day = 1; day <= days; day++) {
+        const dayActivities = [];
+        let lastPlace = null;
+        
+        // Morning: 1 attraction
+        const attraction = byCategory.attraction.find(p => !usedPlaces.has(p.id));
+        if (attraction) {
+            usedPlaces.add(attraction.id);
+            const cost = estimatePlaceCost(attraction, travelStyle);
+            dayActivities.push({
+                title: attraction.name,
+                description: `Visit ${attraction.name}`,
+                type: 'attraction',
+                category: 'activities',
+                time: 'Morning (9:00 AM)',
+                location: attraction.address || attraction.name,
+                latitude: attraction.latitude,
+                longitude: attraction.longitude,
+                estimatedCost: cost,
+                costConfidence: 'estimated',
+                source: attraction.source,
+                businessId: attraction.businessId || null,
+                placeId: attraction.placeId || null,
+                rating: attraction.rating
+            });
+            lastPlace = attraction;
+        }
+        
+        // Lunch: 1 restaurant (prefer nearby)
+        let restaurant = null;
+        if (lastPlace) {
+            // Find nearest restaurant
+            const availableRestaurants = byCategory.restaurant.filter(p => !usedPlaces.has(p.id));
+            if (availableRestaurants.length > 0) {
+                availableRestaurants.sort((a, b) => {
+                    const distA = calculateDistance(lastPlace.latitude, lastPlace.longitude, a.latitude, a.longitude);
+                    const distB = calculateDistance(lastPlace.latitude, lastPlace.longitude, b.latitude, b.longitude);
+                    return distA - distB;
+                });
+                restaurant = availableRestaurants[0];
+            }
+        } else {
+            restaurant = byCategory.restaurant.find(p => !usedPlaces.has(p.id));
+        }
+        
+        if (restaurant) {
+            usedPlaces.add(restaurant.id);
+            const cost = estimatePlaceCost(restaurant, travelStyle);
+            dayActivities.push({
+                title: restaurant.name,
+                description: `Lunch at ${restaurant.name}`,
+                type: 'food',
+                category: 'food',
+                time: 'Afternoon (1:00 PM)',
+                location: restaurant.address || restaurant.name,
+                latitude: restaurant.latitude,
+                longitude: restaurant.longitude,
+                estimatedCost: cost,
+                costConfidence: 'estimated',
+                source: restaurant.source,
+                businessId: restaurant.businessId || null,
+                placeId: restaurant.placeId || null,
+                rating: restaurant.rating
+            });
+            lastPlace = restaurant;
+        }
+        
+        // Afternoon: 1 more activity (another attraction or shopping)
+        let activity = byCategory.attraction.find(p => !usedPlaces.has(p.id));
+        if (!activity) {
+            activity = byCategory.shopping.find(p => !usedPlaces.has(p.id));
+        }
+        
+        if (activity) {
+            usedPlaces.add(activity.id);
+            const cost = estimatePlaceCost(activity, travelStyle);
+            dayActivities.push({
+                title: activity.name,
+                description: `Explore ${activity.name}`,
+                type: activity.category === 'shopping' ? 'shopping' : 'attraction',
+                category: 'activities',
+                time: 'Afternoon (4:00 PM)',
+                location: activity.address || activity.name,
+                latitude: activity.latitude,
+                longitude: activity.longitude,
+                estimatedCost: cost,
+                costConfidence: 'estimated',
+                source: activity.source,
+                businessId: activity.businessId || null,
+                placeId: activity.placeId || null,
+                rating: activity.rating
+            });
+        }
+        
+        // Evening: Dinner at another restaurant
+        const dinnerRestaurant = byCategory.restaurant.find(p => !usedPlaces.has(p.id));
+        if (dinnerRestaurant) {
+            usedPlaces.add(dinnerRestaurant.id);
+            const cost = estimatePlaceCost(dinnerRestaurant, travelStyle);
+            dayActivities.push({
+                title: dinnerRestaurant.name,
+                description: `Dinner at ${dinnerRestaurant.name}`,
+                type: 'food',
+                category: 'food',
+                time: 'Evening (7:00 PM)',
+                location: dinnerRestaurant.address || dinnerRestaurant.name,
+                latitude: dinnerRestaurant.latitude,
+                longitude: dinnerRestaurant.longitude,
+                estimatedCost: cost,
+                costConfidence: 'estimated',
+                source: dinnerRestaurant.source,
+                businessId: dinnerRestaurant.businessId || null,
+                placeId: dinnerRestaurant.placeId || null,
+                rating: dinnerRestaurant.rating
+            });
+        }
+        
+        // Optional: Hotel (only for multi-day trips, add on first day)
+        if (day === 1 && days > 1) {
+            const hotel = byCategory.hotel.find(p => !usedPlaces.has(p.id));
+            if (hotel) {
+                usedPlaces.add(hotel.id);
+                const cost = estimatePlaceCost(hotel, travelStyle);
+                dayActivities.unshift({ // Add at beginning
+                    title: hotel.name,
+                    description: `Check-in at ${hotel.name}`,
+                    type: 'hotel',
+                    category: 'accommodation',
+                    time: 'Check-in',
+                    location: hotel.address || hotel.name,
+                    latitude: hotel.latitude,
+                    longitude: hotel.longitude,
+                    estimatedCost: cost * days, // Total stay cost
+                    costConfidence: 'estimated',
+                    source: hotel.source,
+                    businessId: hotel.businessId || null,
+                    placeId: hotel.placeId || null,
+                    rating: hotel.rating
+                });
+            }
+        }
+        
+        itinerary.push({
+            day,
+            activities: dayActivities,
+            estimatedDayCost: dayActivities.reduce((sum, a) => sum + (a.estimatedCost || 0), 0)
+        });
+    }
+    
+    return itinerary;
+};
+
+/**
+ * Estimate cost for a place based on price level and travel style
+ * @param {Object} place - Place object
+ * @param {string} travelStyle - Travel style (budget, moderate, luxury)
+ * @returns {number} Estimated cost in PKR
+ */
+const estimatePlaceCost = (place, travelStyle) => {
+    // Base cost multipliers by price level
+    const priceLevel = place.price_level || 2;
+    const baseCost = priceLevel * 1000; // 1000-4000 PKR base
+    
+    // Adjust by travel style
+    const styleMultipliers = {
+        budget: 0.7,
+        moderate: 1.0,
+        luxury: 1.8
+    };
+    const multiplier = styleMultipliers[travelStyle] || 1.0;
+    
+    // Category-specific adjustments
+    const categoryMultipliers = {
+        hotel: 5.0,      // Hotels are more expensive
+        restaurant: 1.0,
+        attraction: 0.5, // Attractions often have entry fees
+        shopping: 2.0    // Shopping varies widely
+    };
+    const catMultiplier = categoryMultipliers[place.category] || 1.0;
+    
+    return Math.round(baseCost * multiplier * catMultiplier);
+};
+
+/**
+ * Generate itinerary using real data from Google Places + DB
+ * This is the main function for AI Plan mode
+ * 
+ * @param {Object} params - Generation parameters
+ * @returns {Promise<Object>} Complete itinerary response
+ */
+const generateRealDataItinerary = async (params) => {
+    const {
+        tripId = null,
+        destination,
+        days,
+        travelStyle = CONFIG.defaultTravelStyle,
+        travelers = 1,
+        userId = null,
+        saveToDb = true
+    } = params;
+    
+    console.log(`[itinerary-service] Generating real-data itinerary: ${destination}, ${days} days, ${travelStyle}`);
+    
+    const startTime = Date.now();
+    let trip = null;
+    let budgetInfo = null;
+    
+    try {
+        // Step 1: Get budget info if tripId provided
+        if (tripId) {
+            const result = await getTripBudgetInfo(tripId);
+            trip = result.trip;
+            budgetInfo = result.budgetInfo;
+            console.log(`[itinerary-service] Budget context loaded: ${budgetInfo.totalRemaining} PKR remaining`);
+        }
+        
+        // Step 2: Fetch places from Google Places API (parallel)
+        const [googleRestaurants, googleAttractions, googleHotels] = await Promise.all([
+            fetchGooglePlaces(destination, 'restaurant'),
+            fetchGooglePlaces(destination, 'attraction'),
+            fetchGooglePlaces(destination, 'hotel')
+        ]);
+        
+        // Step 3: Fetch businesses from DB
+        const dbBusinesses = await fetchDbBusinesses(destination);
+        
+        // Step 4: Merge all places
+        const allPlaces = [
+            ...googleRestaurants,
+            ...googleAttractions,
+            ...googleHotels,
+            ...dbBusinesses
+        ];
+        
+        console.log(`[itinerary-service] Total places fetched: ${allPlaces.length}`);
+        
+        // Step 5: Deduplicate
+        const uniquePlaces = deduplicatePlaces(allPlaces);
+        console.log(`[itinerary-service] After deduplication: ${uniquePlaces.length} places`);
+        
+        // Step 6: If no places found, use fallback
+        if (uniquePlaces.length === 0) {
+            console.warn('[itinerary-service] No places found, using fallback itinerary');
+            const fallbackItinerary = openaiService.generateFallbackItinerary(destination, days, travelStyle);
+            
+            // Calculate costs
+            const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
+            for (const day of fallbackItinerary) {
+                for (const activity of day.activities) {
+                    const category = activity.category || 'activities';
+                    categoryCosts[category] += activity.estimatedCost || 0;
+                    categoryCosts.total += activity.estimatedCost || 0;
+                }
+            }
+            
+            const budgetStatus = calculateBudgetStatus(categoryCosts, budgetInfo);
+            const stats = calculateItineraryStats(fallbackItinerary);
+            
+            return {
+                success: true,
+                destination,
+                days,
+                travelStyle,
+                travelers: budgetInfo?.travelers || travelers,
+                itinerary: fallbackItinerary,
+                estimatedCosts: categoryCosts,
+                budgetStatus,
+                budgetInfo: budgetInfo ? {
+                    totalBudget: budgetInfo.totalBudget,
+                    totalRemaining: budgetInfo.totalRemaining,
+                    afterItinerary: budgetInfo.totalRemaining - categoryCosts.total,
+                    currency: budgetInfo.currency
+                } : null,
+                stats,
+                warnings: ['Using fallback itinerary - no real places found for this destination'],
+                generatedAt: new Date().toISOString(),
+                generationTime: Date.now() - startTime,
+                mode: 'ai',
+                dataSource: 'fallback'
+            };
+        }
+        
+        // Step 7: Build day-wise itinerary with distance-based grouping
+        const itinerary = buildDayWiseItinerary(uniquePlaces, days, travelStyle);
+        
+        // Step 8: Calculate costs by category
+        const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
+        for (const day of itinerary) {
+            for (const activity of day.activities) {
+                const category = activity.category || 'activities';
+                categoryCosts[category] += activity.estimatedCost || 0;
+                categoryCosts.total += activity.estimatedCost || 0;
+            }
+        }
+        
+        // Step 9: Calculate budget status
+        const budgetStatus = calculateBudgetStatus(categoryCosts, budgetInfo);
+        
+        // Step 10: Add budget warning if over budget (but don't block)
+        const warnings = [...budgetStatus.warnings];
+        if (budgetInfo && categoryCosts.total > budgetInfo.totalRemaining) {
+            warnings.push(`Estimated total (${categoryCosts.total} PKR) exceeds remaining budget (${budgetInfo.totalRemaining} PKR)`);
+        }
+        
+        // Step 11: Calculate statistics
+        const stats = calculateItineraryStats(itinerary);
+        
+        const generationTime = Date.now() - startTime;
+        
+        // Step 12: Save to database if requested
+        let savedItinerary = null;
+        if (saveToDb && tripId && userId) {
+            savedItinerary = await saveItinerary({
+                tripId,
+                userId,
+                trip,
+                destination,
+                days: itinerary,
+                itinerary,
+                categoryCosts,
+                budgetStatus,
+                travelStyle,
+                generationTime
+            });
+        }
+        
+        console.log(`[itinerary-service] Real-data itinerary generated in ${generationTime}ms with ${stats.totalActivities} activities`);
+        
+        // Step 13: Optionally enhance descriptions with AI
+        let enhancedItinerary = itinerary;
+        try {
+            enhancedItinerary = await openaiService.enhanceItineraryDescriptions(itinerary, destination);
+        } catch (err) {
+            console.warn('[itinerary-service] AI enhancement failed, using original descriptions:', err.message);
+        }
+        
+        return {
+            success: true,
+            destination,
+            days,
+            travelStyle,
+            travelers: budgetInfo?.travelers || travelers,
+            itinerary: enhancedItinerary,
+            estimatedCosts: categoryCosts,
+            budgetStatus,
+            budgetInfo: budgetInfo ? {
+                totalBudget: budgetInfo.totalBudget,
+                totalRemaining: budgetInfo.totalRemaining,
+                afterItinerary: budgetInfo.totalRemaining - categoryCosts.total,
+                currency: budgetInfo.currency
+            } : null,
+            stats,
+            warnings,
+            savedItineraryId: savedItinerary?._id || null,
+            generatedAt: new Date().toISOString(),
+            generationTime,
+            mode: 'ai',
+            dataSource: 'real_places'
+        };
+        
+    } catch (error) {
+        console.error('[itinerary-service] Error generating real-data itinerary:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get available places for manual mode (no auto-building)
+ * @param {Object} params - Parameters
+ * @returns {Promise<Object>} Available places grouped by category
+ */
+const getAvailablePlaces = async (params) => {
+    const { destination, travelStyle = 'moderate' } = params;
+    
+    console.log(`[itinerary-service] Fetching available places for manual mode: ${destination}`);
+    
+    try {
+        // Fetch from Google Places API (parallel)
+        const [googleRestaurants, googleAttractions, googleHotels] = await Promise.all([
+            fetchGooglePlaces(destination, 'restaurant'),
+            fetchGooglePlaces(destination, 'attraction'),
+            fetchGooglePlaces(destination, 'hotel')
+        ]);
+        
+        // Fetch from DB
+        const dbBusinesses = await fetchDbBusinesses(destination);
+        
+        // Merge and deduplicate
+        const allPlaces = deduplicatePlaces([
+            ...googleRestaurants,
+            ...googleAttractions,
+            ...googleHotels,
+            ...dbBusinesses
+        ]);
+        
+        // Add estimated costs
+        const placesWithCosts = allPlaces.map(place => ({
+            ...place,
+            estimatedCost: estimatePlaceCost(place, travelStyle)
+        }));
+        
+        // Group by category
+        const byCategory = {
+            restaurants: placesWithCosts.filter(p => p.category === 'restaurant'),
+            attractions: placesWithCosts.filter(p => p.category === 'attraction'),
+            hotels: placesWithCosts.filter(p => p.category === 'hotel'),
+            shopping: placesWithCosts.filter(p => p.category === 'shopping'),
+            other: placesWithCosts.filter(p => !['restaurant', 'attraction', 'hotel', 'shopping'].includes(p.category))
+        };
+        
+        return {
+            success: true,
+            destination,
+            totalCount: placesWithCosts.length,
+            places: placesWithCosts,
+            byCategory
+        };
+        
+    } catch (error) {
+        console.error('[itinerary-service] Error fetching available places:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     generateHybridItinerary,
     fetchStaticItineraries,
@@ -860,5 +1523,10 @@ module.exports = {
     getUserItineraries,
     getSuggestedDestinations,
     calculateItineraryStats,
-    CONFIG
+    CONFIG,
+    // New real-data functions
+    generateRealDataItinerary,
+    getAvailablePlaces,
+    fetchGooglePlaces,
+    fetchDbBusinesses
 };
