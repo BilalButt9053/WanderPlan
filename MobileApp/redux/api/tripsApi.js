@@ -125,6 +125,53 @@ export const tripsApi = createApi({
         "Trips",
       ],
     }),
+
+    /**
+     * Add Google Place to trip itinerary
+     * POST /api/trips/:id/add-place
+     */
+    addPlaceToTrip: builder.mutation({
+      query: ({ tripId, ...body }) => ({
+        url: `/trips/${tripId}/add-place`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (result, error, { tripId }) => [
+        { type: "Trip", id: tripId },
+        "Trips",
+      ],
+    }),
+
+    /**
+     * Start a trip (change status to ongoing)
+     * POST /api/trips/:id/start
+     */
+    startTrip: builder.mutation({
+      query: (tripId) => ({
+        url: `/trips/${tripId}/start`,
+        method: "POST",
+      }),
+      invalidatesTags: (result, error, tripId) => [
+        { type: "Trip", id: tripId },
+        "Trips",
+      ],
+    }),
+
+    /**
+     * Add place from map to trip (with transport cost)
+     * POST /api/trips/:id/add-from-map
+     */
+    addFromMap: builder.mutation({
+      query: ({ tripId, ...body }) => ({
+        url: `/trips/${tripId}/add-from-map`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (result, error, { tripId }) => [
+        { type: "Trip", id: tripId },
+        "Trips",
+      ],
+    }),
   }),
 });
 
@@ -138,4 +185,7 @@ export const {
   useDeleteTripMutation,
   useGetBudgetEstimateMutation,
   useAddActivityToTripMutation,
+  useAddPlaceToTripMutation,
+  useStartTripMutation,
+  useAddFromMapMutation,
 } = tripsApi;
