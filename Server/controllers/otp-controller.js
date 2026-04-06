@@ -265,7 +265,7 @@ const verify2FAOTP = async (req, res, next) => {
 // Enable 2FA for user
 const enable2FA = async (req, res, next) => {
   try {
-    const userId = req.user.user_id; // From auth middleware
+    const userId = req.user._id; // From auth middleware (Mongoose document)
 
     const user = await Signup.findById(userId);
 
@@ -292,7 +292,7 @@ const enable2FA = async (req, res, next) => {
 // Disable 2FA for user
 const disable2FA = async (req, res, next) => {
   try {
-    const userId = req.user.user_id; // From auth middleware
+    const userId = req.user._id; // From auth middleware (Mongoose document)
 
     const user = await Signup.findById(userId);
 
