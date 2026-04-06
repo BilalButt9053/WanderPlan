@@ -34,11 +34,15 @@ export const itineraryApi = createApi({
   endpoints: (builder) => ({
     /**
      * Generate budget-aware itinerary for a trip
-     * POST /api/itineraries/trip/:tripId/generate
+     * POST /api/itineraries/trip/:tripId/generate?mode=ai|manual
+     * 
+     * @param {string} tripId - Trip ID
+     * @param {string} mode - 'ai' for auto-generated real-data itinerary, 'manual' for available places
+     * @param {object} preferences - Optional preferences
      */
     generateItinerary: builder.mutation({
-      query: ({ tripId, preferences }) => ({
-        url: `/itineraries/trip/${tripId}/generate`,
+      query: ({ tripId, mode = 'ai', preferences }) => ({
+        url: `/itineraries/trip/${tripId}/generate?mode=${mode}`,
         method: "POST",
         body: preferences || {},
       }),
