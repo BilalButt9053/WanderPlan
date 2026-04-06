@@ -39,6 +39,13 @@ const ReviewSchema = new mongoose.Schema(
         createdAt: { type: Date, default: Date.now },
       },
     ],
+    // Business reply to review
+    businessReply: {
+      text: { type: String },
+      repliedAt: { type: Date },
+      updatedAt: { type: Date },
+      repliedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Business' }
+    },
   },
   { timestamps: true }
 );
