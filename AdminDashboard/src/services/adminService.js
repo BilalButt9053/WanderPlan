@@ -22,14 +22,62 @@ export const authService = {
   },
 };
 
+// Dashboard Stats Service - NEW
+export const statsService = {
+  getDashboardStats: async () => {
+    const response = await api.get('/admin/stats/dashboard');
+    return response.data;
+  },
+
+  getUserTrends: async (period = '30days') => {
+    const response = await api.get('/admin/stats/users/trends', { params: { period } });
+    return response.data;
+  },
+
+  getTripTrends: async (period = '30days') => {
+    const response = await api.get('/admin/stats/trips/trends', { params: { period } });
+    return response.data;
+  },
+
+  getBusinessTrends: async (period = '30days') => {
+    const response = await api.get('/admin/stats/businesses/trends', { params: { period } });
+    return response.data;
+  },
+
+  getReviewTrends: async (period = '30days') => {
+    const response = await api.get('/admin/stats/reviews/trends', { params: { period } });
+    return response.data;
+  },
+
+  getLeaderboard: async (limit = 20) => {
+    const response = await api.get('/admin/stats/leaderboard', { params: { limit } });
+    return response.data;
+  },
+
+  getRecentActivity: async (limit = 20) => {
+    const response = await api.get('/admin/stats/activity', { params: { limit } });
+    return response.data;
+  },
+};
+
 export const usersService = {
   getUsers: async (params) => {
     const response = await api.get('/admin/users', { params });
     return response.data;
   },
 
+  getUsersList: async (params) => {
+    const response = await api.get('/admin/users/list', { params });
+    return response.data;
+  },
+
   getUserById: async (id) => {
     const response = await api.get(`/admin/users/${id}`);
+    return response.data;
+  },
+
+  getUserDetails: async (id) => {
+    const response = await api.get(`/admin/users/${id}/details`);
     return response.data;
   },
 
@@ -40,6 +88,16 @@ export const usersService = {
 
   deleteUser: async (id) => {
     const response = await api.delete(`/admin/users/delete/${id}`);
+    return response.data;
+  },
+
+  blockUser: async (id, reason) => {
+    const response = await api.put(`/admin/users/${id}/block`, { reason });
+    return response.data;
+  },
+
+  unblockUser: async (id) => {
+    const response = await api.put(`/admin/users/${id}/unblock`);
     return response.data;
   },
 
@@ -96,6 +154,45 @@ export const businessesService = {
   },
 };
 
+// Admin Reviews Service - NEW
+export const adminReviewsService = {
+  getReviews: async (params) => {
+    const response = await api.get('/admin/reviews', { params });
+    return response.data;
+  },
+
+  getReviewById: async (id) => {
+    const response = await api.get(`/admin/reviews/${id}`);
+    return response.data;
+  },
+
+  updateReviewStatus: async (id, status, reason) => {
+    const response = await api.patch(`/admin/reviews/${id}/status`, { status, reason });
+    return response.data;
+  },
+
+  deleteReview: async (id) => {
+    const response = await api.delete(`/admin/reviews/${id}`);
+    return response.data;
+  },
+
+  getFlaggedReviews: async (params) => {
+    const response = await api.get('/admin/reviews/flagged', { params });
+    return response.data;
+  },
+
+  bulkUpdateStatus: async (reviewIds, status, reason) => {
+    const response = await api.patch('/admin/reviews/bulk-update', { reviewIds, status, reason });
+    return response.data;
+  },
+
+  getReviewStats: async () => {
+    const response = await api.get('/admin/reviews/stats');
+    return response.data;
+  },
+};
+
+// Legacy reviews service for backwards compatibility
 export const reviewsService = {
   getReviews: async (params) => {
     const response = await api.get('/reviews', { params });
@@ -118,19 +215,98 @@ export const reviewsService = {
   },
 
   getReviewStats: async () => {
-    // Calculate stats from reviews
-    const reviews = await api.get('/reviews');
-    const data = reviews.data;
-    
-    const total = data.items?.length || 0;
-    const flagged = data.items?.filter(r => r.status === 'flagged' || r.flags?.length > 0).length || 0;
-    
-    return {
-      total,
-      pending: 0,
-      flagged,
-      approvedToday: 0
-    };
+    // Use new admin stats endpoint
+    const response = await api.get('/admin/reviews/stats');
+    return response.data;
+  },
+};
+
+// Admin Rewards/Gamification Service - NEW
+export const rewardsService = {
+  getRewards: async (params) => {
+    const response = await api.get('/admin/rewards', { params });
+    return response.data;
+  },
+
+  createReward: async (data) => {
+    const response = await api.post('/admin/rewards', data);
+    return response.data;
+  },
+
+  getRewardById: async (id) => {
+    const response = await api.get(`/admin/rewards/${id}`);
+    return response.data;
+  },
+
+  updateReward: async (id, data) => {
+    const response = await api.patch(`/admin/rewards/${id}`, data);
+    return response.data;
+  },
+
+  deleteReward: async (id) => {
+    const response = await api.delete(`/admin/rewards/${id}`);
+    return response.data;
+  },
+
+  awardPoints: async (userId, points, reason) => {
+    const response = await api.post('/admin/rewards/award-points', { userId, points, reason });
+    return response.data;
+  },
+
+  awardBadge: async (userId, badge, reason) => {
+    const response = await api.post('/admin/rewards/award-badge', { userId, badge, reason });
+    return response.data;
+  },
+
+  getGamificationConfig: async () => {
+    const response = await api.get('/admin/rewards/config');
+    return response.data;
+  },
+
+  getRewardStats: async () => {
+    const response = await api.get('/admin/rewards/stats');
+    return response.data;
+  },
+};
+
+// Admin Notifications Service - NEW
+export const notificationsService = {
+  sendToUser: async (userId, title, message, type = 'system') => {
+    const response = await api.post('/admin/notifications/send', { userId, title, message, type });
+    return response.data;
+  },
+
+  broadcastToUsers: async (title, message, type = 'system', filters) => {
+    const response = await api.post('/admin/notifications/broadcast', { title, message, type, filters });
+    return response.data;
+  },
+
+  broadcastToBusinesses: async (title, message, type = 'system', status) => {
+    const response = await api.post('/admin/notifications/broadcast-business', { title, message, type, status });
+    return response.data;
+  },
+
+  getHistory: async (params) => {
+    const response = await api.get('/admin/notifications/history', { params });
+    return response.data;
+  },
+
+  getStats: async () => {
+    const response = await api.get('/admin/notifications/stats');
+    return response.data;
+  },
+};
+
+// Complaints Service - NEW
+export const complaintsService = {
+  getComplaints: async (params) => {
+    const response = await api.get('/admin/complaints', { params });
+    return response.data;
+  },
+
+  updateComplaint: async (id, data) => {
+    const response = await api.patch(`/admin/complaints/${id}`, data);
+    return response.data;
   },
 };
 
@@ -200,22 +376,22 @@ export const analyticsService = {
 
 export const reportsService = {
   getReports: async (params) => {
-    const response = await api.get('/admin/reports', { params });
+    const response = await api.get('/admin/complaints', { params });
     return response.data;
   },
 
   getReportById: async (id) => {
-    const response = await api.get(`/admin/reports/${id}`);
+    const response = await api.get(`/admin/complaints/${id}`);
     return response.data;
   },
 
-  resolveReport: async (id, action) => {
-    const response = await api.post(`/admin/reports/${id}/resolve`, { action });
+  resolveReport: async (id, status, adminNotes) => {
+    const response = await api.patch(`/admin/complaints/${id}`, { status, adminNotes });
     return response.data;
   },
 
   dismissReport: async (id) => {
-    const response = await api.post(`/admin/reports/${id}/dismiss`);
+    const response = await api.patch(`/admin/complaints/${id}`, { status: 'rejected' });
     return response.data;
   },
 
@@ -227,8 +403,8 @@ export const reportsService = {
 
 export const gamificationService = {
   getBadges: async () => {
-    const response = await api.get('/admin/gamification/badges');
-    return response.data;
+    const config = await api.get('/admin/rewards/config');
+    return config.data?.data?.availableBadges || [];
   },
 
   createBadge: async (data) => {
@@ -266,13 +442,13 @@ export const gamificationService = {
     return response.data;
   },
 
-  getLeaderboard: async () => {
-    const response = await api.get('/admin/gamification/leaderboard');
+  getLeaderboard: async (limit = 20) => {
+    const response = await api.get('/admin/stats/leaderboard', { params: { limit } });
     return response.data;
   },
 
   getGamificationStats: async () => {
-    const response = await api.get('/admin/gamification/stats');
+    const response = await api.get('/admin/rewards/stats');
     return response.data;
   },
 };
