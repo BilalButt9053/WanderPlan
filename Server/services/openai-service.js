@@ -727,6 +727,104 @@ const validateCostsAgainstBudget = (itinerary, budget) => {
     return { itinerary, warnings, isValid, categoryCosts };
 };
 
+/**
+ * Enhance itinerary descriptions using AI
+ * This is used to improve descriptions of real places without generating fake places
+ * 
+ * @param {Array} itinerary - Day-wise itinerary
+ * @param {string} destination - Trip destination
+ * @returns {Promise<Array>} Enhanced itinerary with improved descriptions
+ */
+const enhanceItineraryDescriptions = async (itinerary, destination) => {
+    // Check if AI service is available
+    const available = await isServiceAvailable();
+    if (!available) {
+        console.warn('[openai-service] AI not available for description enhancement');
+        return itinerary;
+    }
+    
+    try {
+        // Prepare a list of activities that need enhanced descriptions
+        const activitiesForEnhancement = [];
+        for (const day of itinerary) {
+            for (const activity of day.activities) {
+                activitiesForEnhancement.push({
+                    name: activity.title,
+                    type: activity.type,
+                    currentDescription: activity.description
+                });
+            }
+        }
+        
+        // Limit to avoid token limits
+        const toEnhance = activitiesForEnhancement.slice(0, 10);
+        
+        const prompt = `You are a travel writer. Improve these activity descriptions for a trip to ${destination}. 
+Keep descriptions brief (1-2 sentences), engaging, and informative.
+Only provide descriptions, not new places.
+
+Activities to enhance:
+${toEnhance.map((a, i) => `${i + 1}. ${a.name} (${a.type}): "${a.currentDescription}"`).join('\n')}
+
+Respond with a JSON array of improved descriptions in the same order:
+["improved description 1", "improved description 2", ...]`;
+
+        const response = await openai.chat.completions.create({
+            model: CONFIG.model,
+            messages: [
+                { role: 'system', content: 'You are a helpful travel content writer. Respond only with valid JSON.' },
+                { role: 'user', content: prompt }
+            ],
+            max_tokens: 1000,
+            temperature: 0.7
+        });
+        
+        const content = response.choices[0]?.message?.content?.trim();
+        if (!content) {
+            return itinerary;
+        }
+        
+        // Parse the enhanced descriptions
+        let enhancedDescriptions;
+        try {
+            // Extract JSON array from response
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                enhancedDescriptions = JSON.parse(jsonMatch[0]);
+            } else {
+                return itinerary;
+            }
+        } catch (parseError) {
+            console.warn('[openai-service] Failed to parse enhanced descriptions:', parseError.message);
+            return itinerary;
+        }
+        
+        // Apply enhanced descriptions back to itinerary
+        let enhanceIndex = 0;
+        const enhancedItinerary = itinerary.map(day => ({
+            ...day,
+            activities: day.activities.map(activity => {
+                if (enhanceIndex < enhancedDescriptions.length && enhanceIndex < 10) {
+                    const enhanced = enhancedDescriptions[enhanceIndex];
+                    enhanceIndex++;
+                    return {
+                        ...activity,
+                        description: typeof enhanced === 'string' ? enhanced : activity.description
+                    };
+                }
+                return activity;
+            })
+        }));
+        
+        console.log(`[openai-service] Enhanced ${enhanceIndex} activity descriptions`);
+        return enhancedItinerary;
+        
+    } catch (error) {
+        console.error('[openai-service] Error enhancing descriptions:', error.message);
+        return itinerary; // Return original on error
+    }
+};
+
 module.exports = {
     generateItinerary,
     generateTravelTips,
@@ -737,6 +835,7 @@ module.exports = {
     isServiceAvailable,
     getCategory,
     generateFallbackItinerary,
+    enhanceItineraryDescriptions,
     COST_RANGES,
     TYPE_TO_CATEGORY,
     FALLBACK_TEMPLATES,
