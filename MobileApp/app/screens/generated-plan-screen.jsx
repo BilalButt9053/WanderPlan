@@ -26,6 +26,7 @@ import {
 import { 
   ArrowLeft,
   Share2,
+  Play,
   MapPin,
   UtensilsCrossed,
   Hotel,
@@ -55,7 +56,10 @@ import {
   useCommitBudgetMutation,
   useUpdateItineraryMutation,
 } from '../../redux/api/itineraryApi';
-import { useGetTripQuery } from '../../redux/api/tripsApi';
+import { useGetTripQuery, useStartTripMutation } from '../../redux/api/tripsApi';
+import { useDispatch } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
+import { startTripFlow } from '../../utils/tripFlow';
 
 // Map activity types to icons
 const getActivityIcon = (type) => {
@@ -105,6 +109,8 @@ export default function GeneratedPlanScreen({
   onRefresh,
 }) {
   const { colors } = useTheme();
+  const dispatch = useDispatch();
+  const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedDays, setEditedDays] = useState(null);
@@ -116,6 +122,7 @@ export default function GeneratedPlanScreen({
   const [regenerateItinerary, { isLoading: isRegenerating }] = useRegenerateItineraryMutation();
   const [commitBudget, { isLoading: isCommitting }] = useCommitBudgetMutation();
   const [updateItinerary, { isLoading: isUpdating }] = useUpdateItineraryMutation();
+  const [startTrip, { isLoading: isStartingTrip }] = useStartTripMutation();
   const { data: tripData } = useGetTripQuery(tripId, { skip: !tripId });
 
   // Extract data from itineraryData or use budgetData as fallback
@@ -252,6 +259,31 @@ export default function GeneratedPlanScreen({
   const isOverBudget = remainingBudget < 0;
   const overByAmount = isOverBudget ? Math.abs(remainingBudget) : 0;
   const underByAmount = !isOverBudget ? remainingBudget : 0;
+
+  // Start button is available for both upcoming and ongoing trips.
+  const tripStatus = tripData?.trip?.status;
+  const canStartFromPlan = ['upcoming', 'planning', 'confirmed', 'ongoing'].includes(tripStatus);
+  const isAlreadyOngoing = tripStatus === 'ongoing' || tripData?.trip?.isStarted;
+
+  const handleStartFromPlan = async () => {
+    if (!tripId) {
+      Alert.alert('Error', 'No trip selected');
+      return;
+    }
+
+    try {
+      await startTripFlow({
+        trip: tripData?.trip,
+        tripId,
+        itinerary: itineraryData?.itinerary,
+        dispatch,
+        navigation,
+        startTrip: isAlreadyOngoing ? null : startTrip,
+      });
+    } catch (error) {
+      Alert.alert('Error', error?.data?.message || 'Failed to start trip');
+    }
+  };
 
 
   // Enter edit mode
@@ -1042,6 +1074,33 @@ export default function GeneratedPlanScreen({
               </Text>
             </TouchableOpacity>
           </View>
+
+          {tripId && canStartFromPlan && (
+            <TouchableOpacity
+              onPress={handleStartFromPlan}
+              disabled={isStartingTrip}
+              style={{
+                width: '100%',
+                backgroundColor: '#0F766E',
+                paddingVertical: 16,
+                borderRadius: 16,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                opacity: isStartingTrip ? 0.7 : 1,
+              }}
+            >
+              {isStartingTrip ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Play size={20} color="#ffffff" />
+              )}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
+                {isAlreadyOngoing ? 'Start on Map' : 'Start Trip'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
