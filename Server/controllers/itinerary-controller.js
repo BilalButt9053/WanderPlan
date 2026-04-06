@@ -331,12 +331,16 @@ const getFeaturedItineraries = async (req, res, next) => {
  * Generate budget-aware itinerary for a trip
  * POST /api/itineraries/trip/:tripId/generate
  * 
+ * Query params:
+ * - mode: 'ai' (real data itinerary) or 'manual' (return available places)
+ * 
  * Requires authentication
  * Links itinerary to trip and uses trip budget for cost validation
  */
 const generateTripItinerary = async (req, res, next) => {
     try {
         const { tripId } = req.params;
+        const { mode = 'ai' } = req.query; // Default to AI mode
         const userId = req.user._id;
 
         // Validate tripId format
@@ -344,6 +348,15 @@ const generateTripItinerary = async (req, res, next) => {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid trip ID format'
+            });
+        }
+
+        // Validate mode
+        const validModes = ['ai', 'manual'];
+        if (!validModes.includes(mode)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid mode. Must be one of: ${validModes.join(', ')}`
             });
         }
 
@@ -370,22 +383,59 @@ const generateTripItinerary = async (req, res, next) => {
             (new Date(trip.endDate) - new Date(trip.startDate)) / (1000 * 60 * 60 * 24)
         ) + 1;
 
-        // Generate budget-aware itinerary
-        const result = await itineraryService.generateHybridItinerary({
+        const travelStyle = trip.tripType || 'moderate';
+
+        // Handle based on mode
+        if (mode === 'manual') {
+            // Manual mode: Return available places for user to select
+            console.log(`[itinerary-controller] Manual mode: fetching available places for ${destination}`);
+            
+            // Get budget info for context
+            const { budgetInfo } = await itineraryService.getTripBudgetInfo(tripId);
+            
+            // Get available places from Google + DB
+            const placesResult = await itineraryService.getAvailablePlaces({
+                destination,
+                travelStyle
+            });
+            
+            return res.status(200).json({
+                success: true,
+                mode: 'manual',
+                message: 'Available places fetched. Select places to build your itinerary.',
+                tripId,
+                tripTitle: trip.title,
+                destination,
+                days: Math.min(Math.max(days, 1), 30),
+                travelStyle,
+                budgetInfo: {
+                    totalBudget: budgetInfo.totalBudget,
+                    totalRemaining: budgetInfo.totalRemaining,
+                    currency: budgetInfo.currency
+                },
+                ...placesResult
+            });
+        }
+
+        // AI mode: Generate real-data itinerary automatically
+        console.log(`[itinerary-controller] AI mode: generating real-data itinerary for ${destination}`);
+        
+        const result = await itineraryService.generateRealDataItinerary({
             tripId,
             userId,
             destination,
             days: Math.min(Math.max(days, 1), 30),
-            travelStyle: trip.tripType || 'moderate',
+            travelStyle,
             travelers: trip.travelers || 1,
             saveToDb: true
         });
 
         res.status(200).json({
             success: true,
-            message: 'Itinerary generated successfully',
+            message: 'Itinerary generated successfully using real places',
             tripId,
             tripTitle: trip.title,
+            mode: 'ai',
             ...result
         });
 
