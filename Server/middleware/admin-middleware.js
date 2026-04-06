@@ -2,9 +2,8 @@ const adminMiddleware = async (req,res,next)=>{
     try {
         const adminRole = req.user.isAdmin;
         if(!adminRole){
-            res.status(403).json({message:"Access deined . User is not a admin ."})
+            return res.status(403).json({message:"Access denied. User is not an admin."});
         }
-        // console.log("req.user=>",req.user.isAdmin);
         next();
     } catch (error) {
         next(error);
