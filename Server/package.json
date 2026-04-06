@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest --testTimeout=30000 --forceExit --detectOpenHandles",
+    "test:watch": "jest --watch --testTimeout=30000",
+    "test:coverage": "jest --coverage --testTimeout=30000 --forceExit",
     "start": "nodemon index.js"
   },
   "keywords": [],
@@ -11,6 +13,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "axios": "^1.13.6",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^1.41.3",
     "cors": "^2.8.5",
@@ -25,5 +28,24 @@
     "nodemon": "^3.1.10",
     "openai": "^6.25.0",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "controllers/**/*.js",
+      "services/**/*.js",
+      "middleware/**/*.js"
+    ],
+    "coverageDirectory": "coverage",
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ]
   }
 }
