@@ -18,6 +18,9 @@ const {
     deleteTrip,
     addExpense,
     addActivityToTrip,
+    addPlaceToTrip,
+    addFromMap,
+    startTrip,
     getBudgetDetails,
     getUserTripStats,
     estimateTripBudget
@@ -84,6 +87,26 @@ router.delete("/:id", deleteTrip);
  * Body: { businessId, title, estimatedCost, source, day }
  */
 router.post("/:id/add-activity", addActivityToTrip);
+
+/**
+ * POST /api/trips/:id/add-place
+ * Add Google Place to itinerary of a trip
+ * Body: { placeId, title, type, category, location, estimatedCost, day }
+ */
+router.post("/:id/add-place", addPlaceToTrip);
+
+/**
+ * POST /api/trips/:id/add-from-map
+ * Add place from map to trip (with transport cost)
+ * Body: { placeId, name, type, coordinates, estimatedCost, day, transportCost, transportMode }
+ */
+router.post("/:id/add-from-map", addFromMap);
+
+/**
+ * POST /api/trips/:id/start
+ * Start a trip (change status to ongoing)
+ */
+router.post("/:id/start", startTrip);
 
 /**
  * GET /api/trips/:id/budget
