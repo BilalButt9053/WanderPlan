@@ -41,13 +41,13 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
   const [currency, setCurrency] = useState('PKR');
   const [destination, setDestination] = useState('');
   const [duration, setDuration] = useState('');
-  const [startDate, setStartDate] = useState(new Date(Date.now() + 24 * 60 * 60 * 1000)); // Default tomorrow
+  const [startDate, setStartDate] = useState(new Date()); // Default today
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCurrencies, setShowCurrencies] = useState(false);
   const [showDestinations, setShowDestinations] = useState(false);
 
-  // Minimum date is tomorrow
-  const minDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  // Minimum date is today
+  const minDate = new Date();
   minDate.setHours(0, 0, 0, 0);
 
   // Format date for display
@@ -370,16 +370,31 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
           </Text>
         </TouchableOpacity>
 
-        {/* Info Card */}
+        {/* Info Card - AI Plan */}
         <WanderCard style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }}>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <Sparkles size={20} color="#3B82F6" style={{ marginTop: 4 }} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#3B82F6', marginBottom: 4 }}>
-                AI-Powered Planning
+                AI Plan - Real Places
               </Text>
               <Text style={{ fontSize: 13, color: '#6B7280' }}>
-                Our AI will analyze your budget and create an optimized itinerary with the best places to visit, eat, and stay.
+                Automatically generates an itinerary using real restaurants, attractions, and hotels from Google Places and local businesses. Distance-optimized for efficient travel.
+              </Text>
+            </View>
+          </View>
+        </WanderCard>
+
+        {/* Info Card - Manual Plan */}
+        <WanderCard style={{ backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <Edit3 size={20} color="#16A34A" style={{ marginTop: 4 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#16A34A', marginBottom: 4 }}>
+                Manual Plan - Your Choice
+              </Text>
+              <Text style={{ fontSize: 13, color: '#6B7280' }}>
+                Browse and select places yourself. Add your favorite spots, assign them to days, and build a fully customized itinerary.
               </Text>
             </View>
           </View>
