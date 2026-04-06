@@ -7,23 +7,17 @@ import {
   Alert,
   Modal,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import {
   ArrowLeft,
-  Globe,
-  DollarSign,
-  Lock,
   Bell,
   Eye,
   MapPin,
-  Moon,
   ChevronRight,
-  LogOut,
-  Trash2,
-  HelpCircle,
+  AlertTriangle,
   FileText,
   Shield,
-  AlertTriangle,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WanderButton } from '../components/wander-button';
@@ -31,24 +25,27 @@ import { WanderCard } from '../components/wander-card';
 import { Switch } from '../components/ui/switch';
 import { useTheme } from '../../hooks/useTheme';
 import { useCreateComplaintMutation, useGetMyComplaintsQuery } from '../../redux/api/complaintsApi';
+import { useUpdateProfileMutation } from '../../redux/api/authApi';
+import { useSelector, useDispatch } from 'react-redux';
+import { logout } from '../../redux/slices/authSlice';
+import { useRouter } from 'expo-router';
 
 export function SettingsScreen({ onBack }) {
   const { colors } = useTheme();
+  const router = useRouter();
+  const dispatch = useDispatch();
+
   const [settings, setSettings] = useState({
-    language: 'English',
-    currency: 'USD',
-    darkMode: false,
     pushNotifications: true,
     emailNotifications: false,
     reviewNotifications: true,
     tripReminders: true,
-    marketingEmails: false,
-    profileVisibility: 'public',
     showLocation: true,
     showTrips: true,
     showReviews: true,
   });
 
+  const [isSaving, setIsSaving] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
@@ -56,14 +53,51 @@ export function SettingsScreen({ onBack }) {
   const [priority, setPriority] = useState('medium');
 
   const [createComplaint, { isLoading: isSubmitting }] = useCreateComplaintMutation();
+  const [updateProfile, { isLoading: isUpdatingProfile }] = useUpdateProfileMutation();
   const { data: complaintsData } = useGetMyComplaintsQuery(
     { limit: 3 },
     { refetchOnMountOrArgChange: true }
   );
 
-  const updateSetting = (key, value) => {
-    setSettings({ ...settings, [key]: value });
-    Alert.alert('Success', 'Setting updated');
+  const updateSetting = async (key, value) => {
+    try {
+      setIsSaving(true);
+
+      // Update local state
+      setSettings(prev => ({ ...prev, [key]: value }));
+
+      // Determine which category this setting belongs to
+      const notificationKeys = ['pushNotifications', 'emailNotifications', 'reviewNotifications', 'tripReminders'];
+      const privacyKeys = ['showLocation', 'showTrips', 'showReviews'];
+
+      // Build the correct payload based on setting type
+      let profileUpdate = {};
+
+      if (notificationKeys.includes(key)) {
+        profileUpdate.notificationPreferences = {
+          pushNotifications: key === 'pushNotifications' ? value : settings.pushNotifications,
+          emailNotifications: key === 'emailNotifications' ? value : settings.emailNotifications,
+          reviewNotifications: key === 'reviewNotifications' ? value : settings.reviewNotifications,
+          tripReminders: key === 'tripReminders' ? value : settings.tripReminders,
+        };
+      } else if (privacyKeys.includes(key)) {
+        profileUpdate.privacySettings = {
+          showLocation: key === 'showLocation' ? value : settings.showLocation,
+          showTrips: key === 'showTrips' ? value : settings.showTrips,
+          showReviews: key === 'showReviews' ? value : settings.showReviews,
+        };
+      }
+
+      await updateProfile(profileUpdate).unwrap();
+      Alert.alert('Success', 'Setting updated');
+    } catch (error) {
+      console.error('Failed to update setting:', error);
+      // Revert on error
+      setSettings(prev => ({ ...prev, [key]: !value }));
+      Alert.alert('Error', 'Failed to update setting. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSubmitComplaint = async () => {
@@ -93,6 +127,24 @@ export function SettingsScreen({ onBack }) {
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            dispatch(logout());
+            router.replace('/(auth)/sign-in');
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
       {/* Header */}
@@ -114,60 +166,7 @@ export function SettingsScreen({ onBack }) {
       {/* Content */}
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View className="p-4" style={{ gap: 24 }}>
-          {/* General Settings */}
-          <View>
-            <Text style={{ color: colors.text }} className="text-lg font-semibold mb-3 px-2">General</Text>
-            <WanderCard padding="none">
-              <TouchableOpacity
-                onPress={() => Alert.alert('Language', 'Language selection coming soon')}
-                className="flex-row items-center justify-between p-4"
-              >
-                <View className="flex-row items-center gap-3 flex-1">
-                  <Globe size={20} color="#3B82F6" />
-                  <View className="flex-1">
-                    <Text style={{ color: colors.text }} className="text-sm font-medium">Language</Text>
-                    <Text style={{ color: colors.textSecondary }} className="text-sm">{settings.language}</Text>
-                  </View>
-                </View>
-                <ChevronRight size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <View className="h-px bg-gray-200" />
-
-              <TouchableOpacity
-                onPress={() => Alert.alert('Currency', 'Currency selection coming soon')}
-                className="flex-row items-center justify-between p-4"
-              >
-                <View className="flex-row items-center gap-3 flex-1">
-                  <DollarSign size={20} color="#3B82F6" />
-                  <View className="flex-1">
-                    <Text style={{ color: colors.text }} className="text-sm font-medium">Currency</Text>
-                    <Text style={{ color: colors.textSecondary }} className="text-sm">{settings.currency}</Text>
-                  </View>
-                </View>
-                <ChevronRight size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <View className="h-px bg-gray-200" />
-
-              <View className="flex-row items-center justify-between p-4">
-                <View className="flex-row items-center gap-3 flex-1">
-                  <Moon size={20} color="#3B82F6" />
-                  <View className="flex-1">
-                    <Text style={{ color: colors.text }} className="text-sm font-medium">Dark Mode</Text>
-                    <Text style={{ color: colors.textSecondary }} className="text-sm">Coming soon</Text>
-                  </View>
-                </View>
-                <Switch
-                  checked={settings.darkMode}
-                  onCheckedChange={(checked) => updateSetting('darkMode', checked)}
-                  disabled
-                />
-              </View>
-            </WanderCard>
-          </View>
-
-          {/* Notifications */}
+          {/* Notifications Section */}
           <View>
             <Text style={{ color: colors.text }} className="text-lg font-semibold mb-3 px-2">Notifications</Text>
             <WanderCard padding="none">
@@ -176,12 +175,13 @@ export function SettingsScreen({ onBack }) {
                   <Bell size={20} color="#3B82F6" />
                   <View className="flex-1">
                     <Text style={{ color: colors.text }} className="text-sm font-medium">Push Notifications</Text>
-                    <Text style={{ color: colors.textSecondary }} className="text-sm">App notifications</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-xs">App alerts and updates</Text>
                   </View>
                 </View>
                 <Switch
                   checked={settings.pushNotifications}
                   onCheckedChange={(checked) => updateSetting('pushNotifications', checked)}
+                  disabled={isSaving}
                 />
               </View>
 
@@ -191,29 +191,14 @@ export function SettingsScreen({ onBack }) {
                 <View className="flex-row items-center gap-3 flex-1">
                   <View style={{ width: 20 }} />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Email Notifications</Text>
-                    <Text className="text-sm text-gray-600">Updates via email</Text>
-                  </View>
-                </View>
-                <Switch
-                  checked={settings.emailNotifications}
-                  onCheckedChange={(checked) => updateSetting('emailNotifications', checked)}
-                />
-              </View>
-
-              <View className="h-px bg-gray-200" />
-
-              <View className="flex-row items-center justify-between p-4">
-                <View className="flex-row items-center gap-3 flex-1">
-                  <View style={{ width: 20 }} />
-                  <View className="flex-1">
-                    <Text className="text-sm font-medium">Review Notifications</Text>
-                    <Text className="text-sm text-gray-600">Likes and replies</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Review Notifications</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-xs">Likes and replies on your reviews</Text>
                   </View>
                 </View>
                 <Switch
                   checked={settings.reviewNotifications}
                   onCheckedChange={(checked) => updateSetting('reviewNotifications', checked)}
+                  disabled={isSaving}
                 />
               </View>
 
@@ -223,13 +208,14 @@ export function SettingsScreen({ onBack }) {
                 <View className="flex-row items-center gap-3 flex-1">
                   <View style={{ width: 20 }} />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Trip Reminders</Text>
-                    <Text className="text-sm text-gray-600">Upcoming trips</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Trip Reminders</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-xs">Upcoming trips and activities</Text>
                   </View>
                 </View>
                 <Switch
                   checked={settings.tripReminders}
                   onCheckedChange={(checked) => updateSetting('tripReminders', checked)}
+                  disabled={isSaving}
                 />
               </View>
 
@@ -239,49 +225,35 @@ export function SettingsScreen({ onBack }) {
                 <View className="flex-row items-center gap-3 flex-1">
                   <View style={{ width: 20 }} />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Marketing Emails</Text>
-                    <Text className="text-sm text-gray-600">Offers and deals</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Email Notifications</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-xs">Important updates via email</Text>
                   </View>
                 </View>
                 <Switch
-                  checked={settings.marketingEmails}
-                  onCheckedChange={(checked) => updateSetting('marketingEmails', checked)}
+                  checked={settings.emailNotifications}
+                  onCheckedChange={(checked) => updateSetting('emailNotifications', checked)}
+                  disabled={isSaving}
                 />
               </View>
             </WanderCard>
           </View>
 
-          {/* Privacy */}
+          {/* Privacy Section */}
           <View>
-            <Text className="text-lg font-semibold mb-3 px-2">Privacy</Text>
+            <Text style={{ color: colors.text }} className="text-lg font-semibold mb-3 px-2">Privacy & Profile</Text>
             <WanderCard padding="none">
-              <TouchableOpacity
-                onPress={() => Alert.alert('Profile Visibility', 'Profile visibility settings coming soon')}
-                className="flex-row items-center justify-between p-4"
-              >
+              <View className="flex-row items-center justify-between p-4">
                 <View className="flex-row items-center gap-3 flex-1">
                   <Eye size={20} color="#3B82F6" />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Profile Visibility</Text>
-                    <Text className="text-sm text-gray-600 capitalize">{settings.profileVisibility}</Text>
-                  </View>
-                </View>
-                <ChevronRight size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <View className="h-px bg-gray-200" />
-
-              <View className="flex-row items-center justify-between p-4">
-                <View className="flex-row items-center gap-3 flex-1">
-                  <MapPin size={20} color="#3B82F6" />
-                  <View className="flex-1">
-                    <Text className="text-sm font-medium">Show Location</Text>
-                    <Text className="text-sm text-gray-600">Visible to others</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Show Location</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-xs">Visible on your profile</Text>
                   </View>
                 </View>
                 <Switch
                   checked={settings.showLocation}
                   onCheckedChange={(checked) => updateSetting('showLocation', checked)}
+                  disabled={isSaving}
                 />
               </View>
 
@@ -291,13 +263,14 @@ export function SettingsScreen({ onBack }) {
                 <View className="flex-row items-center gap-3 flex-1">
                   <View style={{ width: 20 }} />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Show Trips</Text>
-                    <Text className="text-sm text-gray-600">Display on profile</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Show Trips</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-xs">Display on your profile</Text>
                   </View>
                 </View>
                 <Switch
                   checked={settings.showTrips}
                   onCheckedChange={(checked) => updateSetting('showTrips', checked)}
+                  disabled={isSaving}
                 />
               </View>
 
@@ -307,51 +280,22 @@ export function SettingsScreen({ onBack }) {
                 <View className="flex-row items-center gap-3 flex-1">
                   <View style={{ width: 20 }} />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium">Show Reviews</Text>
-                    <Text className="text-sm text-gray-600">Public reviews</Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Show Reviews</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-xs">Publish reviews publicly</Text>
                   </View>
                 </View>
                 <Switch
                   checked={settings.showReviews}
                   onCheckedChange={(checked) => updateSetting('showReviews', checked)}
+                  disabled={isSaving}
                 />
               </View>
             </WanderCard>
           </View>
 
-          {/* Security */}
+          {/* Support Section */}
           <View>
-            <Text className="text-lg font-semibold mb-3 px-2">Security</Text>
-            <WanderCard padding="none">
-              <TouchableOpacity
-                onPress={() => Alert.alert('Change Password', 'Password change coming soon')}
-                className="flex-row items-center justify-between p-4"
-              >
-                <View className="flex-row items-center gap-3 flex-1">
-                  <Lock size={20} color="#3B82F6" />
-                  <Text className="text-sm font-medium">Change Password</Text>
-                </View>
-                <ChevronRight size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <View className="h-px bg-gray-200" />
-
-              <TouchableOpacity
-                onPress={() => Alert.alert('2FA', 'Two-factor authentication coming soon')}
-                className="flex-row items-center justify-between p-4"
-              >
-                <View className="flex-row items-center gap-3 flex-1">
-                  <Shield size={20} color="#3B82F6" />
-                  <Text className="text-sm font-medium">Two-Factor Authentication</Text>
-                </View>
-                <ChevronRight size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-            </WanderCard>
-          </View>
-
-          {/* Support */}
-          <View>
-            <Text className="text-lg font-semibold mb-3 px-2">Support</Text>
+            <Text style={{ color: colors.text }} className="text-lg font-semibold mb-3 px-2">Support & Legal</Text>
             <WanderCard padding="none">
               <TouchableOpacity
                 onPress={() => setShowReportModal(true)}
@@ -360,10 +304,8 @@ export function SettingsScreen({ onBack }) {
                 <View className="flex-row items-center gap-3 flex-1">
                   <AlertTriangle size={20} color="#DC2626" />
                   <View className="flex-1">
-                    <Text className="text-sm font-medium" style={{ color: colors.text }}>Report a Problem</Text>
-                    <Text className="text-xs text-gray-500">
-                      Bugs, abuse, or business issues
-                    </Text>
+                    <Text style={{ color: colors.text }} className="text-sm font-medium">Report a Problem</Text>
+                    <Text style={{ color: colors.textSecondary }} className="text-xs">Report bugs or issues</Text>
                   </View>
                 </View>
                 <ChevronRight size={20} color="#9CA3AF" />
@@ -372,12 +314,12 @@ export function SettingsScreen({ onBack }) {
               <View className="h-px bg-gray-200" />
 
               <TouchableOpacity
-                onPress={() => Alert.alert('Terms', 'Terms of service coming soon')}
+                onPress={() => Alert.alert('Privacy Policy', 'Privacy policy content not yet available')}
                 className="flex-row items-center justify-between p-4"
               >
                 <View className="flex-row items-center gap-3 flex-1">
                   <FileText size={20} color="#3B82F6" />
-                  <Text className="text-sm font-medium">Terms of Service</Text>
+                  <Text style={{ color: colors.text }} className="text-sm font-medium">Privacy Policy</Text>
                 </View>
                 <ChevronRight size={20} color="#9CA3AF" />
               </TouchableOpacity>
@@ -385,64 +327,42 @@ export function SettingsScreen({ onBack }) {
               <View className="h-px bg-gray-200" />
 
               <TouchableOpacity
-                onPress={() => Alert.alert('Privacy', 'Privacy policy coming soon')}
+                onPress={() => Alert.alert('Terms of Service', 'Terms of service content not yet available')}
                 className="flex-row items-center justify-between p-4"
               >
                 <View className="flex-row items-center gap-3 flex-1">
                   <Shield size={20} color="#3B82F6" />
-                  <Text className="text-sm font-medium">Privacy Policy</Text>
+                  <Text style={{ color: colors.text }} className="text-sm font-medium">Terms of Service</Text>
                 </View>
                 <ChevronRight size={20} color="#9CA3AF" />
               </TouchableOpacity>
             </WanderCard>
           </View>
 
-          {/* Account Actions */}
+          {/* Account Section */}
           <View>
-            <Text className="text-lg font-semibold mb-3 px-2">Account</Text>
-            <View style={{ gap: 12 }}>
-              <WanderButton
-                variant="outline"
-                fullWidth
-                onPress={() => Alert.alert('Log Out', 'Are you sure you want to log out?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Log Out', onPress: () => Alert.alert('Logged out') }
-                ])}
-              >
-                <View className="flex-row items-center gap-2">
-                  <LogOut size={20} color="#3B82F6" />
-                  <Text className="text-blue-600 font-semibold">Log Out</Text>
-                </View>
-              </WanderButton>
-
-              <WanderButton
-                variant="outline"
-                fullWidth
-                onPress={() => Alert.alert('Delete Account', 'This action cannot be undone. Are you sure?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Delete', style: 'destructive', onPress: () => Alert.alert('Account deletion requested') }
-                ])}
-              >
-                <View className="flex-row items-center gap-2">
-                  <Trash2 size={20} color="#EF4444" />
-                  <Text className="text-red-500 font-semibold">Delete Account</Text>
-                </View>
-              </WanderButton>
-            </View>
+            <Text style={{ color: colors.text }} className="text-lg font-semibold mb-3 px-2">Account</Text>
+            <WanderButton
+              variant="outline"
+              fullWidth
+              onPress={handleLogout}
+            >
+              <Text className="text-red-500 font-semibold">Logout</Text>
+            </WanderButton>
           </View>
 
-          {/* Version */}
+          {/* Version & Recent Reports */}
           <View className="items-center py-4 space-y-1">
             {complaintsData?.complaints?.length > 0 && (
-              <View className="w-full px-2 mb-2">
-                <Text className="text-xs text-gray-400 mb-1">
-                  Recent reports
+              <View className="w-full px-2 mb-4">
+                <Text style={{ color: colors.textSecondary }} className="text-xs font-semibold mb-2">
+                  Recent Reports
                 </Text>
                 {complaintsData.complaints.map((c) => (
                   <View
                     key={c._id}
                     className="flex-row items-center justify-between px-3 py-2 rounded-lg"
-                    style={{ backgroundColor: colors.input }}
+                    style={{ backgroundColor: colors.input, marginBottom: 8 }}
                   >
                     <View className="flex-1 mr-2">
                       <Text
@@ -452,18 +372,20 @@ export function SettingsScreen({ onBack }) {
                       >
                         {c.subject}
                       </Text>
-                      <Text className="text-[10px] text-gray-500">
+                      <Text className="text-[10px]" style={{ color: colors.textSecondary }}>
                         {c.status} • {c.priority}
                       </Text>
                     </View>
-                    <Text className="text-[10px] text-gray-500">
+                    <Text className="text-[10px]" style={{ color: colors.textSecondary }}>
                       {new Date(c.createdAt).toLocaleDateString()}
                     </Text>
                   </View>
                 ))}
               </View>
             )}
-            <Text className="text-sm text-gray-500">WanderPlan v1.0.0</Text>
+            <Text style={{ color: colors.textSecondary }} className="text-sm">
+              WanderPlan v1.0.0
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -519,34 +441,45 @@ export function SettingsScreen({ onBack }) {
               </TouchableOpacity>
             </View>
 
-            {/* Type + Priority */}
-            <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8 }}>
-              {['bug', 'abuse', 'business', 'other'].map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  onPress={() => setType(t)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 8,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: type === t ? '#DC2626' : colors.border,
-                    backgroundColor: type === t ? '#FEE2E2' : colors.input,
-                  }}
-                >
-                  <Text
+            {/* Type Selection */}
+            <View style={{ marginBottom: 12 }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                  marginBottom: 6,
+                }}
+              >
+                Report Type
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {['bug', 'abuse', 'business', 'other'].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => setType(t)}
                     style={{
-                      textAlign: 'center',
-                      fontSize: 12,
-                      fontWeight: '500',
-                      textTransform: 'capitalize',
-                      color: type === t ? '#B91C1C' : colors.text,
+                      flex: 1,
+                      paddingVertical: 8,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: type === t ? '#DC2626' : colors.border,
+                      backgroundColor: type === t ? '#FEE2E2' : colors.input,
                     }}
                   >
-                    {t}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={{
+                        textAlign: 'center',
+                        fontSize: 12,
+                        fontWeight: '500',
+                        textTransform: 'capitalize',
+                        color: type === t ? '#B91C1C' : colors.text,
+                      }}
+                    >
+                      {t}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             {/* Subject */}
@@ -563,7 +496,7 @@ export function SettingsScreen({ onBack }) {
               <TextInput
                 value={subject}
                 onChangeText={setSubject}
-                placeholder="Short summary (e.g. Maps not loading)"
+                placeholder="Brief description"
                 placeholderTextColor={colors.textSecondary}
                 style={{
                   backgroundColor: colors.input,
@@ -592,7 +525,7 @@ export function SettingsScreen({ onBack }) {
               <TextInput
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Tell us what happened, steps to reproduce, device, etc."
+                placeholder="Detailed description..."
                 placeholderTextColor={colors.textSecondary}
                 multiline
                 numberOfLines={4}
@@ -612,34 +545,44 @@ export function SettingsScreen({ onBack }) {
             </View>
 
             {/* Priority */}
-            <View style={{ flexDirection: 'row', marginBottom: 16, gap: 8 }}>
-              {['low', 'medium', 'high', 'critical'].map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  onPress={() => setPriority(p)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: priority === p ? '#2563EB' : colors.border,
-                    backgroundColor:
-                      priority === p ? '#DBEAFE' : colors.input,
-                  }}
-                >
-                  <Text
+            <View style={{ marginBottom: 16 }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                  marginBottom: 6,
+                }}
+              >
+                Priority
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {['low', 'medium', 'high', 'critical'].map((p) => (
+                  <TouchableOpacity
+                    key={p}
+                    onPress={() => setPriority(p)}
                     style={{
-                      textAlign: 'center',
-                      fontSize: 11,
-                      fontWeight: '500',
-                      textTransform: 'capitalize',
-                      color: priority === p ? '#1D4ED8' : colors.text,
+                      flex: 1,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: priority === p ? '#2563EB' : colors.border,
+                      backgroundColor: priority === p ? '#DBEAFE' : colors.input,
                     }}
                   >
-                    {p}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={{
+                        textAlign: 'center',
+                        fontSize: 11,
+                        fontWeight: '500',
+                        textTransform: 'capitalize',
+                        color: priority === p ? '#1D4ED8' : colors.text,
+                      }}
+                    >
+                      {p}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             {/* Submit Button */}
@@ -654,19 +597,41 @@ export function SettingsScreen({ onBack }) {
                 opacity: isSubmitting ? 0.7 : 1,
               }}
             >
-              <Text
-                style={{
-                  color: '#fff',
-                  fontSize: 15,
-                  fontWeight: '600',
-                }}
-              >
-                {isSubmitting ? 'Submitting...' : 'Submit Report'}
-              </Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text
+                  style={{
+                    color: '#fff',
+                    fontSize: 15,
+                    fontWeight: '600',
+                  }}
+                >
+                  Submit Report
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      {/* Loading Overlay */}
+      {isSaving && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <ActivityIndicator color="#3B82F6" size="large" />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
