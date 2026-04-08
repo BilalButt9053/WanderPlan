@@ -4,7 +4,7 @@ import { ProtectedRoute, AuthRoute } from '@/components/ProtectedRoute';
 
 // Import pages
 import AnalyticsPage from '@/pages/analytics';
-import BusinessesPage from '@/pages/businesses';
+import BusinessesPage from '../pages/businesses';
 import DealsPage from '@/pages/deals';
 import GamificationPage from '@/pages/gamification';
 import ReportsPage from '@/pages/reports';

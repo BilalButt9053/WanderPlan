@@ -42,7 +42,7 @@ export function TopReviews() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Recent Reviews</CardTitle>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/reviews')}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/reviews')}>
           View All
         </Button>
       </CardHeader>

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { Toaster } from 'sonner'
 import LoginPage from './pages/login'
 import SignupPage from './pages/signup'
 import VerifyEmailPage from './pages/verify-email'
@@ -88,7 +89,7 @@ function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
-        
+
         {/* Protected Routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
@@ -131,6 +132,7 @@ function App() {
           </ProtectedRoute>
         } />
       </Routes>
+      <Toaster position="top-right" />
     </Router>
   )
 }

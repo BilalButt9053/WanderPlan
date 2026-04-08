@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const LOCAL_FALLBACK_API_URL = 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -26,8 +27,28 @@ api.interceptors.request.use(
 // Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     console.error('API Error:', error.response || error);
+
+    const requestConfig = error.config || {};
+    const originalBaseURL = requestConfig.baseURL || API_BASE_URL;
+    const canRetryWithLocal =
+      error.request &&
+      !requestConfig.__retriedWithLocal &&
+      originalBaseURL !== LOCAL_FALLBACK_API_URL;
+
+    // Retry network-level failures once against local API for expired ngrok tunnels.
+    if (canRetryWithLocal) {
+      try {
+        return await api({
+          ...requestConfig,
+          baseURL: LOCAL_FALLBACK_API_URL,
+          __retriedWithLocal: true,
+        });
+      } catch (retryError) {
+        error = retryError;
+      }
+    }
     
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken');
@@ -40,7 +61,7 @@ api.interceptors.response.use(
     if (error.response) {
       error.message = error.response.data?.message || error.message;
     } else if (error.request) {
-      error.message = 'No response from server. Please check if the server is running.';
+      error.message = 'No response from server. Please verify your API URL or local server is running on http://localhost:5000.';
     }
     
     return Promise.reject(error);

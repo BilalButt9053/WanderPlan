@@ -187,10 +187,9 @@ const login = async (req, res, next) => {
         }
 
     } catch (error) {
-        // Catch any other errors and send a 500 response
+        // Forward to global error middleware to guarantee JSON responses.
         console.error("Login error:", error);
-        res.status(500).json("internal server error");
-        next(error); // Make sure this is the last thing called in the catch block
+        next(error);
     }
 };
 

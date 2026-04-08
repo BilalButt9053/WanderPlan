@@ -29,7 +29,7 @@ export function DealsPerformance() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Active Deals Performance</CardTitle>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/deals')}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/deals')}>
           View All
         </Button>
       </CardHeader>
@@ -38,7 +38,7 @@ export function DealsPerformance() {
           <div className="flex flex-col items-center justify-center h-[200px] text-center">
             <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
             <p className="text-muted-foreground">No active deals</p>
-            <Button variant="link" onClick={() => navigate('/deals')}>
+            <Button variant="link" onClick={() => navigate('/dashboard/deals')}>
               Create a deal
             </Button>
           </div>
