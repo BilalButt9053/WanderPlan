@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -34,6 +35,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function BusinessesPage() {
+  const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
@@ -52,6 +54,10 @@ export default function BusinessesPage() {
 
   const businesses = businessResponse?.businesses || []
   const { data: stats } = useGetBusinessStatsQuery()
+  const approvedCount = stats?.approved ?? stats?.byStatus?.approved ?? 0
+  const pendingCount = stats?.pending ?? stats?.byStatus?.pending ?? 0
+  const suspendedCount = stats?.suspended ?? stats?.byStatus?.suspended ?? 0
+  const totalCount = stats?.total ?? businesses.length
 
   // API Mutations
   const [approveBusiness, { isLoading: isApproving }] = useApproveBusinessMutation()
@@ -156,7 +162,7 @@ export default function BusinessesPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Businesses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.total || 0}</div>
+            <div className="text-2xl font-bold">{totalCount}</div>
           </CardContent>
         </Card>
         <Card>
@@ -164,7 +170,7 @@ export default function BusinessesPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.approved || 0}</div>
+            <div className="text-2xl font-bold">{approvedCount}</div>
           </CardContent>
         </Card>
         <Card>
@@ -172,7 +178,7 @@ export default function BusinessesPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Pending Approval</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-500">{stats?.pending || 0}</div>
+            <div className="text-2xl font-bold text-orange-500">{pendingCount}</div>
           </CardContent>
         </Card>
         <Card>
@@ -180,7 +186,7 @@ export default function BusinessesPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Suspended</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-500">{stats?.suspended || 0}</div>
+            <div className="text-2xl font-bold text-red-500">{suspendedCount}</div>
           </CardContent>
         </Card>
       </div>
@@ -298,11 +304,18 @@ export default function BusinessesPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => navigate(`/businesses/${business._id}`)}>
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => navigate(`/analytics?businessId=${business._id}`, {
+                              state: {
+                                businessId: business._id,
+                                businessName: business.businessName,
+                              },
+                            })}
+                          >
                             <BarChart3 className="mr-2 h-4 w-4" />
                             View Analytics
                           </DropdownMenuItem>

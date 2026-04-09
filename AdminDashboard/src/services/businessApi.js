@@ -1,19 +1,40 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const LOCAL_FALLBACK_API_URL = 'http://localhost:5000/api';
+
+const buildBaseQuery = (baseUrl) => fetchBaseQuery({
+  baseUrl,
+  prepareHeaders: (headers) => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`);
+    }
+    return headers;
+  },
+});
+
+const primaryBaseQuery = buildBaseQuery(API_URL);
+const fallbackBaseQuery = buildBaseQuery(LOCAL_FALLBACK_API_URL);
+
+const baseQueryWithFallback = async (args, api, extraOptions) => {
+  const result = await primaryBaseQuery(args, api, extraOptions);
+
+  const isNetworkLikeError = result?.error && (
+    result.error.status === 'FETCH_ERROR' ||
+    result.error.status === 'PARSING_ERROR'
+  );
+
+  if (isNetworkLikeError && API_URL !== LOCAL_FALLBACK_API_URL) {
+    return fallbackBaseQuery(args, api, extraOptions);
+  }
+
+  return result;
+};
 
 export const businessApi = createApi({
   reducerPath: 'businessApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_URL,
-    prepareHeaders: (headers, { getState }) => {
-      const token = localStorage.getItem('authToken');
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithFallback,
   tagTypes: ['Business', 'BusinessStats'],
   endpoints: (builder) => ({
     // Get all businesses with optional filters

@@ -5,6 +5,7 @@ import { ProtectedRoute, AuthRoute } from '@/components/ProtectedRoute';
 // Import pages
 import AnalyticsPage from '@/pages/analytics';
 import BusinessesPage from '../pages/businesses';
+import BusinessDetailPage from '@/pages/business-detail';
 import DealsPage from '@/pages/deals';
 import GamificationPage from '@/pages/gamification';
 import ReportsPage from '@/pages/reports';
@@ -31,6 +32,7 @@ function AppRoutes() {
         <Route index element={<DashboardPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="businesses" element={<BusinessesPage />} />
+        <Route path="businesses/:id" element={<BusinessDetailPage />} />
         <Route path="reviews" element={<ReviewsPage />} />
         <Route path="deals" element={<DealsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />

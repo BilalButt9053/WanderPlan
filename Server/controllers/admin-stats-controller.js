@@ -10,6 +10,7 @@ const Review = require("../modals/review-models");
 const Complaint = require("../modals/complaint-modal");
 const Reward = require("../modals/reward-modal");
 const Deal = require("../modals/deal-modal");
+const mongoose = require("mongoose");
 
 /**
  * Get comprehensive dashboard statistics
@@ -17,6 +18,64 @@ const Deal = require("../modals/deal-modal");
  */
 const getDashboardStats = async (req, res, next) => {
     try {
+        const { businessId } = req.query;
+
+        if (businessId) {
+            if (!mongoose.Types.ObjectId.isValid(businessId)) {
+                return res.status(400).json({ message: "Invalid businessId" });
+            }
+
+            const [business, totalReviews, flaggedReviews, activeDeals, totalDeals] = await Promise.all([
+                Business.findById(businessId).select('businessName status isVerified createdAt'),
+                Review.countDocuments({ place: businessId }),
+                Review.countDocuments({ place: businessId, status: 'flagged' }),
+                Deal.countDocuments({ business: businessId, status: 'active' }),
+                Deal.countDocuments({ business: businessId }),
+            ]);
+
+            if (!business) {
+                return res.status(404).json({ message: "Business not found" });
+            }
+
+            const pendingBusinesses = business.status === 'pending' ? 1 : 0;
+            const approvedBusinesses = business.status === 'approved' ? 1 : 0;
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    overview: {
+                        totalUsers: 0,
+                        activeUsersToday: 0,
+                        userGrowth: 0,
+                        totalBusinesses: 1,
+                        pendingBusinesses,
+                        approvedBusinesses,
+                        totalTrips: 0,
+                        completedTrips: 0,
+                        ongoingTrips: 0,
+                        totalReviews,
+                        flaggedReviews,
+                        pendingComplaints: 0,
+                        totalComplaints: 0,
+                        activeDeals,
+                        totalRewards: totalDeals,
+                        selectedBusiness: {
+                            _id: business._id,
+                            businessName: business.businessName,
+                            status: business.status,
+                            isVerified: business.isVerified,
+                            createdAt: business.createdAt,
+                        }
+                    },
+                    alerts: {
+                        pendingBusinessApprovals: pendingBusinesses,
+                        flaggedReviewsCount: flaggedReviews,
+                        pendingComplaintsCount: 0
+                    }
+                }
+            });
+        }
+
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
@@ -254,13 +313,25 @@ const getTripTrends = async (req, res, next) => {
  */
 const getBusinessTrends = async (req, res, next) => {
     try {
+        const { businessId } = req.query;
+        const businessMatch = {};
+
+        if (businessId) {
+            if (!mongoose.Types.ObjectId.isValid(businessId)) {
+                return res.status(400).json({ message: "Invalid businessId" });
+            }
+            businessMatch._id = new mongoose.Types.ObjectId(businessId);
+        }
+
         const [byStatus, byCategory, registrationTrend] = await Promise.all([
             // Businesses by status
             Business.aggregate([
+                ...(Object.keys(businessMatch).length ? [{ $match: businessMatch }] : []),
                 { $group: { _id: "$status", count: { $sum: 1 } } }
             ]),
             // Businesses by category
             Business.aggregate([
+                ...(Object.keys(businessMatch).length ? [{ $match: businessMatch }] : []),
                 { $group: { _id: "$businessType", count: { $sum: 1 } } },
                 { $sort: { count: -1 } }
             ]),
@@ -268,6 +339,7 @@ const getBusinessTrends = async (req, res, next) => {
             Business.aggregate([
                 {
                     $match: {
+                        ...businessMatch,
                         createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
                     }
                 },
@@ -310,13 +382,25 @@ const getBusinessTrends = async (req, res, next) => {
  */
 const getReviewTrends = async (req, res, next) => {
     try {
+        const { businessId } = req.query;
+        const reviewBaseMatch = {};
+
+        if (businessId) {
+            if (!mongoose.Types.ObjectId.isValid(businessId)) {
+                return res.status(400).json({ message: "Invalid businessId" });
+            }
+            reviewBaseMatch.place = new mongoose.Types.ObjectId(businessId);
+        }
+
         const [byStatus, byRating, recentTrend, categoryBreakdown] = await Promise.all([
             // Reviews by status
             Review.aggregate([
+                ...(Object.keys(reviewBaseMatch).length ? [{ $match: reviewBaseMatch }] : []),
                 { $group: { _id: "$status", count: { $sum: 1 } } }
             ]),
             // Reviews by rating
             Review.aggregate([
+                ...(Object.keys(reviewBaseMatch).length ? [{ $match: reviewBaseMatch }] : []),
                 { $group: { _id: "$rating", count: { $sum: 1 } } },
                 { $sort: { _id: 1 } }
             ]),
@@ -324,6 +408,7 @@ const getReviewTrends = async (req, res, next) => {
             Review.aggregate([
                 {
                     $match: {
+                        ...reviewBaseMatch,
                         createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
                     }
                 },
@@ -342,6 +427,7 @@ const getReviewTrends = async (req, res, next) => {
             ]),
             // By category
             Review.aggregate([
+                ...(Object.keys(reviewBaseMatch).length ? [{ $match: reviewBaseMatch }] : []),
                 { $group: { _id: "$category", count: { $sum: 1 }, avgRating: { $avg: "$rating" } } }
             ])
         ]);

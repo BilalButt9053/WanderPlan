@@ -24,13 +24,15 @@ export const authService = {
 
 // Dashboard Stats Service - NEW
 export const statsService = {
-  getDashboardStats: async () => {
-    const response = await api.get('/admin/stats/dashboard');
+  getDashboardStats: async (businessId) => {
+    const params = businessId ? { businessId } : undefined;
+    const response = await api.get('/admin/stats/dashboard', { params });
     return response.data;
   },
 
-  getUserTrends: async (period = '30days') => {
-    const response = await api.get('/admin/stats/users/trends', { params: { period } });
+  getUserTrends: async (period = '30days', businessId) => {
+    const params = businessId ? { period, businessId } : { period };
+    const response = await api.get('/admin/stats/users/trends', { params });
     return response.data;
   },
 
@@ -39,13 +41,15 @@ export const statsService = {
     return response.data;
   },
 
-  getBusinessTrends: async (period = '30days') => {
-    const response = await api.get('/admin/stats/businesses/trends', { params: { period } });
+  getBusinessTrends: async (period = '30days', businessId) => {
+    const params = businessId ? { period, businessId } : { period };
+    const response = await api.get('/admin/stats/businesses/trends', { params });
     return response.data;
   },
 
-  getReviewTrends: async (period = '30days') => {
-    const response = await api.get('/admin/stats/reviews/trends', { params: { period } });
+  getReviewTrends: async (period = '30days', businessId) => {
+    const params = businessId ? { period, businessId } : { period };
+    const response = await api.get('/admin/stats/reviews/trends', { params });
     return response.data;
   },
 

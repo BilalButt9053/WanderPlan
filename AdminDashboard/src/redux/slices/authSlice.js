@@ -2,8 +2,8 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   user: null,
-  token: localStorage.getItem('adminToken') || null,
-  isAuthenticated: !!localStorage.getItem('adminToken'),
+  token: localStorage.getItem('authToken') || localStorage.getItem('adminToken') || null,
+  isAuthenticated: !!(localStorage.getItem('authToken') || localStorage.getItem('adminToken')),
   loading: false,
   error: null,
 };
@@ -22,6 +22,7 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.error = null;
+      localStorage.setItem('authToken', action.payload.token);
       localStorage.setItem('adminToken', action.payload.token);
     },
     loginFailure: (state, action) => {
@@ -32,6 +33,7 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
+      localStorage.removeItem('authToken');
       localStorage.removeItem('adminToken');
     },
     updateProfile: (state, action) => {
