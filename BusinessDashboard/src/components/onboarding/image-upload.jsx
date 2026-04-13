@@ -58,6 +58,9 @@ export function ImageUpload({
 
           const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}${uploadEndpoint}`, {
             method: 'POST',
+            headers: {
+              'ngrok-skip-browser-warning': '1',
+            },
             body: formData,
           });
 

@@ -8,13 +8,15 @@ const MenuItem = require("../modals/menu-item-modal");
 const Deal = require("../modals/deal-modal");
 const Review = require("../modals/review-models");
 
+const getAuthBusinessId = (req) => req.business?.business_id || req.businessId || req.business?._id;
+
 /**
  * Get comprehensive business dashboard analytics
  * GET /api/business/analytics/dashboard
  */
 const getDashboardAnalytics = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
 
         const [
             business,
@@ -103,7 +105,7 @@ const getDashboardAnalytics = async (req, res, next) => {
  */
 const getDealAnalytics = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
         const { period = '30days' } = req.query;
 
         let days = 30;
@@ -166,7 +168,7 @@ const getDealAnalytics = async (req, res, next) => {
  */
 const getMenuAnalytics = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
 
         const menuItems = await MenuItem.find({ business: businessId }).lean();
 
@@ -223,7 +225,7 @@ const getMenuAnalytics = async (req, res, next) => {
  */
 const getReviewAnalytics = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
         const { period = '30days' } = req.query;
 
         let days = 30;
@@ -301,7 +303,7 @@ const getReviewAnalytics = async (req, res, next) => {
  */
 const getEngagementTrend = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
         const { period = '30days' } = req.query;
 
         let days = 30;

@@ -67,6 +67,14 @@ export function ReviewsOverview() {
   const reviews = reviewsData?.data?.reviews || []
   const pagination = reviewsData?.data?.pagination || {}
   const stats = statsData?.data || {}
+  const distributionByRating = Array.isArray(stats.ratingDistribution)
+    ? stats.ratingDistribution.reduce((acc, item) => {
+        if (typeof item?.rating === 'number') {
+          acc[item.rating] = Number(item.count) || 0
+        }
+        return acc
+      }, {})
+    : stats.ratingDistribution || {}
 
   const formatTimeAgo = (timestamp) => {
     const now = new Date()
@@ -190,7 +198,7 @@ export function ReviewsOverview() {
         <CardContent>
           <div className="space-y-2">
             {[5, 4, 3, 2, 1].map((rating) => {
-              const count = stats.ratingDistribution?.[rating] || 0
+              const count = distributionByRating?.[rating] || 0
               const percentage = stats.totalReviews > 0 ? (count / stats.totalReviews) * 100 : 0
               return (
                 <div key={rating} className="flex items-center gap-3">

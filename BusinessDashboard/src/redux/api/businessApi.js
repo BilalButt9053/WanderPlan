@@ -7,6 +7,10 @@ export const businessApi = createApi({
   baseQuery: fetchBaseQuery({
     baseUrl: baseUrl,
     prepareHeaders: (headers, { getState }) => {
+      if (baseUrl.includes('ngrok-free.dev')) {
+        headers.set('ngrok-skip-browser-warning', '1')
+      }
+
       const token = getState().businessAuth.token
       if (token) {
         headers.set('Authorization', `Bearer ${token}`)

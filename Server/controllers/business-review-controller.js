@@ -5,13 +5,15 @@
 
 const Review = require("../modals/review-models");
 
+const getAuthBusinessId = (req) => req.business?.business_id || req.businessId || req.business?._id;
+
 /**
  * Get all reviews for the business
  * GET /api/business/reviews
  */
 const getBusinessReviews = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
         const {
             status,
             minRating,
@@ -86,7 +88,7 @@ const getBusinessReviews = async (req, res, next) => {
  */
 const getReviewById = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
         const { id } = req.params;
 
         const review = await Review.findOne({ _id: id, place: businessId });
@@ -113,7 +115,7 @@ const getReviewById = async (req, res, next) => {
  */
 const replyToReview = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
         const { id } = req.params;
         const { text } = req.body;
 
@@ -158,7 +160,7 @@ const replyToReview = async (req, res, next) => {
  */
 const updateReply = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
         const { id } = req.params;
         const { text } = req.body;
 
@@ -207,7 +209,7 @@ const updateReply = async (req, res, next) => {
  */
 const deleteReply = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
         const { id } = req.params;
 
         const review = await Review.findOne({ _id: id, place: businessId });
@@ -239,7 +241,7 @@ const deleteReply = async (req, res, next) => {
  */
 const getReviewStats = async (req, res, next) => {
     try {
-        const businessId = req.business._id;
+        const businessId = getAuthBusinessId(req);
 
         const reviews = await Review.find({ place: businessId }).lean();
 
