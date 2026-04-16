@@ -110,6 +110,11 @@ export const usersService = {
     return response.data;
   },
 
+  removeAdmin: async (id) => {
+    const response = await api.delete(`/admin/remove-admin/${id}`);
+    return response.data;
+  },
+
   getUserStats: async () => {
     const response = await api.get('/admin/users/stats');
     return response.data;
@@ -401,6 +406,18 @@ export const reportsService = {
 
   getReportStats: async () => {
     const response = await api.get('/admin/reports/stats');
+    return response.data;
+  },
+};
+
+export const legacySettingsService = {
+  getSettings: async () => {
+    const response = await api.get('/admin/settings');
+    return response.data;
+  },
+
+  updateSettings: async (data) => {
+    const response = await api.put('/admin/settings', data);
     return response.data;
   },
 };

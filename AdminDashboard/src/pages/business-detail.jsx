@@ -166,6 +166,75 @@ export default function BusinessDetailPage() {
           <p className="text-sm text-muted-foreground">{business.description || "No description provided."}</p>
         </CardContent>
       </Card>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>License</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm">
+            {business.license?.url ? (
+              <a className="text-blue-600 underline" href={business.license.url} target="_blank" rel="noreferrer">
+                View License Document
+              </a>
+            ) : (
+              <p className="text-muted-foreground">No license document uploaded.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Utilities</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>Notifications: {business.utilities?.notificationsEnabled ? "Enabled" : "Disabled"}</p>
+            <p>2FA: {business.utilities?.twoFactorEnabled ? "Enabled" : "Disabled"}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Gallery Images</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {business.images?.length ? (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {business.images.map((img, idx) => (
+                <img
+                  key={`${img.url || idx}-${idx}`}
+                  src={img.url || img}
+                  alt={`Business image ${idx + 1}`}
+                  className="h-28 w-full rounded-md object-cover"
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No gallery images uploaded.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Documents</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {business.documents?.length ? (
+            business.documents.map((doc, idx) => (
+              <div key={`${doc.url || idx}-${idx}`} className="flex items-center justify-between rounded-md border p-2">
+                <span className="capitalize">{doc.type || 'document'}</span>
+                <a className="text-blue-600 underline" href={doc.url} target="_blank" rel="noreferrer">
+                  Open
+                </a>
+              </div>
+            ))
+          ) : (
+            <p className="text-muted-foreground">No documents available.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

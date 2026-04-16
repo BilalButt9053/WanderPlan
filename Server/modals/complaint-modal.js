@@ -26,6 +26,12 @@ const ComplaintSchema = new mongoose.Schema(
       trim: true,
       maxlength: 2000,
     },
+    reportedReviewId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Review',
+      default: null,
+      index: true,
+    },
     status: {
       type: String,
       enum: ['pending', 'in_review', 'resolved', 'rejected'],

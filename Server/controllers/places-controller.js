@@ -94,6 +94,20 @@ const getNearbyPlaces = async (req, res, next) => {
             });
         }
 
+        const parsedLat = Number(lat);
+        const parsedLng = Number(lng);
+        if (
+            Number.isNaN(parsedLat) ||
+            Number.isNaN(parsedLng) ||
+            parsedLat < -90 || parsedLat > 90 ||
+            parsedLng < -180 || parsedLng > 180
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid coordinates'
+            });
+        }
+
         if (!GOOGLE_PLACES_API_KEY) {
             return res.status(503).json({
                 success: false,
@@ -111,7 +125,7 @@ const getNearbyPlaces = async (req, res, next) => {
         };
 
         const params = {
-            location: `${lat},${lng}`,
+            location: `${parsedLat},${parsedLng}`,
             radius: Math.min(Number(radius), 50000),
             key: GOOGLE_PLACES_API_KEY
         };
@@ -183,7 +197,11 @@ const searchPlaces = async (req, res, next) => {
         };
 
         if (lat && lng) {
-            params.location = `${lat},${lng}`;
+            const parsedLat = Number(lat);
+            const parsedLng = Number(lng);
+            if (!Number.isNaN(parsedLat) && !Number.isNaN(parsedLng)) {
+                params.location = `${parsedLat},${parsedLng}`;
+            }
             params.radius = Math.min(Number(radius), 50000);
         }
 

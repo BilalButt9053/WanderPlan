@@ -27,6 +27,10 @@ const SignUp = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    isPrimaryAdmin: {
+        type: Boolean,
+        default: false
+    },
     isVerified: {
         type: Boolean,
         default: false
@@ -65,8 +69,16 @@ const SignUp = new mongoose.Schema({
     contribution: {
         points: { type: Number, default: 0 },
         level: { type: Number, default: 1 },
-        badges: [{ type: String, trim: true }],
+        badges: [{
+            name: { type: String, required: true, trim: true },
+            icon: { type: String, default: '' },
+            earnedAt: { type: Date, default: Date.now }
+        }],
         lastAwardedAt: { type: Date, default: null }
+    },
+    activeSessionId: {
+        type: String,
+        default: null
     },
     // Notification preferences
     notificationPreferences: {
@@ -106,6 +118,7 @@ SignUp.pre('save', async function () {
             user_id:this._id.toString(),
             email:this.email,
             isAdmin:this.isAdmin,
+            sessionId: this.activeSessionId || null,
         },
         process.env.JWT_SECRET_KEY,
         {
@@ -124,6 +137,7 @@ SignUp.pre('save', async function () {
             user_id:this._id.toString(),
             email:this.email,
             isAdmin:this.isAdmin,
+            sessionId: this.activeSessionId || null,
         },
         process.env.JWT_SECRET_KEY,
         {

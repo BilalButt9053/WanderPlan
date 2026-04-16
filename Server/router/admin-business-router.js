@@ -12,6 +12,7 @@ router.route('/businesses/stats').get(authMiddleware, adminMiddleware, adminBusi
 
 // Get single business
 router.route('/businesses/:id').get(authMiddleware, adminMiddleware, adminBusinessController.getBusinessById);
+router.route('/business/:id').get(authMiddleware, adminMiddleware, adminBusinessController.getBusinessById);
 
 // Approve business
 router.route('/businesses/:id/approve').post(authMiddleware, adminMiddleware, adminBusinessController.approveBusiness);

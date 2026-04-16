@@ -1,18 +1,21 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { retry } from "@reduxjs/toolkit/query";
 import { BASE_URL } from "../../config";
+
+const rawBaseQuery = fetchBaseQuery({ 
+  baseUrl: BASE_URL,
+  prepareHeaders: (headers, { getState }) => {
+    const token = getState().auth.token;
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    return headers;
+  },
+});
 
 export const authApi = createApi({
   reducerPath: "authApi",
-  baseQuery: fetchBaseQuery({ 
-    baseUrl: BASE_URL,
-    prepareHeaders: (headers, { getState }) => {
-      const token = getState().auth.token;
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: retry(rawBaseQuery, { maxRetries: 2 }),
   endpoints: (builder) => ({
     registerUser: builder.mutation({
       query: (userData) => ({

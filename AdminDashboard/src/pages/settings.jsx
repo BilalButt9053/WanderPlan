@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -6,10 +7,50 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { settingsService } from "@/services/adminService"
 
 const categories = ["Restaurants", "Hotels", "Tours", "Cafes", "Resorts", "Attractions", "Shopping", "Nightlife"]
 
 export default function SettingsPage() {
+  const [timezone, setTimezone] = useState("utc")
+  const [currency, setCurrency] = useState("usd")
+  const [language, setLanguage] = useState("en")
+  const [maintenanceMode, setMaintenanceMode] = useState(false)
+  const [pollingSeconds, setPollingSeconds] = useState("15")
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await settingsService.getSettings()
+        const settings = response?.data
+        if (!settings) return
+
+        setTimezone(settings?.regional?.timezone || "utc")
+        setCurrency(settings?.regional?.currency || "usd")
+        setLanguage(settings?.regional?.language || "en")
+        setMaintenanceMode(!!settings?.maintenanceMode?.enabled)
+        setPollingSeconds(String(settings?.notifications?.realtimePollingSeconds || 15))
+      } catch (_error) {
+        // Keep defaults on load failure.
+      }
+    }
+
+    loadSettings()
+  }, [])
+
+  const handleSave = async () => {
+    await settingsService.updateSettings({
+      regional: { timezone, currency, language },
+      maintenanceMode: {
+        enabled: maintenanceMode,
+        message: "The platform is under maintenance. Please try again shortly.",
+      },
+      notifications: {
+        realtimePollingSeconds: Number(pollingSeconds) || 15,
+      },
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -64,7 +105,7 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="timezone">Default Timezone</Label>
-                  <Select defaultValue="utc">
+                  <Select value={timezone} onValueChange={setTimezone}>
                     <SelectTrigger id="timezone">
                       <SelectValue />
                     </SelectTrigger>
@@ -78,7 +119,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="currency">Default Currency</Label>
-                  <Select defaultValue="usd">
+                  <Select value={currency} onValueChange={setCurrency}>
                     <SelectTrigger id="currency">
                       <SelectValue />
                     </SelectTrigger>
@@ -92,7 +133,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="language">Default Language</Label>
-                  <Select defaultValue="en">
+                  <Select value={language} onValueChange={setLanguage}>
                     <SelectTrigger id="language">
                       <SelectValue />
                     </SelectTrigger>
@@ -109,7 +150,7 @@ export default function SettingsPage() {
 
             <div className="flex justify-end gap-2">
               <Button variant="outline">Cancel</Button>
-              <Button>Save Changes</Button>
+              <Button onClick={handleSave}>Save Changes</Button>
             </div>
         </TabsContent>
 
@@ -156,7 +197,6 @@ export default function SettingsPage() {
                   { id: "photo-uploads", label: "Photo Uploads", description: "Allow users to upload photos", defaultChecked: true },
                   { id: "gamification", label: "Gamification System", description: "Enable levels, badges, and rewards", defaultChecked: true },
                   { id: "deals", label: "Deals & Promotions", description: "Enable businesses to create deals", defaultChecked: true },
-                  { id: "maintenance-mode", label: "Maintenance Mode", description: "Put platform in maintenance mode", defaultChecked: false },
                 ].map((feature) => (
                   <div key={feature.id} className="flex items-center justify-between border-b border-border pb-4">
                     <div className="space-y-1">
@@ -166,12 +206,23 @@ export default function SettingsPage() {
                     <Switch id={feature.id} defaultChecked={feature.defaultChecked} />
                   </div>
                 ))}
+                <div className="flex items-center justify-between border-b border-border pb-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="maintenance-mode">Maintenance Mode</Label>
+                    <p className="text-sm text-muted-foreground">Put platform in maintenance mode</p>
+                  </div>
+                  <Switch id="maintenance-mode" checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="polling-seconds">Notifications Polling (seconds)</Label>
+                  <Input id="polling-seconds" value={pollingSeconds} onChange={(e) => setPollingSeconds(e.target.value)} />
+                </div>
               </CardContent>
             </Card>
 
             <div className="flex justify-end gap-2">
               <Button variant="outline">Cancel</Button>
-              <Button>Save Changes</Button>
+              <Button onClick={handleSave}>Save Changes</Button>
             </div>
         </TabsContent>
 

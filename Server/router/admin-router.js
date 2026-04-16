@@ -18,5 +18,6 @@ router.patch('/users/update/:id', admin_controller.UpdateUserById);
 router.put('/users/:id/block', admin_controller.blockUser);
 router.put('/users/:id/unblock', admin_controller.unblockUser);
 router.post('/make-admin', admin_controller.makeUserAdmin);
+router.delete('/remove-admin/:id', admin_controller.removeAdmin);
 
 module.exports = router;

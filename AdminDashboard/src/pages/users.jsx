@@ -94,8 +94,9 @@ export default function UsersPage() {
         page,
         limit: 15,
         search: searchQuery || undefined,
-        role: filterRole !== 'all' ? filterRole : undefined,
-        status: filterStatus !== 'all' ? filterStatus : undefined,
+        isAdmin: filterRole === 'all' ? undefined : filterRole === 'admin',
+        isBlocked: filterStatus === 'blocked' ? true : undefined,
+        isVerified: filterStatus === 'unverified' ? false : undefined,
       });
 
       setUsers(response?.data?.users || response || []);
@@ -122,6 +123,29 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers();
   }, [page, searchQuery, filterRole, filterStatus]);
+
+  useEffect(() => {
+    if (!viewDialog.open || !viewDialog.user?._id) return;
+
+    const refetchDetails = async () => {
+      try {
+        const response = await usersService.getUserDetails(viewDialog.user._id);
+        setUserDetails(response?.data || response);
+      } catch (_error) {
+        // Keep old data visible if a poll fails.
+      }
+    };
+
+    refetchDetails();
+    const intervalId = setInterval(refetchDetails, 15000);
+    const onFocus = () => refetchDetails();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [viewDialog.open, viewDialog.user?._id]);
 
   const handleBlockUser = async () => {
     if (!blockDialog.user) return;
@@ -208,6 +232,29 @@ export default function UsersPage() {
       toast({
         title: "Error",
         description: error.response?.data?.message || "Failed to grant admin privileges",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRemoveAdmin = async (id) => {
+    if (!confirm('Are you sure you want to remove admin privileges from this user?')) return;
+
+    try {
+      setActionLoading(id);
+      await usersService.removeAdmin(id);
+      toast({
+        title: "Success",
+        description: "Admin privileges removed",
+      });
+      fetchUsers();
+    } catch (error) {
+      console.error('Error removing admin:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to remove admin privileges",
         variant: "destructive",
       });
     } finally {
@@ -465,6 +512,12 @@ export default function UsersPage() {
                                 Make Admin
                               </DropdownMenuItem>
                             )}
+                            {user.isAdmin && !user.isPrimaryAdmin && (
+                              <DropdownMenuItem onClick={() => handleRemoveAdmin(user._id)}>
+                                <ShieldCheck className="mr-2 h-4 w-4 text-orange-500" />
+                                <span className="text-orange-500">Remove Admin</span>
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             {user.isBlocked ? (
                               <DropdownMenuItem onClick={() => handleUnblockUser(user._id)}>
@@ -611,19 +664,19 @@ export default function UsersPage() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Total Trips</p>
-                  <p className="font-medium">{userDetails.tripCount || 0}</p>
+                  <p className="font-medium">{userDetails.stats?.totalTrips || userDetails.tripCount || 0}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Total Reviews</p>
-                  <p className="font-medium">{userDetails.reviewCount || 0}</p>
+                  <p className="font-medium">{userDetails.stats?.totalReviews || userDetails.reviewCount || 0}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Level</p>
-                  <p className="font-medium">{userDetails.level || 1}</p>
+                  <p className="font-medium">{userDetails.stats?.level || userDetails.level || 1}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Points</p>
-                  <p className="font-medium">{userDetails.points || 0}</p>
+                  <p className="font-medium">{userDetails.stats?.points || userDetails.points || 0}</p>
                 </div>
               </div>
 

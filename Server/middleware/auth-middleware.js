@@ -16,6 +16,18 @@ const authMiddleware =async (req,res,next) =>{
             confirmPassword:0,
         })
 
+        if (!userData) {
+            return res.status(401).json({ message: "Unauthorized HTTP, User not found" });
+        }
+
+        if (userData.isBlocked) {
+            return res.status(403).json({ message: "Account blocked" });
+        }
+
+        if (userData.activeSessionId && userData.activeSessionId !== isVerified.sessionId) {
+            return res.status(401).json({ message: "Session expired. Please login again." });
+        }
+
         req.user=userData;
 
 

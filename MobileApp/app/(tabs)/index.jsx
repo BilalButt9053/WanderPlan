@@ -89,7 +89,10 @@ export default function Page() {
   const reviewProgress = 60;
 
   // Fetch deals from API
-  const { data: dealsData, isLoading: dealsLoading, error: dealsError } = useGetDealsQuery({ limit: 10 });
+  const { data: dealsData, isLoading: dealsLoading, error: dealsError } = useGetDealsQuery(
+    { limit: 10 },
+    { pollingInterval: 15000, refetchOnFocus: true, refetchOnReconnect: true }
+  );
 
   // Transform API deals to match expected format
   const deals = React.useMemo(() => {
@@ -129,7 +132,10 @@ export default function Page() {
   const {
     data: tripsData,
     isLoading: completedTripsLoading,
-  } = useGetCompletedTripsQuery({ limit: 20 });
+  } = useGetCompletedTripsQuery(
+    { limit: 20 },
+    { pollingInterval: 20000, refetchOnFocus: true, refetchOnReconnect: true }
+  );
 
   const completedTrips = React.useMemo(() => {
     const trips = tripsData?.trips || [];
@@ -311,7 +317,12 @@ export default function Page() {
             contentContainerStyle={{ gap: 12 }}
           >
             {deals.map((deal) => (
-              <TouchableOpacity key={deal.id} style={{ width: width * 0.75 }} activeOpacity={0.9}>
+              <TouchableOpacity
+                key={deal.id}
+                style={{ width: width * 0.75 }}
+                activeOpacity={0.9}
+                onPress={() => router.push('/(tabs)/maps')}
+              >
                 <WanderCard padding="none" className="overflow-hidden" hover>
                   <View className="flex-row items-center gap-3 p-3">
                     <View className="w-20 h-20 rounded-xl overflow-hidden">
@@ -379,35 +390,37 @@ export default function Page() {
 
           <View className="gap-3">
             {hiddenGems.map((gem) => (
-              <WanderCard key={gem.id} padding="none" className="overflow-hidden" hover>
-                <View className="flex-row items-center gap-3 p-3">
-                  <View className="w-16 h-16 rounded-xl overflow-hidden">
-                    <ImageWithFallback
-                      src={gem.image}
-                      alt={gem.name}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text style={{ color: colors.text }} className="text-base font-bold mb-1">{gem.name}</Text>
-                    <View className="flex-row items-center gap-3">
-                      <View className="flex-row items-center gap-1">
-                        <Star size={12} fill="#10B981" color="#10B981" />
-                        <Text style={{ color: colors.textSecondary }} className="text-xs">{gem.rating}</Text>
-                      </View>
-                      <View className="flex-row items-center gap-1">
-                        <Navigation size={12} color={colors.textSecondary} />
-                        <Text style={{ color: colors.textSecondary }} className="text-xs">{gem.distance}</Text>
-                      </View>
+              <TouchableOpacity key={gem.id} activeOpacity={0.9} onPress={() => router.push('/(tabs)/maps')}>
+                <WanderCard padding="none" className="overflow-hidden" hover>
+                  <View className="flex-row items-center gap-3 p-3">
+                    <View className="w-16 h-16 rounded-xl overflow-hidden">
+                      <ImageWithFallback
+                        src={gem.image}
+                        alt={gem.name}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
                     </View>
-                    <WanderChip variant="secondary" size="sm" className="mt-2 self-start">
-                      {gem.category}
-                    </WanderChip>
+                    <View className="flex-1">
+                      <Text style={{ color: colors.text }} className="text-base font-bold mb-1">{gem.name}</Text>
+                      <View className="flex-row items-center gap-3">
+                        <View className="flex-row items-center gap-1">
+                          <Star size={12} fill="#10B981" color="#10B981" />
+                          <Text style={{ color: colors.textSecondary }} className="text-xs">{gem.rating}</Text>
+                        </View>
+                        <View className="flex-row items-center gap-1">
+                          <Navigation size={12} color={colors.textSecondary} />
+                          <Text style={{ color: colors.textSecondary }} className="text-xs">{gem.distance}</Text>
+                        </View>
+                      </View>
+                      <WanderChip variant="secondary" size="sm" className="mt-2 self-start">
+                        {gem.category}
+                      </WanderChip>
+                    </View>
+                    <ChevronRight size={20} color="#9CA3AF" />
                   </View>
-                  <ChevronRight size={20} color="#9CA3AF" />
-                </View>
-              </WanderCard>
+                </WanderCard>
+              </TouchableOpacity>
             ))}
           </View>
         </View>

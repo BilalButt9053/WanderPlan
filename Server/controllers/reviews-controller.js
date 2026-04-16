@@ -89,6 +89,8 @@ exports.toggleLike = async (req, res, next) => {
       review.likedBy.splice(idx, 1);
     } else {
       review.likedBy.push(userId);
+      // Enforce single reaction mode: liking removes helpful reaction.
+      review.helpfulBy = review.helpfulBy.filter((u) => String(u) !== String(userId));
     }
     await review.save();
     res.json({ id: review._id, likes: review.likedBy.length, isLiked });
@@ -110,6 +112,8 @@ exports.toggleHelpful = async (req, res, next) => {
       review.helpfulBy.splice(idx, 1);
     } else {
       review.helpfulBy.push(userId);
+      // Enforce single reaction mode: helpful removes like reaction.
+      review.likedBy = review.likedBy.filter((u) => String(u) !== String(userId));
     }
     await review.save();
     res.json({ id: review._id, helpful: review.helpfulBy.length, isHelpful });

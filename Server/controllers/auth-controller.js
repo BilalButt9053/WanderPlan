@@ -1,6 +1,7 @@
 const Signup = require("../modals/user-modals");
 const nodemailer = require("nodemailer");
 const EmailVerificationToken = require("../modals/EmailVerificationToken");
+const crypto = require("crypto");
 
 // Generate OTP
 const generateOTP = () => {
@@ -64,9 +65,15 @@ const sendOTPEmail = async (email, OTP) => {
     }
 };
 
+const rotateSessionAndToken = async (user) => {
+    user.activeSessionId = crypto.randomBytes(24).toString("hex");
+    await user.save();
+    const token = await user.jwtToken();
+    return token;
+};
+
 const register = async(req,res,next)=>{
     try{
-        console.log(req.body);
         const {fullName,email,password}=req.body
        
        const userExist =await Signup.findOne({email });
@@ -102,13 +109,22 @@ const register = async(req,res,next)=>{
        });
        await emailVerificationToken.save();
 
-       // Send OTP via email
-       await sendOTPEmail(email, OTP);
+       // Send OTP via email. Keep API stable even if SMTP fails in non-production envs.
+       let otpSent = true;
+       try {
+           await sendOTPEmail(email, OTP);
+       } catch (emailError) {
+           otpSent = false;
+           console.error('[auth-controller] register OTP send failed:', emailError.message);
+       }
 
        res.status(200).json({
-        msg:"Registration successful! Please check your email for verification OTP",
+        msg: otpSent
+            ? "Registration successful! Please check your email for verification OTP"
+            : "Registration successful! OTP email could not be sent right now. Please retry OTP resend.",
         requiresVerification: true,
-        email: email
+        email: email,
+        otpSent
     });
     }catch(error){
         // res.status(500).json("internal server error", error);
@@ -118,22 +134,25 @@ const register = async(req,res,next)=>{
 
 const login = async (req, res, next) => {
     try {
-        console.log("login", req.body);
-        
         const { email, password } = req.body;
         
         // Check if the user exists
         const userExist = await Signup.findOne({ email });
-        console.log("userExist", userExist);
 
         if (!userExist) {
             // User does not exist, send error response
             return res.status(400).json({ message: "Invalid Credential" });
         }
 
+        if (userExist.isBlocked) {
+            return res.status(403).json({
+                message: "Account blocked",
+                success: false,
+            });
+        }
+
         // Check if the password matches
         const match = await userExist.comparePassword(password);
-        console.log("match", match);
 
         if (match) {
             // Check if email is verified
@@ -166,7 +185,7 @@ const login = async (req, res, next) => {
             }
 
             // For verified users, login directly without OTP
-            const token = await userExist.jwtToken();
+            const token = await rotateSessionAndToken(userExist);
             
             return res.status(200).json({
                 msg: "Login successful",
@@ -220,6 +239,10 @@ const forgotPassword = async (req, res, next) => {
             return res.status(404).json({ message: "No account found with this email" });
         }
 
+        if (userExist.isBlocked) {
+            return res.status(403).json({ message: "Account blocked" });
+        }
+
         // Generate OTP for password reset
         const OTP = generateOTP();
 
@@ -242,8 +265,16 @@ const forgotPassword = async (req, res, next) => {
                 user: process.env.SMTP_USER || "02c0b2df6efaeb",
                 pass: process.env.SMTP_PASS || "6e297ec4cd36c6",
             },
+            tls: {
+                rejectUnauthorized: false,
+                minVersion: 'TLSv1.2'
+            },
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 10000,
         });
 
+        await transport.verify();
         await transport.sendMail({
             from: "WanderPlan@example.com",
             to: email,
@@ -340,6 +371,13 @@ const socialLogin = async (req, res, next) => {
         let user = await Signup.findOne({ email });
 
         if (user) {
+            if (user.isBlocked) {
+                return res.status(403).json({
+                    message: "Account blocked",
+                    success: false,
+                });
+            }
+
             // Update social login info if not already set
             if (!user.socialLogins) {
                 user.socialLogins = [];
@@ -380,7 +418,7 @@ const socialLogin = async (req, res, next) => {
         }
 
         // Generate JWT token
-        const token = await user.jwtToken();
+        const token = await rotateSessionAndToken(user);
 
         res.status(200).json({
             message: "Social login successful",

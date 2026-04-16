@@ -1,16 +1,19 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { retry } from '@reduxjs/toolkit/query';
 import { BASE_URL } from '../../config';
+
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: BASE_URL,
+  prepareHeaders: (headers, { getState }) => {
+    const token = getState()?.auth?.token;
+    if (token) headers.set('authorization', `Bearer ${token}`);
+    return headers;
+  },
+});
 
 export const reviewsApi = createApi({
   reducerPath: 'reviewsApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: BASE_URL,
-    prepareHeaders: (headers, { getState }) => {
-      const token = getState()?.auth?.token;
-      if (token) headers.set('authorization', `Bearer ${token}`);
-      return headers;
-    },
-  }),
+  baseQuery: retry(rawBaseQuery, { maxRetries: 2 }),
   tagTypes: ['Reviews'],
   endpoints: (builder) => ({
     getReviews: builder.query({
@@ -63,6 +66,19 @@ export const reviewsApi = createApi({
       query: (id) => ({ url: `/reviews/${id}/save`, method: 'POST' }),
       invalidatesTags: (result, error, id) => [{ type: 'Reviews', id }, { type: 'Reviews', id: 'LIST' }],
     }),
+    reportReview: builder.mutation({
+      query: ({ id, reason }) => ({
+        url: '/reports',
+        method: 'POST',
+        body: {
+          type: 'review',
+          subject: 'Reported Review',
+          description: reason,
+          reviewId: id,
+          priority: 'medium',
+        },
+      }),
+    }),
   }),
 });
 
@@ -76,4 +92,5 @@ export const {
   useUpdateReviewMutation,
   useUploadImagesMutation,
   useToggleSaveMutation,
+  useReportReviewMutation,
 } = reviewsApi;

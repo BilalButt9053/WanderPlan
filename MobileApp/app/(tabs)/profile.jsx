@@ -16,6 +16,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logout, updateUser, selectCurrentUser } from '../../redux/slices/authSlice';
 import { useUpdateProfileMutation } from '../../redux/api/authApi';
 import {
+  useGetProfileQuery,
   useGetProfileStatsQuery,
   useGetRewardsQuery,
   useGetNotificationsQuery,
@@ -84,9 +85,11 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Fetch profile data from API
-  const { data: profileData, isLoading: profileLoading, refetch: refetchProfile } = useGetProfileStatsQuery();
-  const { data: rewardsData, isLoading: rewardsLoading } = useGetRewardsQuery('all');
-  const { data: notificationsData, isLoading: notificationsLoading } = useGetNotificationsQuery({ page: 1, limit: 20 });
+  const realtimeOpts = { pollingInterval: 15000, refetchOnFocus: true, refetchOnReconnect: true };
+  const { data: profileBaseData } = useGetProfileQuery(undefined, realtimeOpts);
+  const { data: profileData, isLoading: profileLoading, refetch: refetchProfile } = useGetProfileStatsQuery(undefined, realtimeOpts);
+  const { data: rewardsData, isLoading: rewardsLoading } = useGetRewardsQuery('all', { pollingInterval: 20000, refetchOnFocus: true, refetchOnReconnect: true });
+  const { data: notificationsData, isLoading: notificationsLoading } = useGetNotificationsQuery({ page: 1, limit: 20 }, realtimeOpts);
 
   const userProfile = useMemo(() => {
     if (profileData?.success) {
@@ -99,7 +102,7 @@ const Profile = () => {
         points: gamification.points || 0,
         nextLevelPoints: gamification.nextLevelPoints || 100,
         location: 'Pakistan',
-        memberSince: profile.memberSince || 'New member',
+        memberSince: profileBaseData?.profile?.memberSince || profile.memberSince || 'New member',
         stats: {
           reviews: stats.reviews || 0,
           trips: stats.trips || 0,
@@ -123,7 +126,7 @@ const Profile = () => {
       points,
       nextLevelPoints,
     };
-  }, [profileData, user]);
+  }, [profileData, profileBaseData, user]);
 
   // Transform notifications for the tab
   const notifications = useMemo(() => {

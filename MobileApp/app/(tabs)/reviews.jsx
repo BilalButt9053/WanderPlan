@@ -9,13 +9,14 @@ import {
 import {
   Plus,
   Award,
+  RefreshCw,
 } from 'lucide-react-native';
 import ReviewCard from '../components/ReviewCard';
 import CreateReviewModal from '../components/CreateReviewModal';
 import EditReviewModal from '../components/EditReviewModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
-import { useGetReviewsQuery, useCreateReviewMutation, useToggleLikeMutation, useToggleHelpfulMutation, useAddCommentMutation, useDeleteReviewMutation, useUpdateReviewMutation, useUploadImagesMutation, useToggleSaveMutation } from '../../redux/api/reviewsApi';
+import { useGetReviewsQuery, useCreateReviewMutation, useToggleLikeMutation, useToggleHelpfulMutation, useAddCommentMutation, useDeleteReviewMutation, useUpdateReviewMutation, useUploadImagesMutation, useToggleSaveMutation, useReportReviewMutation } from '../../redux/api/reviewsApi';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectCurrentUser } from '../../redux/slices/authSlice';
 
@@ -31,11 +32,15 @@ const Reviews = () => {
   
   const isAuthed = useSelector(selectIsAuthenticated);
   const currentUser = useSelector(selectCurrentUser);
-  const { data, refetch, isFetching } = useGetReviewsQuery({ category: 'all' });
+  const { data, refetch, isFetching } = useGetReviewsQuery(
+    { category: 'all' },
+    { pollingInterval: 15000, refetchOnFocus: true, refetchOnReconnect: true }
+  );
   const [createReview, { isLoading: isCreating }] = useCreateReviewMutation();
   const [toggleLike] = useToggleLikeMutation();
   const [toggleHelpful] = useToggleHelpfulMutation();
   const [toggleSave] = useToggleSaveMutation();
+  const [reportReview] = useReportReviewMutation();
   const [addComment] = useAddCommentMutation();
   const [deleteReview] = useDeleteReviewMutation();
   const [updateReview] = useUpdateReviewMutation();
@@ -124,9 +129,24 @@ const Reviews = () => {
     }
   };
 
+  const handleReport = async (reviewId) => {
+    if (!isAuthed) return Alert.alert('Login required', 'Please sign in to report reviews');
+    try {
+      await reportReview({ id: reviewId, reason: 'Inappropriate or abusive content' }).unwrap();
+      Alert.alert('Reported', 'Review reported successfully');
+      refetch();
+    } catch (_e) {
+      Alert.alert('Error', 'Could not report this review');
+    }
+  };
+
   const toggleReplies = (reviewId) => {
     const next = new Set(expandedReplies);
-    next.has(reviewId) ? next.delete(reviewId) : next.add(reviewId);
+    if (next.has(reviewId)) {
+      next.delete(reviewId);
+    } else {
+      next.add(reviewId);
+    }
     setExpandedReplies(next);
   };
 
@@ -151,20 +171,25 @@ const Reviews = () => {
         <View className="px-4 py-4">
           <View className="flex-row items-center justify-between mb-4">
             <Text style={{ color: colors.text }} className="text-2xl font-bold">Reviews</Text>
-            <TouchableOpacity
-              onPress={() => setShowCreateModal(true)}
-              className="w-12 h-12 rounded-full items-center justify-center"
-              style={{
-                backgroundColor: '#3B82F6',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 3.84,
-                elevation: 5,
-              }}
-            >
-              <Plus size={24} color="#fff" />
-            </TouchableOpacity>
+            <View className="flex-row items-center gap-3">
+              <TouchableOpacity onPress={() => refetch()}>
+                <RefreshCw size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowCreateModal(true)}
+                className="w-12 h-12 rounded-full items-center justify-center"
+                style={{
+                  backgroundColor: '#3B82F6',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 3.84,
+                  elevation: 5,
+                }}
+              >
+                <Plus size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Category Tabs */}
@@ -247,6 +272,7 @@ const Reviews = () => {
               currentUserId={currentUser?._id}
               onEdit={() => handleEdit(review)}
               onDelete={() => handleDelete(review.id)}
+              onReport={() => handleReport(review.id)}
             />
           ))}
         </View>

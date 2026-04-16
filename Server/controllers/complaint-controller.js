@@ -5,18 +5,22 @@ const Complaint = require('../modals/complaint-modal');
 const createComplaint = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const { type = 'other', subject, description, priority = 'medium' } = req.body || {};
+    const { type = 'other', subject, description, priority = 'medium', reviewId } = req.body || {};
 
-    if (!subject || !description) {
+    const normalizedType = reviewId ? 'review' : type;
+    const normalizedSubject = subject || (reviewId ? 'Reported Review' : null);
+
+    if (!normalizedSubject || !description) {
       return res.status(400).json({ success: false, message: 'subject and description are required' });
     }
 
     const complaint = await Complaint.create({
       userId,
-      type,
-      subject,
+      type: normalizedType,
+      subject: normalizedSubject,
       description,
       priority,
+      reportedReviewId: reviewId || null,
     });
 
     res.status(201).json({ success: true, complaint });

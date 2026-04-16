@@ -34,91 +34,51 @@ import {
   XCircle,
   Ban,
   Calendar,
+  Loader2,
 } from "lucide-react"
-
-const deals = [
-  {
-    id: 1,
-    title: "Summer Sale - 50% Off",
-    business: "Sunset Restaurant",
-    type: "Seasonal Promotion",
-    status: "Active",
-    startDate: "2024-12-01",
-    endDate: "2024-12-31",
-    impressions: 12450,
-    clicks: 890,
-    conversions: 234,
-  },
-  {
-    id: 2,
-    title: "Weekend Getaway Package",
-    business: "Mountain View Hotel",
-    type: "Package Deal",
-    status: "Active",
-    startDate: "2024-11-15",
-    endDate: "2025-01-15",
-    impressions: 28900,
-    clicks: 2100,
-    conversions: 567,
-  },
-  {
-    id: 3,
-    title: "Holiday Special Tour",
-    business: "Adventure Tours",
-    type: "Limited Time Offer",
-    status: "Pending",
-    startDate: "2024-12-24",
-    endDate: "2025-01-05",
-    impressions: 0,
-    clicks: 0,
-    conversions: 0,
-  },
-  {
-    id: 4,
-    title: "Buy One Get One Free",
-    business: "Cafe Delight",
-    type: "Promotional",
-    status: "Expired",
-    startDate: "2024-11-01",
-    endDate: "2024-11-30",
-    impressions: 8340,
-    clicks: 670,
-    conversions: 145,
-  },
-  {
-    id: 5,
-    title: "Early Bird Discount",
-    business: "Beach Resort",
-    type: "Seasonal Promotion",
-    status: "Active",
-    startDate: "2024-12-01",
-    endDate: "2025-02-28",
-    impressions: 45200,
-    clicks: 3890,
-    conversions: 1023,
-  },
-  {
-    id: 6,
-    title: "New Year's Eve Dinner",
-    business: "Urban Bistro",
-    type: "Event Special",
-    status: "Pending",
-    startDate: "2024-12-31",
-    endDate: "2024-12-31",
-    impressions: 0,
-    clicks: 0,
-    conversions: 0,
-  },
-]
-
-const stats = [
-  { label: "Total Deals", value: "87" },
-  { label: "Active Campaigns", value: "43" },
-  { label: "Pending Approval", value: "8" },
-  { label: "Total Revenue", value: "$124.5K" },
-]
+import { useEffect, useMemo, useState } from "react"
+import { dealsService } from "@/services/adminService"
 
 export default function DealsPage() {
+  const [deals, setDeals] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
+  const [type, setType] = useState("all")
+  const [status, setStatus] = useState("all")
+
+  useEffect(() => {
+    const fetchDeals = async () => {
+      try {
+        setLoading(true)
+        const response = await dealsService.getDeals({
+          search: search || undefined,
+          type: type === "all" ? undefined : type,
+          status: status === "all" ? undefined : status,
+        })
+        setDeals(response?.data?.deals || [])
+      } catch (_error) {
+        setDeals([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDeals()
+  }, [search, type, status])
+
+  const stats = useMemo(() => {
+    const total = deals.length
+    const active = deals.filter((d) => d.status === "active").length
+    const pending = deals.filter((d) => d.status === "scheduled" || d.status === "draft").length
+    const totalViews = deals.reduce((sum, d) => sum + (d.analytics?.views || 0), 0)
+    return [
+      { label: "Total Deals", value: String(total) },
+      { label: "Active Campaigns", value: String(active) },
+      { label: "Pending", value: String(pending) },
+      { label: "Total Views", value: totalViews.toLocaleString() },
+    ]
+  }, [deals])
+
   return (
     <div className="space-y-6">
       <div>
@@ -159,31 +119,33 @@ export default function DealsPage() {
                   type="search"
                   placeholder="Search deals..."
                   className="pl-10"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
 
-              <Select defaultValue="all">
+              <Select value={type} onValueChange={setType}>
                 <SelectTrigger className="w-full md:w-40">
                   <Filter className="mr-2 h-4 w-4" />
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="seasonal">Seasonal</SelectItem>
-                  <SelectItem value="package">Package Deal</SelectItem>
-                  <SelectItem value="promotional">Promotional</SelectItem>
-                  <SelectItem value="event">Event Special</SelectItem>
+                  <SelectItem value="deal">Deal</SelectItem>
+                  <SelectItem value="ad">Ad</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select defaultValue="all">
+              <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger className="w-full md:w-40">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="paused">Paused</SelectItem>
                   <SelectItem value="expired">Expired</SelectItem>
                 </SelectContent>
               </Select>
@@ -206,13 +168,19 @@ export default function DealsPage() {
             </TableHeader>
 
             <TableBody>
-              {deals.map((deal) => (
-                <TableRow key={deal.id}>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                  </TableCell>
+                </TableRow>
+              ) : deals.map((deal) => (
+                <TableRow key={deal._id}>
                   <TableCell className="font-medium">
                     {deal.title}
                   </TableCell>
 
-                  <TableCell>{deal.business}</TableCell>
+                  <TableCell>{deal.business?.businessName || "N/A"}</TableCell>
 
                   <TableCell>
                     <Badge variant="secondary">{deal.type}</Badge>
@@ -221,9 +189,9 @@ export default function DealsPage() {
                   <TableCell>
                     <Badge
                       variant={
-                        deal.status === "Active"
+                        deal.status === "active"
                           ? "default"
-                          : deal.status === "Pending"
+                          : deal.status === "scheduled" || deal.status === "draft"
                           ? "secondary"
                           : "destructive"
                       }
@@ -235,15 +203,15 @@ export default function DealsPage() {
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Calendar className="h-3 w-3" />
-                      {deal.startDate} - {deal.endDate}
+                      {new Date(deal.startDate).toLocaleDateString()} - {new Date(deal.endDate).toLocaleDateString()}
                     </div>
                   </TableCell>
 
                   <TableCell>
                     <div className="space-y-1 text-sm">
-                      <div>Views: {deal.impressions.toLocaleString()}</div>
-                      <div>Clicks: {deal.clicks.toLocaleString()}</div>
-                      <div>Conv: {deal.conversions.toLocaleString()}</div>
+                      <div>Views: {(deal.analytics?.views || 0).toLocaleString()}</div>
+                      <div>Clicks: {(deal.analytics?.clicks || 0).toLocaleString()}</div>
+                      <div>Conv: {(deal.analytics?.redemptions || 0).toLocaleString()}</div>
                     </div>
                   </TableCell>
 
@@ -264,7 +232,7 @@ export default function DealsPage() {
                           View Details
                         </DropdownMenuItem>
 
-                        {deal.status === "Pending" && (
+                        {(deal.status === "scheduled" || deal.status === "draft") && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem>
@@ -278,7 +246,7 @@ export default function DealsPage() {
                           </>
                         )}
 
-                        {deal.status === "Active" && (
+                        {deal.status === "active" && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem className="text-destructive">

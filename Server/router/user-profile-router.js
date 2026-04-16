@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth-middleware');
 const {
+  getProfile,
   getProfileStats,
   getRewards,
   getNotifications,
@@ -14,6 +15,7 @@ const {
 router.use(authMiddleware);
 
 // Profile stats
+router.get('/profile', getProfile);
 router.get('/profile-stats', getProfileStats);
 
 // Rewards

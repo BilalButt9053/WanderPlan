@@ -72,6 +72,12 @@ const makeUserAdmin = async (req, res, next) => {
         }
 
         user.isAdmin = true;
+
+        const primaryAdminCount = await User.countDocuments({ isPrimaryAdmin: true, isAdmin: true });
+        if (primaryAdminCount === 0) {
+            user.isPrimaryAdmin = true;
+        }
+
         await user.save();
 
         res.status(200).json({
@@ -85,6 +91,74 @@ const makeUserAdmin = async (req, res, next) => {
         });
     } catch (error) {
         console.log("error=>", error);
+        next(error);
+    }
+};
+
+/**
+ * Remove admin privileges from a user
+ * DELETE /api/admin/remove-admin/:id
+ */
+const removeAdmin = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const primaryAdminCount = await User.countDocuments({ isPrimaryAdmin: true, isAdmin: true });
+        if (primaryAdminCount === 0 && req.user?.isAdmin) {
+            await User.findByIdAndUpdate(req.user._id, { isPrimaryAdmin: true });
+            req.user.isPrimaryAdmin = true;
+        }
+
+        if (!req.user?.isPrimaryAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: "Only primary admin can remove admins"
+            });
+        }
+
+        if (String(req.user._id) === String(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Primary admin cannot remove themselves"
+            });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        if (!user.isAdmin) {
+            return res.status(400).json({
+                success: false,
+                message: "User is not an admin"
+            });
+        }
+
+        if (user.isPrimaryAdmin) {
+            return res.status(400).json({
+                success: false,
+                message: "Primary admin cannot be removed"
+            });
+        }
+
+        user.isAdmin = false;
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Admin privileges removed successfully",
+            data: {
+                _id: user._id,
+                fullName: user.fullName,
+                email: user.email,
+                isAdmin: user.isAdmin,
+            }
+        });
+    } catch (error) {
         next(error);
     }
 };
@@ -281,7 +355,7 @@ const getUserDetails = async (req, res, next) => {
                     completedTrips,
                     totalReviews: reviewsCount,
                     points: user.contribution?.points || 0,
-                    level: user.contribution?.level || 'beginner',
+                    level: user.contribution?.level || 1,
                     badges: user.contribution?.badges || []
                 }
             }
@@ -297,6 +371,7 @@ module.exports = {
     GetUserById,
     UpdateUserById,
     makeUserAdmin,
+    removeAdmin,
     blockUser,
     unblockUser,
     getUsersList,

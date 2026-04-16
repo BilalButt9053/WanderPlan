@@ -37,6 +37,32 @@ const pointsForNextLevel = (currentPoints) => {
   return thresholds[thresholds.length - 1] + 2000;
 };
 
+const getProfile = async (req, res, next) => {
+  try {
+    const user = await Signup.findById(req.user._id).select('-password').lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      profile: {
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        profilePhoto: user.profilePhoto,
+        isVerified: user.isVerified,
+        memberSince: user.createdAt
+          ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+          : 'Unknown',
+        contribution: user.contribution || { points: 0, level: 1, badges: [] },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Get comprehensive profile stats
  * GET /api/user/profile-stats
@@ -92,31 +118,41 @@ const getProfileStats = async (req, res, next) => {
       (reviewCount * 10) + (totalHelpful * 5) + (completedTrips * 20) + (totalImages * 2);
 
     // Current user badges (stored or calculated)
-    const userBadges = user.contribution?.badges || [];
+    const userBadges = Array.isArray(user.contribution?.badges) ? user.contribution.badges : [];
+    const existingBadgeNames = userBadges.map((badge) => badge?.name).filter(Boolean);
 
     // Check and award new badges
     const newBadges = [];
-    if (reviewCount >= 1 && !userBadges.includes('first_review')) {
+    if (reviewCount >= 1 && !existingBadgeNames.includes('first_review')) {
       newBadges.push('first_review');
     }
-    if (completedTrips >= 3 && !userBadges.includes('explorer')) {
+    if (completedTrips >= 3 && !existingBadgeNames.includes('explorer')) {
       newBadges.push('explorer');
     }
-    if (foodReviews >= 5 && !userBadges.includes('foodie')) {
+    if (foodReviews >= 5 && !existingBadgeNames.includes('foodie')) {
       newBadges.push('foodie');
     }
-    if (totalHelpful >= 10 && !userBadges.includes('helpful')) {
+    if (totalHelpful >= 10 && !existingBadgeNames.includes('helpful')) {
       newBadges.push('helpful');
     }
-    if (totalImages >= 20 && !userBadges.includes('photographer')) {
+    if (totalImages >= 20 && !existingBadgeNames.includes('photographer')) {
       newBadges.push('photographer');
     }
-    if (completedTrips >= 10 && !userBadges.includes('seasoned')) {
+    if (completedTrips >= 10 && !existingBadgeNames.includes('seasoned')) {
       newBadges.push('seasoned');
     }
 
     // Update user contribution if new badges earned or points changed
-    const allBadges = [...new Set([...userBadges, ...newBadges])];
+    const allBadgeNames = [...new Set([...existingBadgeNames, ...newBadges])];
+    const allBadges = allBadgeNames.map((name) => {
+      const existingBadge = userBadges.find((badge) => badge?.name === name);
+      if (existingBadge) return existingBadge;
+      return {
+        name,
+        icon: '',
+        earnedAt: new Date(),
+      };
+    });
     const currentLevel = calculateLevel(points);
 
     if (newBadges.length > 0 || user.contribution?.points !== points) {
@@ -129,9 +165,12 @@ const getProfileStats = async (req, res, next) => {
     }
 
     // Format badges with metadata
-    const formattedBadges = allBadges.map(badgeId => {
-      const def = BADGE_DEFINITIONS.find(b => b.id === badgeId);
-      return def ? { id: badgeId, ...def, earned: true } : { id: badgeId, name: badgeId, earned: true };
+    const formattedBadges = allBadges.map((badge) => {
+      const badgeId = badge?.name;
+      const def = BADGE_DEFINITIONS.find((b) => b.id === badgeId);
+      return def
+        ? { id: badgeId, ...def, earned: true, earnedAt: badge?.earnedAt }
+        : { id: badgeId, name: badgeId, earned: true, earnedAt: badge?.earnedAt };
     });
 
     // Get member since date
@@ -380,6 +419,7 @@ const getSavedTrips = async (req, res, next) => {
 };
 
 module.exports = {
+  getProfile,
   getProfileStats,
   getRewards,
   getNotifications,

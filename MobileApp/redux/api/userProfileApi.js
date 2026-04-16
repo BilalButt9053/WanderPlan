@@ -1,20 +1,28 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { retry } from "@reduxjs/toolkit/query";
 import { BASE_URL } from "../../config";
+
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: BASE_URL,
+  prepareHeaders: (headers, { getState }) => {
+    const token = getState().auth.token;
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    return headers;
+  },
+});
 
 export const userProfileApi = createApi({
   reducerPath: "userProfileApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: BASE_URL,
-    prepareHeaders: (headers, { getState }) => {
-      const token = getState().auth.token;
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: retry(rawBaseQuery, { maxRetries: 2 }),
   tagTypes: ['ProfileStats', 'Rewards', 'Notifications', 'SavedTrips'],
   endpoints: (builder) => ({
+    getProfile: builder.query({
+      query: () => '/user/profile',
+      providesTags: ['ProfileStats'],
+    }),
+
     // Get comprehensive profile stats
     getProfileStats: builder.query({
       query: () => "/user/profile-stats",
@@ -62,6 +70,7 @@ export const userProfileApi = createApi({
 });
 
 export const {
+  useGetProfileQuery,
   useGetProfileStatsQuery,
   useGetRewardsQuery,
   useGetNotificationsQuery,

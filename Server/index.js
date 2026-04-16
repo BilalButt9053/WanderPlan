@@ -30,6 +30,11 @@ const adminStatsRoute = require("./router/admin-stats-router");
 const adminReviewRoute = require("./router/admin-review-router");
 const adminRewardRoute = require("./router/admin-reward-router");
 const adminNotificationRoute = require("./router/admin-notification-router");
+const adminReviewStatusRoute = require("./router/admin-review-status-router");
+const adminDealRoute = require("./router/admin-deal-router");
+const adminSettingsRoute = require("./router/admin-settings-router");
+const reportsRoute = require("./router/reports-router");
+const maintenanceMiddleware = require("./middleware/maintenance-middleware");
 // New business routes
 const businessAnalyticsRoute = require("./router/business-analytics-router");
 const businessReviewRoute = require("./router/business-review-router");
@@ -97,6 +102,8 @@ app.get("/api/health", (_req, res) => {
     });
 });
 
+app.use(maintenanceMiddleware);
+
 app.use("/api/auth",authRoute);
 app.use("/api/admin",adminRoute);
 app.use("/api/otp",otpRoute);
@@ -112,14 +119,18 @@ app.use("/api/public", publicRoute);
 app.use("/api/trips", tripRoute);
 app.use("/api/itineraries", itineraryRoute);
 app.use("/api/complaints", complaintRoute);
+app.use("/api/reports", reportsRoute);
 app.use("/api/admin/complaints", adminComplaintRoute);
 app.use("/api/user", userProfileRoute);
 app.use("/api/places", placesRoute);
 // New admin routes
 app.use("/api/admin/stats", adminStatsRoute);
 app.use("/api/admin/reviews", adminReviewRoute);
+app.use("/api/admin/review", adminReviewStatusRoute);
 app.use("/api/admin/rewards", adminRewardRoute);
 app.use("/api/admin/notifications", adminNotificationRoute);
+app.use("/api/admin", adminDealRoute);
+app.use("/api/admin", adminSettingsRoute);
 // New business routes
 app.use("/api/business/analytics", businessAnalyticsRoute);
 app.use("/api/business/reviews", businessReviewRoute);

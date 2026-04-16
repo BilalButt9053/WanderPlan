@@ -7,6 +7,14 @@ const Reward = require("../modals/reward-modal");
 const User = require("../modals/user-modals");
 const UserNotification = require("../modals/user-notification-modal");
 
+const calculateNumericLevel = (points) => {
+    if (points < 500) return 1;
+    if (points < 1000) return 2;
+    if (points < 2000) return 3;
+    if (points < 5000) return 4;
+    return 5;
+};
+
 /**
  * Get all rewards with filters
  * GET /api/admin/rewards
@@ -248,10 +256,18 @@ const awardPoints = async (req, res, next) => {
     try {
         const { userId, points, reason } = req.body;
 
-        if (!userId || !points) {
+        if (!userId || points === undefined || points === null) {
             return res.status(400).json({
                 success: false,
                 message: "userId and points are required"
+            });
+        }
+
+        const pointsDelta = Number(points);
+        if (!Number.isFinite(pointsDelta)) {
+            return res.status(400).json({
+                success: false,
+                message: "points must be a valid number"
             });
         }
 
@@ -266,14 +282,10 @@ const awardPoints = async (req, res, next) => {
 
         // Update user points
         const currentPoints = user.contribution?.points || 0;
-        const newPoints = currentPoints + parseInt(points);
+        const newPoints = currentPoints + pointsDelta;
 
         // Calculate level based on points
-        let level = 'beginner';
-        if (newPoints >= 5000) level = 'legend';
-        else if (newPoints >= 2000) level = 'expert';
-        else if (newPoints >= 1000) level = 'advanced';
-        else if (newPoints >= 500) level = 'intermediate';
+        const level = calculateNumericLevel(newPoints);
 
         await User.findByIdAndUpdate(userId, {
             'contribution.points': newPoints,
@@ -286,13 +298,13 @@ const awardPoints = async (req, res, next) => {
             user: userId,
             type: 'points_bonus',
             title: 'Points Awarded!',
-            message: `You received ${points} points! ${reason || ''}`,
-            data: { points, reason }
+            message: `You received ${pointsDelta} points! ${reason || ''}`,
+            data: { points: pointsDelta, reason }
         });
 
         res.status(200).json({
             success: true,
-            message: `${points} points awarded to user`,
+            message: `${pointsDelta} points awarded to user`,
             data: {
                 userId,
                 previousPoints: currentPoints,

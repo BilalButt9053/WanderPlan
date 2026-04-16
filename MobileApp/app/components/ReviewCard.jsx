@@ -20,13 +20,14 @@ import {
   MoreVertical,
   Edit,
   Trash2,
+  Flag,
 } from 'lucide-react-native';
 import { WanderCard } from './wander-card';
 import { WanderChip } from './wander-chip';
 import { ImageWithFallback } from './ImageWithFallback';
 import { useTheme } from '../../hooks/useTheme';
 
-const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, onLike, onHelpful, onSave, currentUserId }) => {
+const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, onLike, onHelpful, onSave, onReport, currentUserId }) => {
   const { colors } = useTheme();
   const [replyText, setReplyText] = useState('');
   const [showMenu, setShowMenu] = useState(false);
@@ -90,6 +91,8 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
           { text: 'Delete', style: 'destructive', onPress: () => onDelete?.() },
         ]
       );
+    } else if (action === 'report') {
+      onReport?.();
     }
   };
 
@@ -127,36 +130,46 @@ const ReviewCard = ({ review, expanded, onToggle, onAddReply, onEdit, onDelete, 
         </View>
 
         {/* 3-Dots Menu */}
-        {isOwner && (
-          <View>
-            <TouchableOpacity
-              onPress={() => setShowMenu(!showMenu)}
-              className="w-8 h-8 rounded-full items-center justify-center"
-            >
-              <MoreVertical size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-            
-            {showMenu && (
-              <View className="absolute right-0 top-10 rounded-xl shadow-lg border z-50" style={{ minWidth: 140, backgroundColor: colors.card, borderColor: colors.border }}>
+        <View>
+          <TouchableOpacity
+            onPress={() => setShowMenu(!showMenu)}
+            className="w-8 h-8 rounded-full items-center justify-center"
+          >
+            <MoreVertical size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          {showMenu && (
+            <View className="absolute right-0 top-10 rounded-xl shadow-lg border z-50" style={{ minWidth: 140, backgroundColor: colors.card, borderColor: colors.border }}>
+              {isOwner ? (
+                <>
+                  <TouchableOpacity
+                    onPress={() => handleMenuAction('edit')}
+                    className="flex-row items-center gap-2 px-4 py-3 border-b"
+                    style={{ borderBottomColor: colors.border }}
+                  >
+                    <Edit size={16} color="#3B82F6" />
+                    <Text className="text-sm" style={{ color: colors.text }}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleMenuAction('delete')}
+                    className="flex-row items-center gap-2 px-4 py-3"
+                  >
+                    <Trash2 size={16} color="#EF4444" />
+                    <Text className="text-sm text-red-600">Delete</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
                 <TouchableOpacity
-                  onPress={() => handleMenuAction('edit')}
-                  className="flex-row items-center gap-2 px-4 py-3 border-b"
-                  style={{ borderBottomColor: colors.border }}
-                >
-                  <Edit size={16} color="#3B82F6" />
-                  <Text className="text-sm" style={{ color: colors.text }}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleMenuAction('delete')}
+                  onPress={() => handleMenuAction('report')}
                   className="flex-row items-center gap-2 px-4 py-3"
                 >
-                  <Trash2 size={16} color="#EF4444" />
-                  <Text className="text-sm text-red-600">Delete</Text>
+                  <Flag size={16} color="#F59E0B" />
+                  <Text className="text-sm" style={{ color: colors.text }}>Report</Text>
                 </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
+              )}
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Rating */}

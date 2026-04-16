@@ -130,6 +130,14 @@ export default function GamificationPage() {
   };
 
   const getLevelIcon = (level) => {
+    if (typeof level === 'number') {
+      if (level >= 5) return <Crown className="h-4 w-4 text-yellow-500" />;
+      if (level >= 4) return <Award className="h-4 w-4 text-purple-500" />;
+      if (level >= 3) return <Zap className="h-4 w-4 text-green-500" />;
+      if (level >= 2) return <Target className="h-4 w-4 text-blue-500" />;
+      return <Star className="h-4 w-4 text-gray-500" />;
+    }
+
     switch (level) {
       case 'legend': return <Crown className="h-4 w-4 text-yellow-500" />;
       case 'expert': return <Award className="h-4 w-4 text-purple-500" />;
@@ -265,7 +273,7 @@ export default function GamificationPage() {
                       <p className="font-medium truncate">{user.fullName}</p>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         {getLevelIcon(user.level)}
-                        <span className="capitalize">{user.level}</span>
+                        <span className="capitalize">{typeof user.level === 'number' ? `Level ${user.level}` : user.level}</span>
                       </div>
                     </div>
                     <div className="text-right">

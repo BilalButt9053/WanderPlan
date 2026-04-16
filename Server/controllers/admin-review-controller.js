@@ -124,20 +124,18 @@ const updateReviewStatus = async (req, res, next) => {
             });
         }
 
-        const review = await Review.findByIdAndUpdate(
-            id,
-            {
-                status,
-                $push: status === 'flagged' || status === 'removed' ? {
-                    flags: {
-                        reason: reason || `Admin action: ${status}`,
-                        flaggedAt: new Date(),
-                        flaggedBy: req.user._id
-                    }
-                } : undefined
-            },
-            { new: true }
-        );
+        const updateData = { status };
+        if (status === 'flagged' || status === 'removed') {
+            updateData.$push = {
+                flags: {
+                    userId: req.user._id,
+                    reason: reason || `Admin action: ${status}`,
+                    createdAt: new Date(),
+                }
+            };
+        }
+
+        const review = await Review.findByIdAndUpdate(id, updateData, { new: true });
 
         if (!review) {
             return res.status(404).json({
@@ -245,8 +243,8 @@ const bulkUpdateReviewStatus = async (req, res, next) => {
             updateData.$push = {
                 flags: {
                     reason: reason || `Bulk admin action: ${status}`,
-                    flaggedAt: new Date(),
-                    flaggedBy: req.user._id
+                    createdAt: new Date(),
+                    userId: req.user._id
                 }
             };
         }
@@ -293,7 +291,7 @@ const getReviewStats = async (req, res, next) => {
                 { $sort: { _id: 1 } }
             ]),
             Review.find({ status: 'flagged' })
-                .sort({ 'flags.flaggedAt': -1 })
+                .sort({ updatedAt: -1 })
                 .limit(5)
                 .lean()
         ]);

@@ -4,11 +4,21 @@ const { sendApprovalEmail } = require("../controllers/business-auth-controller")
 // Get all businesses
 const getAllBusinesses = async (req, res, next) => {
     try {
-        const { status } = req.query;
+        const { status, category, search } = req.query;
         
         let query = {};
         if (status) {
             query.status = status;
+        }
+        if (category) {
+            query.businessType = category;
+        }
+        if (search) {
+            query.$or = [
+                { businessName: { $regex: search, $options: 'i' } },
+                { ownerName: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } },
+            ];
         }
 
         const businesses = await Business.find(query).select('-password').sort({ createdAt: -1 });
@@ -34,7 +44,19 @@ const getBusinessById = async (req, res, next) => {
             return res.status(404).json({ message: "Business not found" });
         }
 
-        res.status(200).json(business);
+        const documents = Array.isArray(business.documents) ? business.documents : [];
+        const license = documents.find((doc) => doc.type === 'license') || null;
+
+        res.status(200).json({
+            ...business.toObject(),
+            images: Array.isArray(business.galleryImages) ? business.galleryImages : [],
+            documents,
+            license,
+            utilities: {
+                notificationsEnabled: business.settings?.notificationsEnabled ?? true,
+                twoFactorEnabled: business.settings?.twoFactorEnabled ?? false,
+            },
+        });
     } catch (error) {
         console.error('[admin-business] Get business error', error);
         next(error);

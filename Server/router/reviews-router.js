@@ -10,6 +10,7 @@ router.post('/:id/like', authMiddleware, ctrl.toggleLike);
 router.post('/:id/helpful', authMiddleware, ctrl.toggleHelpful);
 router.post('/:id/save', authMiddleware, ctrl.toggleSave);
 router.post('/:id/comments', authMiddleware, ctrl.addComment);
+router.post('/:id/report', authMiddleware, ctrl.reportReview);
 router.put('/:id', authMiddleware, ctrl.update);
 router.delete('/:id', authMiddleware, ctrl.deleteReview);
 
