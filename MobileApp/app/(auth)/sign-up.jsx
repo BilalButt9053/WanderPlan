@@ -407,7 +407,7 @@ export default function SignUpScreen() {
         </View>
 
         {/* Social Login Buttons */}
-        <View className="space-y-3 mb-6">
+        <View className="flex gap-3 mb-6">
           {/* Google Login */}
           <TouchableOpacity
             onPress={() => handleSocialLogin('Google')}
