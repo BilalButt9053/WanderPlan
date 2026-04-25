@@ -95,6 +95,39 @@ const SignUp = new mongoose.Schema({
     }
 });
 
+SignUp.pre('validate', function (next) {
+    const user = this;
+    const badges = user?.contribution?.badges;
+
+    if (Array.isArray(badges) && badges.length > 0) {
+        user.contribution.badges = badges
+            .map((badge) => {
+                if (typeof badge === 'string') {
+                    return {
+                        name: badge,
+                        icon: '',
+                        earnedAt: new Date(),
+                    };
+                }
+
+                if (badge && typeof badge === 'object') {
+                    const name = badge.name || badge.id || badge.label;
+                    if (!name) return null;
+                    return {
+                        name,
+                        icon: badge.icon || '',
+                        earnedAt: badge.earnedAt || new Date(),
+                    };
+                }
+
+                return null;
+            })
+            .filter(Boolean);
+    }
+
+    next();
+});
+
 
 
 SignUp.pre('save', async function () {

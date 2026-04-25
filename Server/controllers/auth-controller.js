@@ -66,8 +66,12 @@ const sendOTPEmail = async (email, OTP) => {
 };
 
 const rotateSessionAndToken = async (user) => {
-    user.activeSessionId = crypto.randomBytes(24).toString("hex");
-    await user.save();
+    const sessionId = crypto.randomBytes(24).toString("hex");
+    await Signup.updateOne(
+        { _id: user._id },
+        { $set: { activeSessionId: sessionId } }
+    );
+    user.activeSessionId = sessionId;
     const token = await user.jwtToken();
     return token;
 };
