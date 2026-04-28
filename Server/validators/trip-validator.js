@@ -35,23 +35,28 @@ const destinationSchema = z.union([
 const customBudgetPercentagesSchema = z.object({
     accommodation: z.number()
         .min(0, { message: "Accommodation percentage cannot be negative" })
-        .max(100, { message: "Accommodation percentage cannot exceed 100" }),
+        .max(100, { message: "Accommodation percentage cannot exceed 100" })
+        .optional(),
     food: z.number()
         .min(0, { message: "Food percentage cannot be negative" })
-        .max(100, { message: "Food percentage cannot exceed 100" }),
+        .max(100, { message: "Food percentage cannot exceed 100" })
+        .optional(),
     transport: z.number()
         .min(0, { message: "Transport percentage cannot be negative" })
-        .max(100, { message: "Transport percentage cannot exceed 100" }),
+        .max(100, { message: "Transport percentage cannot exceed 100" })
+        .optional(),
     activities: z.number()
         .min(0, { message: "Activities percentage cannot be negative" })
         .max(100, { message: "Activities percentage cannot exceed 100" })
-}).refine(
-    (data) => {
-        const sum = data.accommodation + data.food + data.transport + data.activities;
-        return Math.abs(sum - 100) < 0.01;
-    },
-    { message: "Budget percentages must add up to 100" }
-);
+        .optional()
+});
+
+const budgetPreferencesSchema = z.object({
+    accommodationPriority: z.union([z.number(), z.string()]).optional(),
+    foodPriority: z.union([z.number(), z.string()]).optional(),
+    transportPriority: z.union([z.number(), z.string()]).optional(),
+    activitiesPriority: z.union([z.number(), z.string()]).optional()
+}).optional();
 
 /**
  * Cover image schema
@@ -87,10 +92,12 @@ const createTripSchema = z.object({
         .positive({ message: "Budget must be greater than 0" })
         .max(999999999, { message: "Budget exceeds maximum allowed value" }),
 
-    travelers: z.number({ required_error: "Number of travelers is required" })
+    travelers: z.coerce.number()
         .int({ message: "Travelers must be a whole number" })
         .min(1, { message: "At least 1 traveler is required" })
-        .max(50, { message: "Maximum 50 travelers allowed" }),
+        .max(50, { message: "Maximum 50 travelers allowed" })
+        .optional()
+        .default(1),
 
     description: z.string()
         .trim()
@@ -107,6 +114,12 @@ const createTripSchema = z.object({
     tripType: z.enum(['leisure', 'business', 'adventure', 'family', 'solo', 'honeymoon', 'group', 'other'])
         .optional()
         .default('leisure'),
+
+    travelStyle: z.enum(['budget', 'moderate', 'luxury'])
+        .optional()
+        .default('moderate'),
+
+    preferences: budgetPreferencesSchema,
 
     tags: z.array(z.string().trim().max(50))
         .max(10, { message: "Maximum 10 tags allowed" })
@@ -161,7 +174,7 @@ const updateTripSchema = z.object({
         .max(999999999, { message: "Budget exceeds maximum allowed value" })
         .optional(),
 
-    travelers: z.number()
+    travelers: z.coerce.number()
         .int({ message: "Travelers must be a whole number" })
         .min(1, { message: "At least 1 traveler is required" })
         .max(50, { message: "Maximum 50 travelers allowed" })
@@ -180,6 +193,11 @@ const updateTripSchema = z.object({
 
     tripType: z.enum(['leisure', 'business', 'adventure', 'family', 'solo', 'honeymoon', 'group', 'other'])
         .optional(),
+
+    travelStyle: z.enum(['budget', 'moderate', 'luxury'])
+        .optional(),
+
+    preferences: budgetPreferencesSchema,
 
     tags: z.array(z.string().trim().max(50))
         .max(10, { message: "Maximum 10 tags allowed" })
@@ -230,14 +248,25 @@ const estimateBudgetSchema = z.object({
         .min(1, { message: "At least 1 day is required" })
         .max(365, { message: "Maximum 365 days allowed" }),
 
-    travelers: z.number({ required_error: "Number of travelers is required" })
+    travelers: z.coerce.number()
         .int({ message: "Travelers must be a whole number" })
         .min(1, { message: "At least 1 traveler is required" })
-        .max(50, { message: "Maximum 50 travelers allowed" }),
+        .max(50, { message: "Maximum 50 travelers allowed" })
+        .optional()
+        .default(1),
 
     travelStyle: z.enum(['budget', 'moderate', 'luxury'])
         .optional()
-        .default('moderate')
+        .default('moderate'),
+
+    totalBudget: z.number()
+        .positive({ message: "Budget must be greater than 0" })
+        .max(999999999, { message: "Budget exceeds maximum allowed value" })
+        .optional(),
+
+    preferences: budgetPreferencesSchema,
+
+    customBudgetPercentages: customBudgetPercentagesSchema.optional()
 });
 
 module.exports = {
