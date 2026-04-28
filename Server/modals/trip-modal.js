@@ -8,22 +8,34 @@ const BudgetBreakdownSchema = new mongoose.Schema({
     accommodation: {
         amount: { type: Number, default: 0 },
         percentage: { type: Number, default: 40 },
-        spent: { type: Number, default: 0 }
+        spent: { type: Number, default: 0 },
+        remaining: { type: Number, default: 0 },
+        perDay: { type: Number, default: 0 },
+        perPerson: { type: Number, default: 0 }
     },
     food: {
         amount: { type: Number, default: 0 },
         percentage: { type: Number, default: 25 },
-        spent: { type: Number, default: 0 }
+        spent: { type: Number, default: 0 },
+        remaining: { type: Number, default: 0 },
+        perDay: { type: Number, default: 0 },
+        perPerson: { type: Number, default: 0 }
     },
     transport: {
         amount: { type: Number, default: 0 },
         percentage: { type: Number, default: 20 },
-        spent: { type: Number, default: 0 }
+        spent: { type: Number, default: 0 },
+        remaining: { type: Number, default: 0 },
+        perDay: { type: Number, default: 0 },
+        perPerson: { type: Number, default: 0 }
     },
     activities: {
         amount: { type: Number, default: 0 },
         percentage: { type: Number, default: 15 },
-        spent: { type: Number, default: 0 }
+        spent: { type: Number, default: 0 },
+        remaining: { type: Number, default: 0 },
+        perDay: { type: Number, default: 0 },
+        perPerson: { type: Number, default: 0 }
     }
 }, { _id: false });
 
@@ -105,6 +117,25 @@ const TripSchema = new mongoose.Schema({
     budgetBreakdown: {
         type: BudgetBreakdownSchema,
         default: () => ({})
+    },
+
+    // Snapshot of dynamic planning assumptions used when the trip was created
+    budgetPlan: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+    },
+    costProfile: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+    },
+    budgetPreferences: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+    },
+    travelStyle: {
+        type: String,
+        enum: ['budget', 'moderate', 'luxury'],
+        default: 'moderate'
     },
 
     // Tracking spent amounts

@@ -21,6 +21,12 @@ const SavedItinerary = require('../modals/saved-itinerary-modal');
 const Trip = require('../modals/trip-modal');
 const itineraryService = require('../services/itinerary-service');
 const openaiService = require('../services/openai-service');
+const { enrichItineraryWithCoordinates } = require('../services/coordinate-service');
+
+const getTripTravelStyle = (trip = {}) =>
+    trip.travelStyle ||
+    trip.budgetPlan?.travelStyle ||
+    'moderate';
 
 /**
  * Get hybrid itinerary (combining static + AI)
@@ -383,7 +389,7 @@ const generateTripItinerary = async (req, res, next) => {
             (new Date(trip.endDate) - new Date(trip.startDate)) / (1000 * 60 * 60 * 24)
         ) + 1;
 
-        const travelStyle = trip.tripType || 'moderate';
+        const travelStyle = getTripTravelStyle(trip);
 
         // Handle based on mode
         if (mode === 'manual') {
@@ -535,7 +541,7 @@ const regenerateTripItinerary = async (req, res, next) => {
         const allowedStyles = ['budget', 'moderate', 'luxury'];
         const finalStyle = travelStyle && allowedStyles.includes(travelStyle)
             ? travelStyle
-            : (trip.tripType || 'moderate');
+            : getTripTravelStyle(trip);
 
         // Regenerate
         const result = await itineraryService.generateHybridItinerary({
@@ -754,7 +760,7 @@ const getActivitySuggestions = async (req, res, next) => {
             (new Date(trip.endDate) - new Date(trip.startDate)) / (1000 * 60 * 60 * 24)
         ) + 1;
 
-        const travelStyle = trip.tripType || 'moderate';
+        const travelStyle = getTripTravelStyle(trip);
 
         // Get budget info
         const { budgetInfo } = await itineraryService.getTripBudgetInfo(tripId);
@@ -899,13 +905,13 @@ const saveManualItinerary = async (req, res, next) => {
         }
 
         const destination = trip.destination?.name || trip.destination?.city;
-        const travelStyle = trip.tripType || 'moderate';
+        const travelStyle = getTripTravelStyle(trip);
 
         // Get budget info
         const { budgetInfo } = await itineraryService.getTripBudgetInfo(tripId);
 
         // Normalize and validate activities
-        const normalizedDays = days.map(day => {
+        let normalizedDays = days.map(day => {
             const activities = (day.activities || []).map(activity => ({
                 title: activity.title || 'Untitled Activity',
                 description: activity.description || '',
@@ -913,13 +919,24 @@ const saveManualItinerary = async (req, res, next) => {
                 category: openaiService.getCategory(activity.type || activity.category),
                 time: activity.time || '',
                 location: activity.location || '',
+                latitude: activity.latitude ?? activity.lat ?? activity.coordinates?.latitude ?? activity.coordinates?.lat ?? null,
+                longitude: activity.longitude ?? activity.lng ?? activity.coordinates?.longitude ?? activity.coordinates?.lng ?? null,
+                lat: activity.lat ?? activity.latitude ?? activity.coordinates?.lat ?? activity.coordinates?.latitude ?? null,
+                lng: activity.lng ?? activity.longitude ?? activity.coordinates?.lng ?? activity.coordinates?.longitude ?? null,
+                coordinates: activity.coordinates || undefined,
+                placeId: activity.placeId || activity.location?.placeId || null,
                 estimatedCost: typeof activity.estimatedCost === 'number' 
                     ? activity.estimatedCost 
                     : (typeof activity.price === 'number' ? activity.price : 0),
                 costConfidence: 'user_selected',
                 source: activity.source || 'user',
                 businessId: activity.businessId || null,
-                businessName: activity.businessName || null
+                businessName: activity.businessName || null,
+                tips: activity.tips || '',
+                bookingRequired: Boolean(activity.bookingRequired),
+                bookingUrl: activity.bookingUrl || '',
+                coordinateStatus: activity.coordinateStatus,
+                coordinateError: activity.coordinateError
             }));
 
             return {
@@ -931,6 +948,7 @@ const saveManualItinerary = async (req, res, next) => {
 
         // Sort by day
         normalizedDays.sort((a, b) => a.day - b.day);
+        normalizedDays = await enrichItineraryWithCoordinates(normalizedDays, destination);
 
         // Calculate costs by category
         const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
@@ -1085,7 +1103,8 @@ const updateItinerary = async (req, res, next) => {
         const { budgetInfo } = await itineraryService.getTripBudgetInfo(tripId);
 
         // Normalize activities
-        const normalizedDays = days.map(day => {
+        const destination = trip.destination?.name || trip.destination?.city;
+        let normalizedDays = days.map(day => {
             const activities = (day.activities || []).map(activity => ({
                 title: activity.title || 'Untitled Activity',
                 description: activity.description || '',
@@ -1093,13 +1112,24 @@ const updateItinerary = async (req, res, next) => {
                 category: openaiService.getCategory(activity.type || activity.category),
                 time: activity.time || '',
                 location: activity.location || '',
+                latitude: activity.latitude ?? activity.lat ?? activity.coordinates?.latitude ?? activity.coordinates?.lat ?? null,
+                longitude: activity.longitude ?? activity.lng ?? activity.coordinates?.longitude ?? activity.coordinates?.lng ?? null,
+                lat: activity.lat ?? activity.latitude ?? activity.coordinates?.lat ?? activity.coordinates?.latitude ?? null,
+                lng: activity.lng ?? activity.longitude ?? activity.coordinates?.lng ?? activity.coordinates?.longitude ?? null,
+                coordinates: activity.coordinates || undefined,
+                placeId: activity.placeId || activity.location?.placeId || null,
                 estimatedCost: typeof activity.estimatedCost === 'number' 
                     ? activity.estimatedCost 
                     : (typeof activity.price === 'number' ? activity.price : 0),
                 costConfidence: activity.costConfidence || 'user_edited',
                 source: activity.source || 'user',
                 businessId: activity.businessId || null,
-                businessName: activity.businessName || null
+                businessName: activity.businessName || null,
+                tips: activity.tips || '',
+                bookingRequired: Boolean(activity.bookingRequired),
+                bookingUrl: activity.bookingUrl || '',
+                coordinateStatus: activity.coordinateStatus,
+                coordinateError: activity.coordinateError
             }));
 
             return {
@@ -1111,6 +1141,7 @@ const updateItinerary = async (req, res, next) => {
 
         // Sort by day
         normalizedDays.sort((a, b) => a.day - b.day);
+        normalizedDays = await enrichItineraryWithCoordinates(normalizedDays, destination);
 
         // Calculate costs by category
         const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };

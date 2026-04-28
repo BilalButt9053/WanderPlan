@@ -15,6 +15,14 @@ const Trip = require("../modals/trip-modal");
 const SavedItinerary = require("../modals/saved-itinerary-modal");
 const Business = require("../modals/business-modal");
 const budgetService = require("../services/budget-service");
+const dynamicBudgetService = require("../services/dynamic-budget-service");
+const routeService = require("../services/route-service");
+const { normalizeActivityLocation } = require("../services/coordinate-service");
+
+const getTripTravelStyle = (trip = {}) =>
+    trip.travelStyle ||
+    trip.budgetPlan?.travelStyle ||
+    'moderate';
 
 /**
  * Create a new trip
@@ -44,14 +52,16 @@ const createTrip = async (req, res, next) => {
             tags,
             coverImage,
             isPublic,
+            travelStyle = 'moderate',
+            preferences = {},
             customBudgetPercentages
         } = req.body;
 
         // Validate required fields
-        if (!title || !destination || !startDate || !endDate || !totalBudget || !travelers) {
+        if (!title || !destination || !startDate || !endDate || !totalBudget) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing required fields: title, destination, startDate, endDate, totalBudget, travelers'
+                message: 'Missing required fields: title, destination, startDate, endDate, totalBudget'
             });
         }
 
@@ -81,13 +91,26 @@ const createTrip = async (req, res, next) => {
             });
         }
 
-        // Calculate budget breakdown using service
+        const durationDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+        // Calculate dynamic budget breakdown using destination/style/preferences.
         let budgetBreakdown;
+        let budgetPlan;
+        let costProfile;
         try {
-            budgetBreakdown = budgetService.calculateBudgetBreakdown(
-                totalBudget, 
-                customBudgetPercentages
-            );
+            const dynamicPlan = dynamicBudgetService.buildDynamicBudgetPlan({
+                destination,
+                totalBudget,
+                days: durationDays,
+                travelers: Number(travelers) || 1,
+                travelStyle,
+                preferences,
+                customBudgetPercentages,
+                currency: currency || 'PKR'
+            });
+            budgetBreakdown = dynamicPlan.budgetBreakdown;
+            budgetPlan = dynamicPlan.budgetPlan;
+            costProfile = dynamicPlan.costProfile;
         } catch (budgetError) {
             return res.status(400).json({
                 success: false,
@@ -126,7 +149,11 @@ const createTrip = async (req, res, next) => {
             totalBudget,
             currency: currency || 'PKR',
             budgetBreakdown,
-            travelers,
+            budgetPlan,
+            costProfile,
+            budgetPreferences: preferences,
+            travelStyle: budgetPlan.travelStyle,
+            travelers: Number(travelers) || 1,
             description: description || '',
             tripType: tripType || 'leisure',
             tags: tags || [],
@@ -718,30 +745,50 @@ const getUserTripStats = async (req, res, next) => {
  */
 const estimateTripBudget = async (req, res, next) => {
     try {
-        const { destination, days, travelers, travelStyle } = req.body;
+        const {
+            destination,
+            days,
+            travelers = 1,
+            travelStyle = 'moderate',
+            totalBudget,
+            preferences = {},
+            customBudgetPercentages
+        } = req.body;
 
-        if (!destination || !days || !travelers) {
+        if (!destination || !days) {
             return res.status(400).json({
                 success: false,
-                message: 'destination, days, and travelers are required'
+                message: 'destination and days are required'
             });
         }
 
-        const dailyEstimate = budgetService.estimateDailyBudget(destination, travelStyle);
+        const estimatedDaily = budgetService.estimateDailyBudget(destination, travelStyle);
+        const inferredTotalBudget = Number(totalBudget) || estimatedDaily.totalDaily * days * travelers;
+        const dynamicPlan = dynamicBudgetService.buildDynamicBudgetPlan({
+            destination,
+            totalBudget: inferredTotalBudget,
+            days,
+            travelers: Number(travelers) || 1,
+            travelStyle,
+            preferences,
+            customBudgetPercentages
+        });
         
         // Calculate total estimates
         const totalEstimate = {
-            total: dailyEstimate.totalDaily * days * travelers,
-            perPerson: dailyEstimate.totalDaily * days,
-            perDay: dailyEstimate.totalDaily * travelers,
+            total: inferredTotalBudget,
+            perPerson: Math.round(inferredTotalBudget / travelers),
+            perDay: Math.round(inferredTotalBudget / days),
             breakdown: {}
         };
 
-        for (const [category, amount] of Object.entries(dailyEstimate.daily)) {
+        for (const [category, data] of Object.entries(dynamicPlan.budgetBreakdown)) {
             totalEstimate.breakdown[category] = {
-                total: amount * days * travelers,
-                perPerson: amount * days,
-                perDay: amount * travelers
+                total: data.amount,
+                percentage: data.percentage,
+                perPerson: data.perPerson,
+                perDay: data.perDay,
+                remaining: data.remaining
             };
         }
 
@@ -751,12 +798,14 @@ const estimateTripBudget = async (req, res, next) => {
                 destination,
                 days,
                 travelers,
-                travelStyle: dailyEstimate.style,
-                region: dailyEstimate.region,
+                travelStyle: dynamicPlan.budgetPlan.travelStyle,
+                region: dynamicPlan.budgetPlan.destinationKey,
                 currency: 'PKR',
-                daily: dailyEstimate,
+                daily: estimatedDaily,
+                budgetPlan: dynamicPlan.budgetPlan,
+                costProfile: dynamicPlan.costProfile,
                 total: totalEstimate,
-                note: dailyEstimate.note
+                note: estimatedDaily.note
             }
         });
 
@@ -842,7 +891,7 @@ const addActivityToTrip = async (req, res, next) => {
                     endDate: trip.endDate,
                     travelers: trip.travelers,
                     totalBudget: trip.totalBudget,
-                    travelStyle: trip.tripType || 'moderate'
+                    travelStyle: getTripTravelStyle(trip)
                 },
                 totalDays,
                 days: Array.from({ length: totalDays }, (_, index) => ({
@@ -852,7 +901,7 @@ const addActivityToTrip = async (req, res, next) => {
                 })),
                 isManuallyCreated: true,
                 generationDetails: {
-                    travelStyle: trip.tripType || 'moderate',
+                    travelStyle: getTripTravelStyle(trip),
                     generatedAt: new Date(),
                     aiActivitiesCount: 0,
                     businessActivitiesCount: 0,
@@ -885,7 +934,7 @@ const addActivityToTrip = async (req, res, next) => {
             other: 'other'
         };
 
-        const activity = {
+        const activity = normalizeActivityLocation({
             title: title || business.businessName,
             description: business.description || '',
             type: typeMap[business.businessType] || 'other',
@@ -896,13 +945,19 @@ const addActivityToTrip = async (req, res, next) => {
             source,
             businessId: business._id,
             businessName: business.businessName,
+            latitude: business.address?.coordinates?.lat ?? null,
+            longitude: business.address?.coordinates?.lng ?? null,
             location: {
                 name: business.businessName,
                 address: [business.address?.street, business.address?.city, business.address?.country]
                     .filter(Boolean)
-                    .join(', ')
+                    .join(', '),
+                coordinates: {
+                    lat: business.address?.coordinates?.lat ?? null,
+                    lng: business.address?.coordinates?.lng ?? null
+                }
             }
-        };
+        }, trip.destination?.name);
 
         targetDay.activities.push(activity);
         savedItinerary.totalDays = Math.max(savedItinerary.totalDays || 0, savedItinerary.days.length);
@@ -999,7 +1054,7 @@ const addPlaceToTrip = async (req, res, next) => {
                     endDate: trip.endDate,
                     travelers: trip.travelers,
                     totalBudget: trip.totalBudget,
-                    travelStyle: trip.tripType || 'moderate'
+                    travelStyle: getTripTravelStyle(trip)
                 },
                 totalDays,
                 days: Array.from({ length: totalDays }, (_, index) => ({
@@ -1009,7 +1064,7 @@ const addPlaceToTrip = async (req, res, next) => {
                 })),
                 isManuallyCreated: true,
                 generationDetails: {
-                    travelStyle: trip.tripType || 'moderate',
+                    travelStyle: getTripTravelStyle(trip),
                     generatedAt: new Date(),
                     aiActivitiesCount: 0,
                     businessActivitiesCount: 0,
@@ -1027,7 +1082,7 @@ const addPlaceToTrip = async (req, res, next) => {
             savedItinerary.days.sort((a, b) => a.day - b.day);
         }
 
-        const activity = {
+        const activity = normalizeActivityLocation({
             title,
             description: '',
             type,
@@ -1036,16 +1091,18 @@ const addPlaceToTrip = async (req, res, next) => {
             estimatedCost: Number(estimatedCost) || 0,
             costConfidence: 'user_selected',
             source,
+            latitude: location?.coordinates?.lat ?? location?.lat ?? null,
+            longitude: location?.coordinates?.lng ?? location?.lng ?? null,
             location: {
                 name: location?.name || title,
                 address: location?.address || '',
                 coordinates: {
-                    lat: location?.coordinates?.lat || null,
-                    lng: location?.coordinates?.lng || null
+                    lat: location?.coordinates?.lat ?? location?.lat ?? null,
+                    lng: location?.coordinates?.lng ?? location?.lng ?? null
                 },
                 placeId: placeId
             }
-        };
+        }, trip.destination?.name);
 
         targetDay.activities.push(activity);
         savedItinerary.totalDays = Math.max(savedItinerary.totalDays || 0, savedItinerary.days.length);
@@ -1172,6 +1229,51 @@ const startTrip = async (req, res, next) => {
 };
 
 /**
+ * Build a real road route for one itinerary day
+ * POST /api/trips/:id/day-route
+ */
+const getDayRoute = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const { id } = req.params;
+        const { day = 1, travelMode = 'driving', origin = null } = req.body || {};
+
+        if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid trip ID format'
+            });
+        }
+
+        const route = await routeService.buildDayRoute({
+            tripId: id,
+            userId,
+            day,
+            origin,
+            travelMode
+        });
+
+        res.status(200).json({
+            success: true,
+            route
+        });
+    } catch (error) {
+        console.error('[trips] Day route error:', error.message);
+        const statusCode = /not found/i.test(error.message)
+            ? 404
+            : /No activities|No routeable|required/i.test(error.message)
+                ? 400
+                : 502;
+
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Road route unavailable',
+            route: null
+        });
+    }
+};
+
+/**
  * Add place from map to trip itinerary with transport cost
  * POST /api/trips/:id/add-from-map
  */
@@ -1260,7 +1362,7 @@ const addFromMap = async (req, res, next) => {
                     endDate: trip.endDate,
                     travelers: trip.travelers,
                     totalBudget: trip.totalBudget,
-                    travelStyle: trip.tripType || 'moderate'
+                    travelStyle: getTripTravelStyle(trip)
                 },
                 totalDays,
                 days: Array.from({ length: totalDays }, (_, index) => ({
@@ -1270,7 +1372,7 @@ const addFromMap = async (req, res, next) => {
                 })),
                 isManuallyCreated: true,
                 generationDetails: {
-                    travelStyle: trip.tripType || 'moderate',
+                    travelStyle: getTripTravelStyle(trip),
                     generatedAt: new Date(),
                     aiActivitiesCount: 0,
                     businessActivitiesCount: 0,
@@ -1313,7 +1415,7 @@ const addFromMap = async (req, res, next) => {
         const activityType = typeMapping[type] || 'attraction';
         const budgetCategory = categoryMapping[activityType] || 'activities';
 
-        const activity = {
+        const activity = normalizeActivityLocation({
             title: name,
             description: `Added from map${rating ? ` - Rating: ${rating}★` : ''}`,
             type: activityType,
@@ -1324,17 +1426,19 @@ const addFromMap = async (req, res, next) => {
             source: 'map',
             rating: rating || null,
             photo: photo || null,
+            latitude: coordinates?.lat ?? coordinates?.latitude ?? null,
+            longitude: coordinates?.lng ?? coordinates?.longitude ?? null,
             location: {
                 name: name,
                 address: address || '',
                 coordinates: {
-                    lat: coordinates?.lat || null,
-                    lng: coordinates?.lng || null
+                    lat: coordinates?.lat ?? coordinates?.latitude ?? null,
+                    lng: coordinates?.lng ?? coordinates?.longitude ?? null
                 },
                 placeId: placeId
             },
             addedAt: new Date()
-        };
+        }, trip.destination?.name);
 
         targetDay.activities.push(activity);
         savedItinerary.totalDays = Math.max(savedItinerary.totalDays || 0, savedItinerary.days.length);
@@ -1384,6 +1488,7 @@ const addFromMap = async (req, res, next) => {
                 totalBudget: trip.totalBudget,
                 totalSpent: trip.totalSpent,
                 remainingBudget: trip.totalBudget - trip.totalSpent,
+                budgetBreakdown: trip.budgetBreakdown,
                 breakdown: trip.budgetBreakdown,
                 transportCostAdded: totalTransportCost,
                 activityCostAdded: activityCost
@@ -1412,6 +1517,7 @@ module.exports = {
     addPlaceToTrip,
     addFromMap,
     startTrip,
+    getDayRoute,
     getBudgetDetails,
     getUserTripStats,
     estimateTripBudget

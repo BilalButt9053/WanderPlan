@@ -13,6 +13,7 @@
  */
 
 const OpenAI = require('openai');
+const dynamicBudgetService = require('./dynamic-budget-service');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -28,29 +29,10 @@ const CONFIG = {
     retryDelay: 1000 // ms
 };
 
-/**
- * Cost estimation ranges by category and travel style (in PKR)
- */
-const COST_RANGES = {
-    budget: {
-        accommodation: { min: 2000, max: 5000, avg: 3500 },
-        food: { min: 300, max: 1000, avg: 600 },
-        transport: { min: 200, max: 1000, avg: 500 },
-        activities: { min: 100, max: 500, avg: 300 }
-    },
-    moderate: {
-        accommodation: { min: 5000, max: 12000, avg: 8000 },
-        food: { min: 800, max: 2500, avg: 1500 },
-        transport: { min: 500, max: 2500, avg: 1500 },
-        activities: { min: 300, max: 1500, avg: 800 }
-    },
-    luxury: {
-        accommodation: { min: 15000, max: 50000, avg: 25000 },
-        food: { min: 2000, max: 8000, avg: 4000 },
-        transport: { min: 2000, max: 10000, avg: 5000 },
-        activities: { min: 1000, max: 5000, avg: 2500 }
-    }
-};
+const getCostProfile = ({ destination, travelStyle = 'moderate', costProfile = null } = {}) =>
+    costProfile || dynamicBudgetService.getDynamicCostProfile({ destination, travelStyle });
+
+const clampCost = (cost, range) => Math.min(Math.max(cost, range.min), range.max);
 
 /**
  * Map activity type to budget category
@@ -160,17 +142,17 @@ const normalizeActivityType = (type) => {
  * @param {string} travelStyle - Travel style (budget, moderate, luxury)
  * @returns {number} Estimated cost in PKR
  */
-const estimateActivityCost = (activity, travelStyle = 'moderate') => {
+const estimateActivityCost = (activity, travelStyle = 'moderate', costProfile = null) => {
     const category = getCategory(activity.type);
-    const style = ['budget', 'moderate', 'luxury'].includes(travelStyle) ? travelStyle : 'moderate';
-    const range = COST_RANGES[style][category];
+    const profile = getCostProfile({ destination: activity.destination, travelStyle, costProfile });
+    const range = profile[category] || profile.activities;
 
     // If AI provided an estimated cost, validate and use it
     if (activity.estimatedCost && typeof activity.estimatedCost === 'number') {
         const cost = Math.round(activity.estimatedCost);
         // Ensure it's within reasonable bounds for the style
         if (cost >= range.min * 0.5 && cost <= range.max * 1.5) {
-            return cost;
+            return clampCost(cost, range);
         }
     }
 
@@ -179,7 +161,7 @@ const estimateActivityCost = (activity, travelStyle = 'moderate') => {
     const baseCost = range.avg;
     const randomOffset = (Math.random() - 0.5) * 2 * variance;
     
-    return Math.round(baseCost + randomOffset);
+    return clampCost(Math.round(baseCost + randomOffset), range);
 };
 
 /**
@@ -188,7 +170,7 @@ const estimateActivityCost = (activity, travelStyle = 'moderate') => {
  * @param {string} travelStyle - Travel style for cost estimation
  * @returns {Array} Normalized activities matching DB schema
  */
-const normalizeItineraryResponse = (rawActivities, travelStyle = 'moderate') => {
+const normalizeItineraryResponse = (rawActivities, travelStyle = 'moderate', costProfile = null) => {
     if (!Array.isArray(rawActivities)) {
         console.error('[openai-service] Invalid response format: expected array, got:', typeof rawActivities);
         return [];
@@ -210,7 +192,7 @@ const normalizeItineraryResponse = (rawActivities, travelStyle = 'moderate') => 
         const activities = rawActivitiesArray.map(activity => {
             const type = normalizeActivityType(activity.type || activity.category);
             const category = getCategory(type);
-            const estimatedCost = estimateActivityCost(activity, travelStyle);
+            const estimatedCost = estimateActivityCost(activity, travelStyle, costProfile);
 
             return {
                 title: String(activity.title || activity.name || 'Untitled Activity').trim(),
@@ -326,13 +308,14 @@ const FALLBACK_TEMPLATES = {
  * @param {string} travelStyle - Travel style
  * @returns {Array} Fallback itinerary
  */
-const generateFallbackItinerary = (destination, days, travelStyle = 'moderate') => {
+const generateFallbackItinerary = (destination, days, travelStyle = 'moderate', costProfile = null) => {
     console.log(`[openai-service] Generating fallback itinerary for ${destination}, ${days} days, ${travelStyle}`);
     
     // Normalize destination to find template
     const normalizedDest = destination.toLowerCase().replace(/[^a-z]/g, '');
     const templates = FALLBACK_TEMPLATES[normalizedDest] || FALLBACK_TEMPLATES.default;
     const style = ['budget', 'moderate', 'luxury'].includes(travelStyle) ? travelStyle : 'moderate';
+    const profile = getCostProfile({ destination, travelStyle: style, costProfile });
     const dayActivities = templates[style];
     
     const itinerary = [];
@@ -344,6 +327,11 @@ const generateFallbackItinerary = (destination, days, travelStyle = 'moderate') 
             type: normalizeActivityType(activity.type),
             category: getCategory(activity.type),
             location: activity.location || destination,
+            estimatedCost: estimateActivityCost(
+                { ...activity, destination },
+                style,
+                profile
+            ),
             source: 'fallback'
         }));
         
@@ -366,8 +354,10 @@ const buildBudgetAwarePrompt = (params) => {
         travelStyle = 'moderate',
         activitiesPerDay = 2,
         budget = null,
-        excludeActivities = []
+        excludeActivities = [],
+        costProfile = null
     } = params;
+    const profile = getCostProfile({ destination, travelStyle, costProfile: costProfile || budget?.costProfile });
 
     // Budget constraint text
     let budgetConstraints = '';
@@ -432,7 +422,7 @@ REQUIREMENTS:
 ${exclusionText}
 
 COST GUIDELINES for ${travelStyle} style:
-${getCostGuidelines(travelStyle)}
+${getCostGuidelines(travelStyle, profile)}
 
 Return ONLY the JSON array, no additional text or markdown.`;
 
@@ -458,8 +448,8 @@ const getBudgetGuidelines = (style) => {
  * @param {string} style - Travel style
  * @returns {string} Cost guidelines text
  */
-const getCostGuidelines = (style) => {
-    const ranges = COST_RANGES[style] || COST_RANGES.moderate;
+const getCostGuidelines = (style, costProfile = null) => {
+    const ranges = getCostProfile({ travelStyle: style, costProfile });
     return `
 - Accommodation: ${ranges.accommodation.min}-${ranges.accommodation.max} PKR per night
 - Food/Meals: ${ranges.food.min}-${ranges.food.max} PKR per meal
@@ -487,8 +477,10 @@ const generateItinerary = async (params) => {
         travelStyle = 'moderate',
         budget = null,
         activitiesPerDay = 2,
-        excludeActivities = []
+        excludeActivities = [],
+        costProfile = null
     } = params;
+    const profile = getCostProfile({ destination, travelStyle, costProfile: costProfile || budget?.costProfile });
 
     // Validate inputs
     if (!destination || !days) {
@@ -503,7 +495,8 @@ const generateItinerary = async (params) => {
         travelStyle,
         budget,
         activitiesPerDay,
-        excludeActivities
+        excludeActivities,
+        costProfile: profile
     });
 
     let lastError = null;
@@ -577,7 +570,7 @@ You understand budget constraints and never suggest activities exceeding the ava
             }
 
             // Normalize and validate the response with cost estimation
-            const normalizedItinerary = normalizeItineraryResponse(parsedResponse, travelStyle);
+            const normalizedItinerary = normalizeItineraryResponse(parsedResponse, travelStyle, profile);
 
             // Validate we have actual content
             const totalActivities = normalizedItinerary.reduce((sum, day) => sum + day.activities.length, 0);
@@ -836,7 +829,6 @@ module.exports = {
     getCategory,
     generateFallbackItinerary,
     enhanceItineraryDescriptions,
-    COST_RANGES,
     TYPE_TO_CATEGORY,
     FALLBACK_TEMPLATES,
     CONFIG

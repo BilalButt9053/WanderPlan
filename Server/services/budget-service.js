@@ -8,6 +8,8 @@
  * - Dynamic pricing adjustments
  */
 
+const dynamicBudgetService = require('./dynamic-budget-service');
+
 // Default budget allocation percentages
 const DEFAULT_BUDGET_PERCENTAGES = {
     accommodation: 40,
@@ -66,23 +68,27 @@ const calculateBudgetBreakdown = (totalBudget, customPercentages = null) => {
         throw new Error('Total budget must be a positive number');
     }
 
-    // Use custom percentages or defaults
-    const percentages = customPercentages 
-        ? validateAndNormalizePercentages(customPercentages)
-        : DEFAULT_BUDGET_PERCENTAGES;
-
-    // Calculate breakdown
-    const breakdown = {};
-    
-    for (const [category, percentage] of Object.entries(percentages)) {
-        breakdown[category] = {
-            amount: Math.round((totalBudget * percentage) / 100),
-            percentage: percentage,
-            spent: 0
-        };
+    if (customPercentages) {
+        validateAndNormalizePercentages(customPercentages);
     }
 
-    return breakdown;
+    const dynamicBreakdown = dynamicBudgetService.calculateDynamicBudgetBreakdown({
+        totalBudget,
+        days: 1,
+        travelers: 1,
+        travelStyle: 'moderate',
+        customBudgetPercentages: customPercentages || DEFAULT_BUDGET_PERCENTAGES
+    });
+
+    // Preserve the legacy return shape for existing controllers.
+    return Object.fromEntries(Object.entries(dynamicBreakdown).map(([category, data]) => [
+        category,
+        {
+            amount: data.amount,
+            percentage: data.percentage,
+            spent: data.spent
+        }
+    ]));
 };
 
 /**
@@ -176,7 +182,10 @@ const recalculateBudget = (currentBreakdown, newTotalBudget) => {
         breakdown[category] = {
             amount: Math.round((newTotalBudget * percentage) / 100),
             percentage: percentage,
-            spent: current.spent || 0
+            spent: current.spent || 0,
+            remaining: Math.round((newTotalBudget * percentage) / 100) - (current.spent || 0),
+            perDay: current.perDay || 0,
+            perPerson: current.perPerson || 0
         };
     }
 
@@ -190,34 +199,19 @@ const recalculateBudget = (currentBreakdown, newTotalBudget) => {
  * @returns {Object} Estimated daily costs per category
  */
 const estimateDailyBudget = (destination, travelStyle = 'moderate') => {
-    // TODO: Integrate with Google Places API for real-time pricing
-    // This is a placeholder with sample data for Pakistani destinations
-    
-    const dailyEstimates = {
-        pakistan: {
-            budget: { accommodation: 3000, food: 1500, transport: 1000, activities: 500 },
-            moderate: { accommodation: 8000, food: 3000, transport: 2500, activities: 1500 },
-            luxury: { accommodation: 25000, food: 7000, transport: 5000, activities: 5000 }
-        },
-        international: {
-            budget: { accommodation: 5000, food: 3000, transport: 2000, activities: 1000 },
-            moderate: { accommodation: 15000, food: 6000, transport: 4000, activities: 3000 },
-            luxury: { accommodation: 50000, food: 15000, transport: 10000, activities: 10000 }
-        }
-    };
-
-    // Simple destination detection (to be enhanced with proper geo detection)
-    const isPakistan = ['pakistan', 'karachi', 'lahore', 'islamabad', 'peshawar', 'quetta']
-        .some(city => destination.toLowerCase().includes(city));
-
-    const region = isPakistan ? 'pakistan' : 'international';
     const style = ['budget', 'moderate', 'luxury'].includes(travelStyle) ? travelStyle : 'moderate';
+    const costProfile = dynamicBudgetService.getDynamicCostProfile({ destination, travelStyle: style });
+    const daily = Object.fromEntries(Object.entries(costProfile).map(([category, range]) => [
+        category,
+        range.avg
+    ]));
 
     return {
-        daily: dailyEstimates[region][style],
-        totalDaily: Object.values(dailyEstimates[region][style]).reduce((a, b) => a + b, 0),
-        region,
+        daily,
+        totalDaily: Object.values(daily).reduce((a, b) => a + b, 0),
+        region: 'pakistan',
         style,
+        costProfile,
         note: 'Estimates based on typical travel costs. Actual costs may vary.'
     };
 };
@@ -333,6 +327,10 @@ module.exports = {
     
     // Estimation functions (for future API integration)
     estimateDailyBudget,
+    buildDynamicBudgetPlan: dynamicBudgetService.buildDynamicBudgetPlan,
+    getDynamicCostProfile: dynamicBudgetService.getDynamicCostProfile,
+    calculateDynamicBudgetBreakdown: dynamicBudgetService.calculateDynamicBudgetBreakdown,
+    validateBudgetPlan: dynamicBudgetService.validateBudgetPlan,
     
     // Constants
     DEFAULT_BUDGET_PERCENTAGES,

@@ -73,16 +73,32 @@ const SavedActivitySchema = new mongoose.Schema({
     location: {
         name: { type: String, default: '' },
         address: { type: String, default: '' },
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null },
         coordinates: {
             lat: { type: Number, default: null },
             lng: { type: Number, default: null }
         },
         placeId: { type: String, default: null }
     },
+    latitude: { type: Number, default: null },
+    longitude: { type: Number, default: null },
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null },
+    coordinateStatus: {
+        type: String,
+        enum: ['resolved', 'missing'],
+        default: undefined
+    },
+    coordinateError: {
+        type: String,
+        maxlength: 200,
+        default: undefined
+    },
     // Source tracking
     source: {
         type: String,
-        enum: ['business', 'ai', 'user', 'fallback'],
+        enum: ['business', 'ai', 'user', 'fallback', 'map'],
         required: true
     },
     // Business reference (if source is 'business')

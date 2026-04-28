@@ -21,6 +21,7 @@ const {
     addPlaceToTrip,
     addFromMap,
     startTrip,
+    getDayRoute,
     getBudgetDetails,
     getUserTripStats,
     estimateTripBudget
@@ -107,6 +108,13 @@ router.post("/:id/add-from-map", addFromMap);
  * Start a trip (change status to ongoing)
  */
 router.post("/:id/start", startTrip);
+
+/**
+ * POST /api/trips/:id/day-route
+ * Build real road route for one itinerary day
+ * Body: { day, travelMode, origin }
+ */
+router.post("/:id/day-route", getDayRoute);
 
 /**
  * GET /api/trips/:id/budget

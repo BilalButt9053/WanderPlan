@@ -65,9 +65,8 @@ const transformPlace = (place) => ({
     priceLevel: place.price_level || null,
     types: place.types || [],
     category: mapPlaceType(place.types),
-    photo: place.photos?.[0]?.photo_reference
-        ? `${PLACES_BASE_URL}/photo?maxwidth=400&photo_reference=${place.photos[0].photo_reference}&key=${GOOGLE_PLACES_API_KEY}`
-        : null,
+    photo: null,
+    photoReference: place.photos?.[0]?.photo_reference || null,
     isOpen: place.opening_hours?.open_now ?? null,
     businessStatus: place.business_status || 'OPERATIONAL'
 });
@@ -283,9 +282,8 @@ const getPlaceDetails = async (req, res, next) => {
             priceLevel: place.price_level || null,
             types: place.types || [],
             category: mapPlaceType(place.types),
-            photos: (place.photos || []).map(photo =>
-                `${PLACES_BASE_URL}/photo?maxwidth=800&photo_reference=${photo.photo_reference}&key=${GOOGLE_PLACES_API_KEY}`
-            ),
+            photos: [],
+            photoReferences: (place.photos || []).map(photo => photo.photo_reference).filter(Boolean),
             openingHours: place.opening_hours?.weekday_text || [],
             isOpen: place.opening_hours?.open_now ?? null,
             phone: place.formatted_phone_number || null,

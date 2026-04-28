@@ -21,6 +21,11 @@ const ItineraryTemplate = require('../modals/itinerary-template-modal');
 const SavedItinerary = require('../modals/saved-itinerary-modal');
 const Business = require('../modals/business-modal');
 const openaiService = require('./openai-service');
+const dynamicBudgetService = require('./dynamic-budget-service');
+const {
+    getActivityCoordinates,
+    enrichItineraryWithCoordinates
+} = require('./coordinate-service');
 const axios = require('axios');
 
 // Google Places API config
@@ -57,7 +62,11 @@ const getTripBudgetInfo = async (tripId) => {
         currency: trip.currency || 'PKR',
         travelers: trip.travelers,
         days: trip.durationDays || 1,
-        travelStyle: mapTripTypeToStyle(trip.tripType),
+        travelStyle: trip.travelStyle || mapTripTypeToStyle(trip.tripType),
+        costProfile: trip.costProfile || dynamicBudgetService.getDynamicCostProfile({
+            destination: trip.destination?.name,
+            travelStyle: trip.travelStyle || mapTripTypeToStyle(trip.tripType)
+        }),
         accommodation: {
             allocated: trip.budgetBreakdown?.accommodation?.amount || 0,
             spent: trip.budgetBreakdown?.accommodation?.spent || 0,
@@ -173,7 +182,11 @@ const fetchStaticItineraries = async (params) => {
                     // Estimate cost if not provided
                     const estimatedCost = activityCost > 0 
                         ? activityCost 
-                        : openaiService.estimateActivityCost({ type: activity.type }, travelStyle);
+                        : openaiService.estimateActivityCost(
+                            { type: activity.type, destination },
+                            travelStyle,
+                            budget?.costProfile
+                        );
 
                     dayEntry.activities.push({
                         title: activity.title,
@@ -229,7 +242,8 @@ const generateAIItinerary = async (params) => {
             travelStyle,
             budget,
             activitiesPerDay: CONFIG.maxAIActivitiesPerDay,
-            excludeActivities
+            excludeActivities,
+            costProfile: budget?.costProfile
         });
 
         // Process and limit activities per day
@@ -262,6 +276,26 @@ const normalizeForComparison = (text) => {
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '')
         .trim();
+};
+
+const getCoordinateStats = (itinerary = []) => {
+    const days = Array.isArray(itinerary) ? itinerary : itinerary?.days || [];
+    let totalActivities = 0;
+    let resolvedCoordinates = 0;
+    let missingCoordinates = 0;
+
+    for (const day of days) {
+        for (const activity of day.activities || []) {
+            totalActivities += 1;
+            if (getActivityCoordinates(activity)) {
+                resolvedCoordinates += 1;
+            } else {
+                missingCoordinates += 1;
+            }
+        }
+    }
+
+    return { totalActivities, resolvedCoordinates, missingCoordinates };
 };
 
 /**
@@ -565,12 +599,19 @@ const saveItinerary = async (params) => {
         generationTime
     } = params;
 
+    const enrichedDays = await enrichItineraryWithCoordinates(days || itinerary, destination);
+    const coordinateStats = getCoordinateStats(enrichedDays);
+    console.log(
+        `[itinerary-service] Coordinate enrichment: totalActivities=${coordinateStats.totalActivities}, ` +
+        `resolvedCoordinates=${coordinateStats.resolvedCoordinates}, missingCoordinates=${coordinateStats.missingCoordinates}`
+    );
+
     // Check for existing itinerary
     let savedItinerary = await SavedItinerary.findByTripId(tripId);
     
     if (savedItinerary) {
         // Update existing
-        savedItinerary.days = days;
+        savedItinerary.days = enrichedDays;
         savedItinerary.estimatedCosts = categoryCosts;
         savedItinerary.budgetStatus = budgetStatus;
         savedItinerary.version += 1;
@@ -579,9 +620,9 @@ const saveItinerary = async (params) => {
         savedItinerary.generationDetails.generationTime = generationTime;
     } else {
         // Create new
-        const aiCount = itinerary.reduce((sum, day) => 
+        const aiCount = enrichedDays.reduce((sum, day) =>
             sum + day.activities.filter(a => a.source === 'ai').length, 0);
-        const businessCount = itinerary.reduce((sum, day) => 
+        const businessCount = enrichedDays.reduce((sum, day) =>
             sum + day.activities.filter(a => a.source === 'business').length, 0);
 
         savedItinerary = new SavedItinerary({
@@ -600,8 +641,8 @@ const saveItinerary = async (params) => {
                 totalBudget: trip?.totalBudget || 0,
                 travelStyle
             },
-            days: itinerary,
-            totalDays: itinerary.length,
+            days: enrichedDays,
+            totalDays: enrichedDays.length,
             estimatedCosts: categoryCosts,
             budgetStatus,
             generationDetails: {
@@ -689,7 +730,8 @@ const generateHybridItinerary = async (params) => {
             const fallbackItinerary = openaiService.generateFallbackItinerary(
                 destination, 
                 days, 
-                travelStyle
+                travelStyle,
+                budgetInfo?.costProfile
             );
             aiItinerary = fallbackItinerary;
         }
@@ -708,8 +750,14 @@ const generateHybridItinerary = async (params) => {
         // Step 6: Validate costs
         const validation = openaiService.validateCostsAgainstBudget(merged, budgetInfo);
 
-        // Step 7: Calculate statistics
-        const stats = calculateItineraryStats(merged);
+        // Step 7: Enrich activity coordinates and calculate statistics
+        const enrichedMerged = await enrichItineraryWithCoordinates(merged, destination);
+        const coordinateStats = getCoordinateStats(enrichedMerged);
+        console.log(
+            `[itinerary-service] Generated itinerary coordinates: totalActivities=${coordinateStats.totalActivities}, ` +
+            `resolvedCoordinates=${coordinateStats.resolvedCoordinates}, missingCoordinates=${coordinateStats.missingCoordinates}`
+        );
+        const stats = calculateItineraryStats(enrichedMerged);
 
         const generationTime = Date.now() - startTime;
 
@@ -721,8 +769,8 @@ const generateHybridItinerary = async (params) => {
                 userId,
                 trip,
                 destination,
-                days: merged,
-                itinerary: merged,
+                days: enrichedMerged,
+                itinerary: enrichedMerged,
                 categoryCosts,
                 budgetStatus,
                 travelStyle,
@@ -738,7 +786,7 @@ const generateHybridItinerary = async (params) => {
             days: days,
             travelStyle,
             travelers: budgetInfo?.travelers || travelers,
-            itinerary: merged,
+            itinerary: enrichedMerged,
             estimatedCosts: categoryCosts,
             budgetStatus,
             budgetInfo: budgetInfo ? {
@@ -950,9 +998,8 @@ const fetchGooglePlaces = async (destination, category) => {
                 price_level: place.price_level || 2,
                 rating: place.rating || 0,
                 address: place.formatted_address || place.vicinity || '',
-                photo: place.photos?.[0]?.photo_reference 
-                    ? `${PLACES_BASE_URL}/photo?maxwidth=400&photo_reference=${place.photos[0].photo_reference}&key=${GOOGLE_PLACES_API_KEY}`
-                    : null,
+                photo: null,
+                photoReference: place.photos?.[0]?.photo_reference || null,
                 source: 'google'
             }));
         
@@ -1329,7 +1376,18 @@ const generateRealDataItinerary = async (params) => {
         // Step 6: If no places found, use fallback
         if (uniquePlaces.length === 0) {
             console.warn('[itinerary-service] No places found, using fallback itinerary');
-            const fallbackItinerary = openaiService.generateFallbackItinerary(destination, days, travelStyle);
+            let fallbackItinerary = openaiService.generateFallbackItinerary(
+                destination,
+                days,
+                travelStyle,
+                budgetInfo?.costProfile
+            );
+            fallbackItinerary = await enrichItineraryWithCoordinates(fallbackItinerary, destination);
+            const coordinateStats = getCoordinateStats(fallbackItinerary);
+            console.log(
+                `[itinerary-service] Generated itinerary coordinates: totalActivities=${coordinateStats.totalActivities}, ` +
+                `resolvedCoordinates=${coordinateStats.resolvedCoordinates}, missingCoordinates=${coordinateStats.missingCoordinates}`
+            );
             
             // Calculate costs
             const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
@@ -1343,6 +1401,23 @@ const generateRealDataItinerary = async (params) => {
             
             const budgetStatus = calculateBudgetStatus(categoryCosts, budgetInfo);
             const stats = calculateItineraryStats(fallbackItinerary);
+            const generationTime = Date.now() - startTime;
+
+            let savedItinerary = null;
+            if (saveToDb && tripId && userId) {
+                savedItinerary = await saveItinerary({
+                    tripId,
+                    userId,
+                    trip,
+                    destination,
+                    days: fallbackItinerary,
+                    itinerary: fallbackItinerary,
+                    categoryCosts,
+                    budgetStatus,
+                    travelStyle,
+                    generationTime
+                });
+            }
             
             return {
                 success: true,
@@ -1361,15 +1436,29 @@ const generateRealDataItinerary = async (params) => {
                 } : null,
                 stats,
                 warnings: ['Using fallback itinerary - no real places found for this destination'],
+                savedItineraryId: savedItinerary?._id || null,
                 generatedAt: new Date().toISOString(),
-                generationTime: Date.now() - startTime,
+                generationTime,
                 mode: 'ai',
                 dataSource: 'fallback'
             };
         }
         
         // Step 7: Build day-wise itinerary with distance-based grouping
-        const itinerary = buildDayWiseItinerary(uniquePlaces, days, travelStyle);
+        let itinerary = buildDayWiseItinerary(uniquePlaces, days, travelStyle);
+        itinerary = await enrichItineraryWithCoordinates(itinerary, destination);
+        const coordinateStats = getCoordinateStats(itinerary);
+        console.log(
+            `[itinerary-service] Generated itinerary coordinates: totalActivities=${coordinateStats.totalActivities}, ` +
+            `resolvedCoordinates=${coordinateStats.resolvedCoordinates}, missingCoordinates=${coordinateStats.missingCoordinates}`
+        );
+
+        // Step 7.5: Optionally enhance descriptions with AI before saving
+        try {
+            itinerary = await openaiService.enhanceItineraryDescriptions(itinerary, destination);
+        } catch (err) {
+            console.warn('[itinerary-service] AI enhancement failed, using original descriptions:', err.message);
+        }
         
         // Step 8: Calculate costs by category
         const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
@@ -1414,21 +1503,13 @@ const generateRealDataItinerary = async (params) => {
         
         console.log(`[itinerary-service] Real-data itinerary generated in ${generationTime}ms with ${stats.totalActivities} activities`);
         
-        // Step 13: Optionally enhance descriptions with AI
-        let enhancedItinerary = itinerary;
-        try {
-            enhancedItinerary = await openaiService.enhanceItineraryDescriptions(itinerary, destination);
-        } catch (err) {
-            console.warn('[itinerary-service] AI enhancement failed, using original descriptions:', err.message);
-        }
-        
         return {
             success: true,
             destination,
             days,
             travelStyle,
             travelers: budgetInfo?.travelers || travelers,
-            itinerary: enhancedItinerary,
+            itinerary,
             estimatedCosts: categoryCosts,
             budgetStatus,
             budgetInfo: budgetInfo ? {
