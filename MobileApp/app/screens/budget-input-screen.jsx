@@ -13,7 +13,8 @@ import {
   Calendar, 
   ArrowLeft,
   Sparkles,
-  Edit3
+  Edit3,
+  Users
 } from 'lucide-react-native';
 import  WanderButton  from '../components/wander-button';
 import  WanderCard  from '../components/wander-card';
@@ -21,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const currencies = ['PKR'];
+const travelStyles = ['budget', 'moderate', 'luxury'];
 const popularDestinations = [
   'Islamabad, Pakistan',
   'Lahore, Pakistan',
@@ -41,6 +43,8 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
   const [currency, setCurrency] = useState('PKR');
   const [destination, setDestination] = useState('');
   const [duration, setDuration] = useState('');
+  const [travelers, setTravelers] = useState('1');
+  const [travelStyle, setTravelStyle] = useState('moderate');
   const [startDate, setStartDate] = useState(new Date()); // Default today
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCurrencies, setShowCurrencies] = useState(false);
@@ -67,7 +71,17 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
 
   const handleGeneratePlan = () => {
     if (budget && destination && duration) {
-      onGeneratePlan({ budget, currency, destination, duration, startDate: startDate.toISOString() });
+      onGeneratePlan({
+        budget,
+        currency,
+        destination,
+        duration,
+        days: duration,
+        totalBudget: budget,
+        travelers: Number(travelers) || 1,
+        travelStyle,
+        startDate: startDate.toISOString(),
+      });
     }
   };
 
@@ -150,6 +164,70 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
               }}>
                 <Text style={{ fontSize: 16, fontWeight: '600' }}>PKR</Text>
               </View>
+            </View>
+          </View>
+        </WanderCard>
+
+        {/* Travelers Input */}
+        <WanderCard>
+          <View style={{ marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Users size={18} color="#3B82F6" />
+              <Text style={{ fontSize: 16, fontWeight: '500' }}>Travelers</Text>
+            </View>
+            <TextInput
+              placeholder="1"
+              value={travelers}
+              onChangeText={setTravelers}
+              keyboardType="numeric"
+              style={{
+                width: '100%',
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                backgroundColor: '#F9FAFB',
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                borderRadius: 16,
+                fontSize: 16
+              }}
+            />
+          </View>
+        </WanderCard>
+
+        {/* Travel Style Input */}
+        <WanderCard>
+          <View style={{ marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Sparkles size={18} color="#3B82F6" />
+              <Text style={{ fontSize: 16, fontWeight: '500' }}>Travel Style</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {travelStyles.map((style) => {
+                const selected = travelStyle === style;
+                return (
+                  <TouchableOpacity
+                    key={style}
+                    onPress={() => setTravelStyle(style)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 12,
+                      borderRadius: 16,
+                      alignItems: 'center',
+                      backgroundColor: selected ? '#3B82F6' : '#F9FAFB',
+                      borderWidth: 1,
+                      borderColor: selected ? '#3B82F6' : '#E5E7EB',
+                    }}
+                  >
+                    <Text style={{
+                      color: selected ? '#ffffff' : '#111827',
+                      fontWeight: '600',
+                      textTransform: 'capitalize',
+                    }}>
+                      {style}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </WanderCard>
@@ -345,7 +423,17 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
         <TouchableOpacity
           onPress={() => {
             if (budget && destination && duration) {
-              onManualCreate({ budget, currency, destination, duration, startDate: startDate.toISOString() });
+              onManualCreate({
+                budget,
+                currency,
+                destination,
+                duration,
+                days: duration,
+                totalBudget: budget,
+                travelers: Number(travelers) || 1,
+                travelStyle,
+                startDate: startDate.toISOString(),
+              });
             } else {
               onManualCreate();
             }

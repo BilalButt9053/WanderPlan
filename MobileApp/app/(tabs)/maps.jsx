@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -33,6 +33,7 @@ import {
   Compass,
   Plus,
   Bike,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
@@ -41,7 +42,7 @@ import { ListItemSkeleton } from '../components/Skeleton';
 import { useTheme } from '../../hooks/useTheme';
 import { useGetBusinessesQuery, useGetNearbyBusinessesQuery } from '../../redux/api/businessItemsApi';
 import { useLazyGetNearbyPlacesQuery } from '../../redux/api/placesApi';
-import { useAddFromMapMutation } from '../../redux/api/tripsApi';
+import { useAddFromMapMutation, useGetDayRouteMutation } from '../../redux/api/tripsApi';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   selectActiveTrip,
@@ -49,17 +50,21 @@ import {
   selectCurrentDay,
   selectIsTripMode,
   selectTransportMode,
+  selectActiveDayRoute,
+  selectRouteStatus,
+  selectRouteError,
   setCurrentDay,
   setTripMode,
   setTransportMode,
+  setActiveDayRoute,
+  setRouteError,
+  setRouteStatus,
   addActivityToActiveTrip,
-  updateActiveTripBudget,
+  setActiveTripBudget,
   setActiveTripItinerary,
 } from '../../redux/slices/tripsSlice';
-import { normalizeItinerary } from '../../utils/tripFlow';
+import { getActivityCoordinate, normalizeItinerary } from '../../utils/tripFlow';
 import {
-  calculateDayTransportCost,
-  calculateDistance,
   calculateTransportCost,
   formatDistance,
   formatCurrency,
@@ -89,6 +94,7 @@ const activityColors = {
 const Maps = () => {
   const { colors } = useTheme();
   const dispatch = useDispatch();
+  const mapRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [selectedActivity, setSelectedActivity] = useState(null);
@@ -102,12 +108,15 @@ const Maps = () => {
   const [mapRegion, setMapRegion] = useState(null);
   const [isAddingPlace, setIsAddingPlace] = useState(false);
 
-  const { activeTrip, rawItinerary, selectedDay, transportMode, isTripMode } = useSelector((state) => ({
+  const { activeTrip, rawItinerary, selectedDay, transportMode, isTripMode, activeDayRoute, routeStatus, routeError } = useSelector((state) => ({
     activeTrip: selectActiveTrip(state),
     rawItinerary: selectActiveTripItinerary(state)?.itinerary || state.trips?.activeTrip?.itinerary,
     selectedDay: selectCurrentDay(state),
     transportMode: selectTransportMode(state),
     isTripMode: selectIsTripMode(state),
+    activeDayRoute: selectActiveDayRoute(state),
+    routeStatus: selectRouteStatus(state),
+    routeError: selectRouteError(state),
   }));
 
   const tripItinerary = useMemo(() => normalizeItinerary(rawItinerary), [rawItinerary]);
@@ -115,6 +124,7 @@ const Maps = () => {
 
   // Add from map mutation
   const [addFromMap] = useAddFromMapMutation();
+  const [getDayRoute] = useGetDayRouteMutation();
 
   // Fetch businesses by text (fallback)
   const { data: businessData, isLoading: isLoadingSearch, refetch } = useGetBusinessesQuery({
@@ -176,27 +186,110 @@ const Maps = () => {
 
   // Filter activities with valid coordinates
   const activitiesWithCoords = useMemo(() => {
-    return dayActivities.filter((a) => a.latitude != null && a.longitude != null);
+    return dayActivities
+      .map((activity) => {
+        const coordinate = getActivityCoordinate(activity);
+        if (!coordinate) return null;
+        return {
+          ...activity,
+          latitude: coordinate.lat,
+          longitude: coordinate.lng,
+        };
+      })
+      .filter(Boolean);
   }, [dayActivities]);
 
-  // Calculate transport cost for selected day
-  const transportCost = useMemo(() => {
-    return calculateDayTransportCost(dayActivities, userLocation);
-  }, [dayActivities, userLocation]);
+  const routeStopsWithCoords = useMemo(() => {
+    if (Number(activeDayRoute?.day) !== Number(selectedDay)) return [];
+    if (!Array.isArray(activeDayRoute?.orderedStops)) return [];
+
+    return activeDayRoute.orderedStops
+      .map((stop, index) => {
+        const coordinate = getActivityCoordinate(stop);
+        if (!coordinate) return null;
+        return {
+          ...stop,
+          id: stop.id || `route-stop-${selectedDay}-${index}`,
+          name: stop.title || stop.name || `Stop ${index + 1}`,
+          latitude: coordinate.lat,
+          longitude: coordinate.lng,
+        };
+      })
+      .filter(Boolean);
+  }, [activeDayRoute, selectedDay]);
+
+  const displayedActivitiesWithCoords = routeStopsWithCoords.length
+    ? routeStopsWithCoords
+    : activitiesWithCoords;
 
   // Generate route coordinates for polyline
   const routeCoordinates = useMemo(() => {
-    return activitiesWithCoords.map((a) => ({
-      latitude: Number(a.latitude),
-      longitude: Number(a.longitude),
-    }));
-  }, [activitiesWithCoords]);
+    return displayedActivitiesWithCoords
+      .map((activity) => {
+        const coordinate = getActivityCoordinate(activity);
+        if (!coordinate) return null;
+        return {
+          latitude: coordinate.lat,
+          longitude: coordinate.lng,
+        };
+      })
+      .filter(Boolean);
+  }, [displayedActivitiesWithCoords]);
+
+  const realRouteCoordinates = useMemo(() => {
+    if (Number(activeDayRoute?.day) !== Number(selectedDay)) return [];
+    if (!Array.isArray(activeDayRoute?.coordinates)) return [];
+
+    return activeDayRoute.coordinates
+      .map((coord) => ({
+        latitude: Number(coord.latitude ?? coord.lat),
+        longitude: Number(coord.longitude ?? coord.lng),
+      }))
+      .filter((coord) => Number.isFinite(coord.latitude) && Number.isFinite(coord.longitude));
+  }, [activeDayRoute, selectedDay]);
+
+  const hasRealRoute = realRouteCoordinates.length >= 2 && !activeDayRoute?.routeUnavailable;
+  const displayedRouteCoordinates = hasRealRoute ? realRouteCoordinates : routeCoordinates;
+  const requestedTravelMode = transportMode === 'bike' ? 'bicycling' : 'driving';
+  const routeTravelMode = activeDayRoute?.travelMode || requestedTravelMode;
+  const shouldShowRouteWarning =
+    viewMode === 'trip' &&
+    dayActivities.length > 0 &&
+    (!hasRealRoute || routeStatus === 'failed' || activeDayRoute?.routeUnavailable);
+
+  const fallbackRouteDistance = useMemo(() => {
+    if (displayedRouteCoordinates.length < 2) return 0;
+
+    return displayedRouteCoordinates.slice(1).reduce((sum, point, index) => {
+      const previous = displayedRouteCoordinates[index];
+      const toRad = (value) => (value * Math.PI) / 180;
+      const radiusKm = 6371;
+      const dLat = toRad(point.latitude - previous.latitude);
+      const dLng = toRad(point.longitude - previous.longitude);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(previous.latitude)) *
+          Math.cos(toRad(point.latitude)) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return sum + radiusKm * c;
+    }, 0);
+  }, [displayedRouteCoordinates]);
+
+  const formatDurationText = (seconds = 0) => {
+    const totalMinutes = Math.max(0, Math.round(Number(seconds || 0) / 60));
+    if (totalMinutes < 60) return `${totalMinutes} min`;
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+  };
 
   // Calculate trip map region
   const tripRegion = useMemo(() => {
-    if (activitiesWithCoords.length > 0) {
-      const lats = activitiesWithCoords.map((a) => Number(a.latitude));
-      const lngs = activitiesWithCoords.map((a) => Number(a.longitude));
+    if (displayedActivitiesWithCoords.length > 0) {
+      const lats = displayedActivitiesWithCoords.map((a) => Number(a.latitude));
+      const lngs = displayedActivitiesWithCoords.map((a) => Number(a.longitude));
       const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
       const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
       const latDelta = Math.max(Math.max(...lats) - Math.min(...lats), 0.02) * 1.5;
@@ -208,7 +301,10 @@ const Maps = () => {
         longitudeDelta: lngDelta,
       };
     }
-    if (activeTrip?.destination?.coordinates?.lat) {
+    if (
+      activeTrip?.destination?.coordinates?.lat != null &&
+      activeTrip?.destination?.coordinates?.lng != null
+    ) {
       return {
         latitude: activeTrip.destination.coordinates.lat,
         longitude: activeTrip.destination.coordinates.lng,
@@ -217,7 +313,61 @@ const Maps = () => {
       };
     }
     return null;
-  }, [activitiesWithCoords, activeTrip]);
+  }, [displayedActivitiesWithCoords, activeTrip]);
+
+  const routeFetchKeyRef = useRef(null);
+
+  useEffect(() => {
+    const shouldFetchRoute =
+      viewMode === 'trip' &&
+      activeTrip?._id &&
+      dayActivities.length > 0;
+
+    if (!shouldFetchRoute) return;
+
+    const routeFetchKey = `${activeTrip._id}:${selectedDay}:${requestedTravelMode}:${viewMode}`;
+    if (routeFetchKeyRef.current === routeFetchKey) return;
+    routeFetchKeyRef.current = routeFetchKey;
+
+    (async () => {
+      try {
+        dispatch(setRouteStatus('loading'));
+        const result = await getDayRoute({
+          tripId: activeTrip._id,
+          day: selectedDay,
+          travelMode: requestedTravelMode,
+          origin: userLocation
+            ? { lat: userLocation.lat, lng: userLocation.lng }
+            : null,
+        }).unwrap();
+        const route = result?.route || result;
+        dispatch(setActiveDayRoute(route));
+        if (route?.routeUnavailable) {
+          dispatch(setRouteError(route.warning || 'Road route unavailable, showing approximate route.'));
+        }
+      } catch (error) {
+        console.log('Day route unavailable:', error?.data?.message || error?.message);
+        dispatch(setRouteError(error?.data?.message || 'Road route unavailable, showing approximate route.'));
+      }
+    })();
+  }, [
+    activeTrip?._id,
+    dayActivities.length,
+    dispatch,
+    getDayRoute,
+    requestedTravelMode,
+    selectedDay,
+    viewMode,
+  ]);
+
+  useEffect(() => {
+    if (viewMode !== 'trip' || displayedRouteCoordinates.length < 2) return;
+
+    mapRef.current?.fitToCoordinates(displayedRouteCoordinates, {
+      edgePadding: { top: 140, right: 60, bottom: 180, left: 60 },
+      animated: true,
+    });
+  }, [displayedRouteCoordinates, viewMode]);
 
   // Transform API data to map format
   const mapPlaces = useMemo(() => {
@@ -245,7 +395,7 @@ const Maps = () => {
 
   // Calculate distance between two coordinates (Haversine formula)
   const calculateDistance = (lat1, lng1, lat2, lng2) => {
-    if (!lat1 || !lng1 || !lat2 || !lng2) return null;
+    if ([lat1, lng1, lat2, lng2].some((value) => !Number.isFinite(Number(value)))) return null;
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
@@ -293,11 +443,12 @@ const Maps = () => {
   const getActivityMarkerColor = (type) => activityColors[type] || activityColors.other;
 
   const handleNavigate = (place) => {
-    const lat = place.lat || place.location?.coordinates?.lat;
-    const lng = place.lng || place.location?.coordinates?.lng;
+    const coordinate = getActivityCoordinate(place);
+    const lat = coordinate?.lat;
+    const lng = coordinate?.lng;
     const name = place.name || place.title;
 
-    if (lat && lng) {
+    if (lat != null && lng != null) {
       const url = Platform.select({
         ios: `maps:0,0?q=${lat},${lng}(${encodeURIComponent(name)})`,
         android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(name)})`,
@@ -326,14 +477,14 @@ const Maps = () => {
   // Explore nearby places (trip mode)
   const handleExploreNearby = async () => {
     const center =
-      (selectedActivity?.latitude != null && selectedActivity?.longitude != null
-        ? { lat: selectedActivity.latitude, lng: selectedActivity.longitude }
+      (getActivityCoordinate(selectedActivity)
+        ? getActivityCoordinate(selectedActivity)
         : null) ||
-      (activitiesWithCoords.length > 0
-        ? { lat: activitiesWithCoords[0].latitude, lng: activitiesWithCoords[0].longitude }
+      (displayedActivitiesWithCoords.length > 0
+        ? { lat: displayedActivitiesWithCoords[0].latitude, lng: displayedActivitiesWithCoords[0].longitude }
         : userLocation);
 
-    if (!center?.lat || !center?.lng) {
+    if (center?.lat == null || center?.lng == null) {
       Alert.alert('Location Required', 'Please enable location or select an activity');
       return;
     }
@@ -355,24 +506,22 @@ const Maps = () => {
 
   // Calculate transport cost from last activity to new place
   const calculateTransportToPlace = (place) => {
-    if (!place?.lat && !place?.coordinates?.lat) return { distance: 0, cost: 0 };
-
-    const placeLat = place.lat || place.coordinates?.lat;
-    const placeLng = place.lng || place.coordinates?.lng;
+    const placeCoordinate = getActivityCoordinate(place);
+    if (!placeCoordinate) return { distance: 0, cost: 0 };
 
     // Get the last activity with coordinates in the current day
     let fromLocation = userLocation;
-    if (activitiesWithCoords.length > 0) {
-      const lastActivity = activitiesWithCoords[activitiesWithCoords.length - 1];
+    if (displayedActivitiesWithCoords.length > 0) {
+      const lastActivity = displayedActivitiesWithCoords[displayedActivitiesWithCoords.length - 1];
       fromLocation = {
         lat: lastActivity.latitude,
         lng: lastActivity.longitude,
       };
     }
 
-    if (!fromLocation?.lat || !placeLat) return { distance: 0, cost: 0 };
+    if (!fromLocation?.lat && fromLocation?.lat !== 0) return { distance: 0, cost: 0 };
 
-    const distance = calculateDistance(fromLocation.lat, fromLocation.lng, placeLat, placeLng);
+    const distance = calculateDistance(fromLocation.lat, fromLocation.lng, placeCoordinate.lat, placeCoordinate.lng);
     const ratePerKm = transportMode === 'bike' ? 20 : 40; // PKR per km
     const cost = calculateTransportCost(distance, ratePerKm);
 
@@ -386,6 +535,7 @@ const Maps = () => {
     setIsAddingPlace(true);
     try {
       const transport = calculateTransportToPlace(placeToAdd);
+      const placeCoordinate = getActivityCoordinate(placeToAdd);
 
       const result = await addFromMap({
         tripId: activeTrip._id,
@@ -395,8 +545,8 @@ const Maps = () => {
         category: placeToAdd.category || 'activities',
         address: placeToAdd.address || placeToAdd.vicinity || '',
         coordinates: {
-          lat: placeToAdd.lat || placeToAdd.coordinates?.lat,
-          lng: placeToAdd.lng || placeToAdd.coordinates?.lng,
+          lat: placeCoordinate?.lat ?? null,
+          lng: placeCoordinate?.lng ?? null,
         },
         estimatedCost: Number(estimatedCost) || 0,
         day: selectedDay,
@@ -412,14 +562,13 @@ const Maps = () => {
         dispatch(addActivityToActiveTrip(result.activity));
       }
       if (result.updatedBudget) {
-        dispatch(updateActiveTripBudget({
-          category: 'transport',
-          amount: transport.cost,
-        }));
+        dispatch(setActiveTripBudget(result.updatedBudget));
       }
       if (result.itinerary) {
         dispatch(setActiveTripItinerary({ itinerary: result.itinerary }));
       }
+      routeFetchKeyRef.current = null;
+      dispatch(setActiveDayRoute(null));
 
       setShowAddToTripSheet(false);
       setPlaceToAdd(null);
@@ -508,7 +657,7 @@ const Maps = () => {
             {availableDays.map((day) => {
               const isSelected = day === selectedDay;
               const hasCoords = tripItinerary.some(
-                (item) => Number(item.day) === Number(day) && item.latitude != null && item.longitude != null
+                (item) => Number(item.day) === Number(day) && !!getActivityCoordinate(item)
               );
               return (
                 <TouchableOpacity
@@ -545,11 +694,26 @@ const Maps = () => {
 
   // Render transport cost card (trip mode)
   const renderTransportCard = () => {
-    if (viewMode !== 'trip' || activitiesWithCoords.length < 2) return null;
+    if (viewMode !== 'trip' || displayedRouteCoordinates.length < 2) return null;
+
+    const distanceKm = hasRealRoute
+      ? (Number(activeDayRoute?.distanceMeters || 0) / 1000)
+      : fallbackRouteDistance;
+    const durationText = hasRealRoute
+      ? formatDurationText(activeDayRoute?.durationSeconds)
+      : `~${getEstimatedTravelTime(fallbackRouteDistance)}`;
 
     return (
       <View className="absolute bottom-28 left-4 right-4 z-10">
         <WanderCard padding="sm">
+          {!hasRealRoute && routeError && (
+            <View className="flex-row items-center gap-2 mb-3">
+              <AlertTriangle size={16} color="#F59E0B" />
+              <Text style={{ flex: 1, fontSize: 12, color: '#92400E' }}>
+                Road route unavailable, showing approximate route.
+              </Text>
+            </View>
+          )}
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-2">
               <View
@@ -560,19 +724,19 @@ const Maps = () => {
               </View>
               <View>
                 <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-                  Day {selectedDay} Transport
+                  Day {selectedDay} Route
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>
-                  {formatDistance(transportCost.totalDistance)}
+                  {formatDistance(distanceKm)}
                 </Text>
               </View>
             </View>
             <View className="items-end">
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#059669' }}>
-                {formatCurrency(transportCost.totalCost)}
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#2563EB' }}>
+                {durationText}
               </Text>
               <Text style={{ fontSize: 11, color: colors.textSecondary }}>
-                ~{getEstimatedTravelTime(transportCost.totalDistance)}
+                {routeStatus === 'loading' ? 'Loading road route...' : routeTravelMode}
               </Text>
             </View>
           </View>
@@ -581,9 +745,27 @@ const Maps = () => {
     );
   };
 
+  const renderRouteWarning = () => {
+    if (!shouldShowRouteWarning) return null;
+
+    return (
+      <View className="absolute top-28 left-4 right-4 z-10">
+        <View
+          className="flex-row items-center gap-2 rounded-xl px-3 py-2"
+          style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#F59E0B' }}
+        >
+          <AlertTriangle size={16} color="#92400E" />
+          <Text style={{ flex: 1, color: '#92400E', fontSize: 12, fontWeight: '600' }}>
+            Road route unavailable. Showing approximate route.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   // Render empty state for trip view
   const renderTripEmptyState = () => {
-    if (viewMode !== 'trip' || activitiesWithCoords.length > 0) return null;
+    if (viewMode !== 'trip' || displayedActivitiesWithCoords.length > 0) return null;
 
     return (
       <View className="absolute inset-0 items-center justify-center z-10 px-8">
@@ -1127,12 +1309,13 @@ const Maps = () => {
         {/* Real Map */}
         <View className="flex-1 relative">
           <MapView
+            ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={{ flex: 1 }}
             showsUserLocation={!!userLocation}
             showsMyLocationButton={false}
             initialRegion={defaultRegion}
-            region={viewMode === 'trip' && tripRegion ? tripRegion : mapRegion}
+            region={viewMode === 'trip' ? (mapRegion || tripRegion || defaultRegion) : mapRegion}
             onRegionChangeComplete={setMapRegion}
           >
             {/* Explore mode markers */}
@@ -1150,17 +1333,17 @@ const Maps = () => {
               ))}
 
             {/* Trip mode polyline */}
-            {viewMode === 'trip' && routeCoordinates.length >= 2 && (
+            {viewMode === 'trip' && displayedRouteCoordinates.length >= 2 && (
               <Polyline
-                coordinates={routeCoordinates}
+                coordinates={displayedRouteCoordinates}
                 strokeColor="#3B82F6"
-                strokeWidth={3}
-                lineDashPattern={[10, 5]}
+                strokeWidth={hasRealRoute ? 5 : 3}
+                lineDashPattern={hasRealRoute ? undefined : [10, 5]}
               />
             )}
 
             {/* Trip mode activity markers */}
-            {viewMode === 'trip' && activitiesWithCoords.map((activity, index) => (
+            {viewMode === 'trip' && displayedActivitiesWithCoords.map((activity, index) => (
               <Marker
                 key={activity.id || activity._id || index}
                 coordinate={{
@@ -1198,6 +1381,9 @@ const Maps = () => {
 
           {/* Day selector (trip mode) */}
           {renderDaySelector()}
+
+          {/* Route fallback warning */}
+          {renderRouteWarning()}
 
           {/* Trip empty state */}
           {renderTripEmptyState()}

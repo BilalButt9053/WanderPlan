@@ -23,6 +23,7 @@ import {
   TextInput,
   Modal,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { 
   ArrowLeft,
   Share2,
@@ -56,7 +57,7 @@ import {
   useCommitBudgetMutation,
   useUpdateItineraryMutation,
 } from '../../redux/api/itineraryApi';
-import { useGetTripQuery, useStartTripMutation } from '../../redux/api/tripsApi';
+import { useGetTripQuery, useStartTripMutation, useGetDayRouteMutation } from '../../redux/api/tripsApi';
 import { useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { startTripFlow } from '../../utils/tripFlow';
@@ -123,6 +124,7 @@ export default function GeneratedPlanScreen({
   const [commitBudget, { isLoading: isCommitting }] = useCommitBudgetMutation();
   const [updateItinerary, { isLoading: isUpdating }] = useUpdateItineraryMutation();
   const [startTrip, { isLoading: isStartingTrip }] = useStartTripMutation();
+  const [getDayRoute] = useGetDayRouteMutation();
   const { data: tripData } = useGetTripQuery(tripId, { skip: !tripId });
 
   // Extract data from itineraryData or use budgetData as fallback
@@ -173,7 +175,7 @@ export default function GeneratedPlanScreen({
       items: day.activities?.map((activity, idx) => {
         // Location can be string or object {name, address, coordinates}
         const rawLocation = activity.location;
-        const locationStr = typeof rawLocation === 'object' 
+        const locationLabel = typeof rawLocation === 'object'
           ? (rawLocation?.name || rawLocation?.address || '') 
           : (rawLocation || '');
         
@@ -182,7 +184,9 @@ export default function GeneratedPlanScreen({
           time: activity.time || '',
           title: activity.title,
           type: activity.type || activity.category || 'other',
-          location: locationStr,
+          location: rawLocation,
+          locationLabel,
+          locationText: locationLabel,
           price: activity.actualCost ?? activity.estimatedCost ?? 0,
           source: activity.source || 'ai',
           category: activity.category || 'activities',
@@ -272,6 +276,20 @@ export default function GeneratedPlanScreen({
     }
 
     try {
+      let currentLocation = null;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({});
+          currentLocation = {
+            lat: location.coords.latitude,
+            lng: location.coords.longitude,
+          };
+        }
+      } catch (locationError) {
+        console.log('Start trip location unavailable:', locationError?.message);
+      }
+
       await startTripFlow({
         trip: tripData?.trip,
         tripId,
@@ -279,6 +297,8 @@ export default function GeneratedPlanScreen({
         dispatch,
         navigation,
         startTrip: isAlreadyOngoing ? null : startTrip,
+        getDayRoute,
+        currentLocation,
       });
     } catch (error) {
       Alert.alert('Error', error?.data?.message || 'Failed to start trip');
@@ -925,11 +945,11 @@ export default function GeneratedPlanScreen({
                               )}
                             </View>
 
-                            {item.location && (
+                            {item.locationText && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                                 <MapPin size={12} color={colors.textSecondary} />
                                 <Text style={{ fontSize: 13, color: colors.textSecondary, flex: 1 }} numberOfLines={1}>
-                                  {item.location}
+                                  {item.locationText}
                                 </Text>
                               </View>
                             )}

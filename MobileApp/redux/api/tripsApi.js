@@ -158,6 +158,18 @@ export const tripsApi = createApi({
     }),
 
     /**
+     * Build a real route for one trip day
+     * POST /api/trips/:id/day-route
+     */
+    getDayRoute: builder.mutation({
+      query: ({ tripId, day = 1, travelMode = "driving", origin }) => ({
+        url: `/trips/${tripId}/day-route`,
+        method: "POST",
+        body: { day, travelMode, origin },
+      }),
+    }),
+
+    /**
      * Add place from map to trip (with transport cost)
      * POST /api/trips/:id/add-from-map
      */
@@ -187,5 +199,6 @@ export const {
   useAddActivityToTripMutation,
   useAddPlaceToTripMutation,
   useStartTripMutation,
+  useGetDayRouteMutation,
   useAddFromMapMutation,
 } = tripsApi;

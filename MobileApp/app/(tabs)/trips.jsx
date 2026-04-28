@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Alert, View, ActivityIndicator, Text } from 'react-native';
+import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import TripHistoryScreen from '../screens/trip-history-screen';
 import BudgetInputScreen from '../screens/budget-input-screen';
@@ -14,6 +15,7 @@ import {
   useCreateTripMutation,
   useDeleteTripMutation,
   useStartTripMutation,
+  useGetDayRouteMutation,
 } from '../../redux/api/tripsApi';
 import {
   useGenerateItineraryMutation,
@@ -45,8 +47,14 @@ const trips = () => {
   const [createTrip, { isLoading: isCreating }] = useCreateTripMutation();
   const [deleteTrip] = useDeleteTripMutation();
   const [startTrip, { isLoading: isStarting }] = useStartTripMutation();
+  const [getDayRoute] = useGetDayRouteMutation();
   const [generateItinerary, { isLoading: isGenerating }] = useGenerateItineraryMutation();
   const [triggerGetItinerary] = useLazyGetItineraryQuery();
+
+  const getTripInput = (data = {}) => ({
+    travelers: Number(data.travelers) || 1,
+    travelStyle: data.travelStyle || 'moderate',
+  });
   
   const refreshSelectedItinerary = useCallback(async () => {
     const id = selectedTrip?._id;
@@ -76,6 +84,7 @@ const trips = () => {
       const tripStartDate = data.startDate ? new Date(data.startDate) : new Date(Date.now() + 24 * 60 * 60 * 1000);
       const durationMs = parseInt(data.duration) * 24 * 60 * 60 * 1000;
       const tripEndDate = new Date(tripStartDate.getTime() + durationMs - 24 * 60 * 60 * 1000);
+      const { travelers, travelStyle } = getTripInput(data);
       
       const tripPayload = {
         title: `Trip to ${data.destination}`,
@@ -88,7 +97,8 @@ const trips = () => {
         endDate: tripEndDate.toISOString(),
         totalBudget: parseInt(data.budget),
         currency: data.currency || 'PKR',
-        travelers: 1,
+        travelers,
+        travelStyle,
         tripType: 'leisure',
       };
 
@@ -111,7 +121,7 @@ const trips = () => {
         tripId,
         mode: 'ai', // AI mode: generates itinerary using real Google Places + DB businesses
         preferences: {
-          travelStyle: 'moderate',
+          travelStyle,
         },
       }).unwrap();
 
@@ -147,6 +157,7 @@ const trips = () => {
       const tripStartDate = data.startDate ? new Date(data.startDate) : new Date(Date.now() + 24 * 60 * 60 * 1000);
       const durationMs = parseInt(data.duration || 1) * 24 * 60 * 60 * 1000;
       const tripEndDate = new Date(tripStartDate.getTime() + durationMs - 24 * 60 * 60 * 1000);
+      const { travelers, travelStyle } = getTripInput(data);
       
       const tripPayload = {
         title: `Trip to ${data.destination}`,
@@ -159,7 +170,8 @@ const trips = () => {
         endDate: tripEndDate.toISOString(),
         totalBudget: parseInt(data.budget),
         currency: data.currency || 'PKR',
-        travelers: 1,
+        travelers,
+        travelStyle,
         tripType: 'leisure',
       };
 
@@ -214,6 +226,8 @@ const trips = () => {
         currency: trip?.currency || 'PKR',
         destination: trip?.destination?.name || 'Unknown',
         duration: trip?.durationDays?.toString() || '1',
+        travelers: trip?.travelers || 1,
+        travelStyle: trip?.travelStyle || trip?.budgetPlan?.travelStyle || 'moderate',
       });
 
       // Try to fetch existing itinerary
@@ -263,6 +277,21 @@ const trips = () => {
   const handleStartTrip = async (tripId) => {
     try {
       const trip = tripsData?.trips?.find((item) => item._id === tripId);
+      let currentLocation = null;
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({});
+          currentLocation = {
+            lat: location.coords.latitude,
+            lng: location.coords.longitude,
+          };
+        }
+      } catch (locationError) {
+        console.log('Start trip location unavailable:', locationError?.message);
+      }
+
       await startTripFlow({
         trip,
         tripId,
@@ -270,6 +299,8 @@ const trips = () => {
         dispatch,
         navigation,
         startTrip,
+        getDayRoute,
+        currentLocation,
       });
 
       refetchTrips();
