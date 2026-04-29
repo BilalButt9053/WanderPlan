@@ -19,6 +19,7 @@ export function OnboardingStepTwo({ formData, updateFormData }) {
         multiple={false}
         accept="image/*"
         uploadEndpoint="/business/upload/logo"
+        maxSizeMb={5}
       />
 
       {/* Gallery Upload */}
@@ -31,6 +32,7 @@ export function OnboardingStepTwo({ formData, updateFormData }) {
         maxFiles={10}
         accept="image/*"
         uploadEndpoint="/business/upload/gallery"
+        maxSizeMb={5}
       />
     </div>
   );
