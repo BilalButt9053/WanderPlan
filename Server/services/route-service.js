@@ -172,7 +172,18 @@ const buildDayRoute = async ({ tripId, userId, day = 1, origin = null, travelMod
 
     const selectedDay = itinerary.days.find((entry) => Number(entry.day) === normalizedDay);
     if (!selectedDay || !selectedDay.activities?.length) {
-        throw new Error(`No activities found for day ${normalizedDay}`);
+        return {
+            day: normalizedDay,
+            travelMode: mode,
+            isApproximate: true,
+            coordinates: [],
+            distanceMeters: 0,
+            durationSeconds: 0,
+            orderedStops: [],
+            legs: [],
+            routeUnavailable: true,
+            warning: 'Not enough mapped places to create a route.'
+        };
     }
 
     const destinationName = itinerary.destination?.name || trip.destination?.name || '';
@@ -230,17 +241,21 @@ const buildDayRoute = async ({ tripId, userId, day = 1, origin = null, travelMod
         `[route-service] Day ${normalizedDay} usable stops: ${orderedStops.length}/${sortedActivities.length}`
     );
 
-    if (orderedStops.length < 1) {
+    if (orderedStops.length < 2) {
         return {
             day: normalizedDay,
             travelMode: mode,
-            coordinates: [],
+            isApproximate: true,
+            coordinates: orderedStops.map((stop) => ({
+                latitude: stop.coordinates.latitude,
+                longitude: stop.coordinates.longitude
+            })),
             distanceMeters: 0,
             durationSeconds: 0,
-            orderedStops: [],
+            orderedStops,
             legs: [],
             routeUnavailable: true,
-            warning: 'Road route unavailable. No routeable activities with coordinates were found.'
+            warning: 'Not enough mapped places to create a route.'
         };
     }
 
@@ -258,23 +273,6 @@ const buildDayRoute = async ({ tripId, userId, day = 1, origin = null, travelMod
 
     const stopsForDirections = hasCoordinates(origin) ? routeStops : routeStops.slice(1);
 
-    if (stopsForDirections.length === 0) {
-        return {
-            day: normalizedDay,
-            travelMode: mode,
-            coordinates: [{
-                latitude: routeOrigin.lat,
-                longitude: routeOrigin.lng
-            }],
-            distanceMeters: 0,
-            durationSeconds: 0,
-            orderedStops,
-            legs: [],
-            routeUnavailable: true,
-            warning: 'Road route unavailable. Showing the only activity location.'
-        };
-    }
-
     let directions;
     try {
         directions = await getDirectionsRoute({
@@ -287,6 +285,7 @@ const buildDayRoute = async ({ tripId, userId, day = 1, origin = null, travelMod
         return {
             day: normalizedDay,
             travelMode: mode,
+            isApproximate: true,
             coordinates: [
                 { latitude: routeOrigin.lat, longitude: routeOrigin.lng },
                 ...stopsForDirections.map((stop) => ({
@@ -299,13 +298,14 @@ const buildDayRoute = async ({ tripId, userId, day = 1, origin = null, travelMod
             orderedStops,
             legs: [],
             routeUnavailable: true,
-            warning: 'Road route unavailable, showing approximate route.'
+            warning: 'Road route unavailable. Showing approximate route.'
         };
     }
 
     return {
         day: normalizedDay,
         travelMode: mode,
+        isApproximate: false,
         coordinates: directions.coordinates,
         distanceMeters: directions.distanceMeters,
         durationSeconds: directions.durationSeconds,
