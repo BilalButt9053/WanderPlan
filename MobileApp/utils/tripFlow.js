@@ -152,7 +152,11 @@ export async function startTripFlow({
   await dispatch(setActiveTripItinerary({ itinerary: normalizedItinerary }));
   dispatch(setTripMode(true));
 
-  if (getDayRoute && (tripId || activeTrip?._id)) {
+  const dayMappedStops = normalizedItinerary.filter(
+    (item) => Number(item.day) === Number(day) && !!getActivityCoordinate(item)
+  );
+
+  if (getDayRoute && (tripId || activeTrip?._id) && dayMappedStops.length >= 2) {
     const routeTripId = tripId || activeTrip?._id;
     try {
       dispatch(setRouteStatus('loading'));
