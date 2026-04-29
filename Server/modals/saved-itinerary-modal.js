@@ -98,7 +98,7 @@ const SavedActivitySchema = new mongoose.Schema({
     // Source tracking
     source: {
         type: String,
-        enum: ['business', 'ai', 'user', 'fallback', 'map'],
+        enum: ['business', 'ai', 'google', 'google_places', 'user', 'fallback', 'map'],
         required: true
     },
     // Business reference (if source is 'business')
