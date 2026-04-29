@@ -2,6 +2,18 @@ const Business = require("../modals/business-modal");
 const nodemailer = require("nodemailer");
 const EmailVerificationToken = require("../modals/EmailVerificationToken");
 
+const BUSINESS_TYPES = ['hotel', 'restaurant', 'tour', 'activity', 'attraction', 'transport', 'other'];
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^\+?[0-9\s().-]{7,20}$/;
+
+class MailDeliveryError extends Error {
+    constructor(message = "Verification email could not be sent right now. Please try again later.") {
+        super(message);
+        this.name = "MailDeliveryError";
+        this.status = 503;
+    }
+}
+
 // Generate OTP
 const generateOTP = () => {
     let OTP = "";
@@ -12,34 +24,83 @@ const generateOTP = () => {
     return OTP;
 };
 
-// Send OTP Email
-const sendOTPEmail = async (email, OTP, businessName) => {
-    const host = process.env.SMTP_HOST || "sandbox.smtp.mailtrap.io";
-    const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 2525;
-    const user = process.env.SMTP_USER || "02c0b2df6efaeb";
-    const pass = process.env.SMTP_PASS || "6e297ec4cd36c6";
-    const secure = process.env.SMTP_SECURE === "true" ? true : port === 465;
+const isEmailDevMode = () => process.env.EMAIL_DEV_MODE === "true";
 
-    const transport = nodemailer.createTransport({
-        host,
+const getMailConfig = () => {
+    const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
+    const secure = process.env.SMTP_SECURE === "true";
+
+    return {
+        host: process.env.SMTP_HOST,
         port,
         secure,
-        auth: { user, pass },
-        tls: {
-            rejectUnauthorized: false,
-            minVersion: 'TLSv1.2'
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    };
+};
+
+const createMailTransport = () => {
+    const config = getMailConfig();
+
+    if (!config.host || !config.user || !config.pass || !config.from) {
+        throw new MailDeliveryError();
+    }
+
+    return nodemailer.createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        auth: {
+            user: config.user,
+            pass: config.pass,
         },
         connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 10000,
     });
+};
+
+const sendBusinessEmail = async ({ to, subject, html }) => {
+    if (isEmailDevMode()) {
+        console.log('[business-auth] EMAIL_DEV_MODE=true, skipped email send', { to, subject });
+        return { devMode: true };
+    }
+
+    const config = getMailConfig();
+    const transport = createMailTransport();
+
+    return transport.sendMail({
+        from: config.from,
+        to,
+        subject,
+        html,
+    });
+};
+
+const logMailError = (context, err) => {
+    console.error(`[business-auth] ${context}`, {
+        name: err?.name,
+        code: err?.code,
+        command: err?.command,
+        responseCode: err?.responseCode,
+        message: err?.message,
+    });
+};
+
+// Send OTP Email
+const sendOTPEmail = async (email, OTP, businessName) => {
+    if (isEmailDevMode()) {
+        console.log('[business-auth] EMAIL_DEV_MODE OTP for local testing', {
+            email,
+            businessName,
+            otp: OTP,
+        });
+        return { devMode: true };
+    }
 
     try {
-        await transport.verify();
-        console.log('[business-auth] Email transport verified for business register');
-
-        const info = await transport.sendMail({
-            from: "WanderPlan@example.com",
+        const info = await sendBusinessEmail({
             to: email,
             subject: "Email Verification - WanderPlan Business",
             html: `
@@ -59,33 +120,13 @@ const sendOTPEmail = async (email, OTP, businessName) => {
         console.log('[business-auth] OTP email sent to business', { to: email, messageId: info && info.messageId });
         return info;
     } catch (err) {
-        console.error('[business-auth] Error sending OTP email', err);
-        throw err;
+        logMailError('Error sending OTP email', err);
+        throw new MailDeliveryError();
     }
 };
 
 // Send approval notification email
 const sendApprovalEmail = async (email, businessName, status, reason = null) => {
-    const host = process.env.SMTP_HOST || "sandbox.smtp.mailtrap.io";
-    const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 2525;
-    const user = process.env.SMTP_USER || "02c0b2df6efaeb";
-    const pass = process.env.SMTP_PASS || "6e297ec4cd36c6";
-    const secure = process.env.SMTP_SECURE === "true" ? true : port === 465;
-
-    const transport = nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: { user, pass },
-        tls: {
-            rejectUnauthorized: false,
-            minVersion: 'TLSv1.2'
-        },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 10000,
-    });
-
     const isApproved = status === 'approved';
     const subject = isApproved ? 'Business Approved - WanderPlan' : 'Business Application Update - WanderPlan';
     
@@ -113,8 +154,7 @@ const sendApprovalEmail = async (email, businessName, status, reason = null) => 
     `;
 
     try {
-        const info = await transport.sendMail({
-            from: "WanderPlan@example.com",
+        const info = await sendBusinessEmail({
             to: email,
             subject: subject,
             html: html,
@@ -123,15 +163,89 @@ const sendApprovalEmail = async (email, businessName, status, reason = null) => 
         console.log('[business-auth] Approval email sent', { to: email, status });
         return info;
     } catch (err) {
-        console.error('[business-auth] Error sending approval email', err);
-        throw err;
+        logMailError('Error sending approval email', err);
+        throw new MailDeliveryError("Notification email could not be sent right now.");
     }
+};
+
+const normalizeString = (value) => typeof value === 'string' ? value.trim() : '';
+
+const isValidUrl = (value) => {
+    if (!value) return true;
+
+    try {
+        const url = new URL(value);
+        return ['http:', 'https:'].includes(url.protocol);
+    } catch (_error) {
+        return false;
+    }
+};
+
+const validateBusinessRegistration = (body = {}) => {
+    const errors = [];
+    const address = body.address && typeof body.address === 'object' ? body.address : {};
+    const documents = Array.isArray(body.documents) ? body.documents : [];
+    const normalized = {
+        ownerName: normalizeString(body.ownerName),
+        businessName: normalizeString(body.businessName),
+        email: normalizeString(body.email).toLowerCase(),
+        password: typeof body.password === 'string' ? body.password : '',
+        phone: normalizeString(body.phone),
+        businessType: normalizeString(body.businessType),
+        description: normalizeString(body.description),
+        website: normalizeString(body.website),
+        logo: body.logo || null,
+        galleryImages: Array.isArray(body.galleryImages) ? body.galleryImages : [],
+        documents,
+        address: {
+            street: normalizeString(address.street),
+            city: normalizeString(address.city),
+            state: normalizeString(address.state),
+            zipCode: normalizeString(address.zipCode),
+            country: normalizeString(address.country),
+        },
+    };
+
+    if (normalized.ownerName.length < 2) errors.push("Owner name must be at least 2 characters.");
+    if (normalized.businessName.length < 2) errors.push("Business name must be at least 2 characters.");
+    if (!EMAIL_REGEX.test(normalized.email)) errors.push("Please enter a valid email address.");
+    if (normalized.password.length < 8) errors.push("Password must be at least 8 characters.");
+    if (!PHONE_REGEX.test(normalized.phone)) errors.push("Please enter a valid phone number.");
+    if (!BUSINESS_TYPES.includes(normalized.businessType)) errors.push("Please select a valid business category.");
+    if (normalized.description.length < 10) errors.push("Description must be at least 10 characters.");
+    if (!normalized.address.street) errors.push("Street address is required.");
+    if (!normalized.address.city) errors.push("City is required.");
+    if (!normalized.address.country) errors.push("Country is required.");
+    if (!isValidUrl(normalized.website)) errors.push("Please enter a valid website URL.");
+    if (!documents.some((doc) => doc?.type === 'license' && doc?.url && !String(doc.url).startsWith('blob:'))) {
+        errors.push("Business license document is required.");
+    }
+
+    return { errors, normalized };
+};
+
+const validateBusinessLogin = (body = {}) => {
+    const normalized = {
+        email: normalizeString(body.email).toLowerCase(),
+        password: typeof body.password === 'string' ? body.password : '',
+    };
+    const errors = [];
+
+    if (!EMAIL_REGEX.test(normalized.email)) errors.push("Please enter a valid email address.");
+    if (!normalized.password) errors.push("Password is required.");
+
+    return { errors, normalized };
 };
 
 // Business Registration
 const registerBusiness = async (req, res, next) => {
     try {
-        console.log('[business-auth] Business registration request', req.body);
+        const { errors, normalized } = validateBusinessRegistration(req.body);
+
+        if (errors.length) {
+            return res.status(400).json({ message: errors[0], errors });
+        }
+
         const { 
             businessName, 
             ownerName, 
@@ -145,7 +259,7 @@ const registerBusiness = async (req, res, next) => {
             logo,
             galleryImages,
             documents
-        } = req.body;
+        } = normalized;
 
         // Check if business already exists
         const businessExist = await Business.findOne({ email });
@@ -167,11 +281,11 @@ const registerBusiness = async (req, res, next) => {
             ownerName,
             email,
             password,
-            phone: phone || '',
-            businessType: businessType || 'other',
-            address: address || {},
-            description: description || '',
-            website: website || '',
+            phone,
+            businessType,
+            address,
+            description,
+            website,
             logo: logo || null,
             galleryImages: galleryImages || [],
             documents: documents || [],
@@ -211,7 +325,13 @@ const registerBusiness = async (req, res, next) => {
 // Business Login
 const loginBusiness = async (req, res, next) => {
     try {
-        const { email, password } = req.body;
+        const { errors, normalized } = validateBusinessLogin(req.body);
+
+        if (errors.length) {
+            return res.status(400).json({ message: errors[0], errors });
+        }
+
+        const { email, password } = normalized;
 
         const business = await Business.findOne({ email });
 
