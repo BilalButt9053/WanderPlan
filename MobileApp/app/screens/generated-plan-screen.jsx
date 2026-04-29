@@ -237,11 +237,14 @@ export default function GeneratedPlanScreen({
 
       const isOver = actualPct > plannedPct;
       const overBy = isOver ? actualPct - plannedPct : 0;
+      const plannedAmount =
+        plannedBreakdown?.[key]?.amount ?? Math.round((safeTotalBudget * plannedPct) / 100);
 
       return {
         key,
         label,
         spent,
+        plannedAmount,
         actualPct,
         plannedPct,
         isOver,
@@ -769,7 +772,7 @@ export default function GeneratedPlanScreen({
 
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-                      Spent: {currency} {Number(cat.spent || 0).toLocaleString()}
+                      Spent: {currency} {Number(cat.spent || 0).toLocaleString()} / Planned: {currency} {Number(cat.plannedAmount || 0).toLocaleString()}
                     </Text>
                     <Text style={{ fontSize: 12, color: cat.isOver ? '#DC2626' : colors.textSecondary }}>
                       {cat.isOver ? `Over budget by ${cat.overBy}%` : 'Within plan'}

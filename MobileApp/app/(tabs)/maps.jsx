@@ -39,10 +39,12 @@ import { WanderButton } from '../components/wander-button';
 import { WanderCard } from '../components/wander-card';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ListItemSkeleton } from '../components/Skeleton';
+import CreateReviewModal from '../components/CreateReviewModal';
 import { useTheme } from '../../hooks/useTheme';
 import { useGetBusinessesQuery, useGetNearbyBusinessesQuery } from '../../redux/api/businessItemsApi';
 import { useLazyGetNearbyPlacesQuery } from '../../redux/api/placesApi';
 import { useAddFromMapMutation, useGetDayRouteMutation } from '../../redux/api/tripsApi';
+import { useCreateReviewMutation } from '../../redux/api/reviewsApi';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   selectActiveTrip,
@@ -91,6 +93,24 @@ const activityColors = {
   other: '#6B7280',
 };
 
+const getOrdinalLabel = (index) => {
+  const num = Number(index) + 1;
+  const mod100 = num % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${num}th`;
+  const mod10 = num % 10;
+  if (mod10 === 1) return `${num}st`;
+  if (mod10 === 2) return `${num}nd`;
+  if (mod10 === 3) return `${num}rd`;
+  return `${num}th`;
+};
+
+const mapPlaceTypeToReviewCategory = (type = '') => {
+  const normalized = String(type).toLowerCase();
+  if (['restaurant', 'cafe', 'food', 'beverage'].includes(normalized)) return 'food';
+  if (['hotel', 'accommodation', 'resort', 'lodging'].includes(normalized)) return 'hotels';
+  return 'places';
+};
+
 const Maps = () => {
   const { colors } = useTheme();
   const dispatch = useDispatch();
@@ -103,12 +123,14 @@ const Maps = () => {
   const [showAddToTripSheet, setShowAddToTripSheet] = useState(false);
   const [placeToAdd, setPlaceToAdd] = useState(null);
   const [estimatedCost, setEstimatedCost] = useState('');
+  const [showCreateReviewModal, setShowCreateReviewModal] = useState(false);
+  const [reviewSeed, setReviewSeed] = useState({ place: '', category: 'places', tags: [] });
   const [userLocation, setUserLocation] = useState(null);
   const [activeFilters, setActiveFilters] = useState(new Set(['restaurant', 'cafe', 'hotel', 'shopping', 'attraction']));
   const [mapRegion, setMapRegion] = useState(null);
   const [isAddingPlace, setIsAddingPlace] = useState(false);
 
-  const { activeTrip, rawItinerary, selectedDay, transportMode, isTripMode, activeDayRoute, routeStatus, routeError } = useSelector((state) => ({
+  const { activeTrip, rawItinerary, selectedDay, transportMode, isTripMode, activeDayRoute, routeStatus, routeError, isAuthed } = useSelector((state) => ({
     activeTrip: selectActiveTrip(state),
     rawItinerary: selectActiveTripItinerary(state)?.itinerary || state.trips?.activeTrip?.itinerary,
     selectedDay: selectCurrentDay(state),
@@ -117,6 +139,7 @@ const Maps = () => {
     activeDayRoute: selectActiveDayRoute(state),
     routeStatus: selectRouteStatus(state),
     routeError: selectRouteError(state),
+    isAuthed: Boolean(state.auth?.isAuthenticated),
   }));
 
   const tripItinerary = useMemo(() => normalizeItinerary(rawItinerary), [rawItinerary]);
@@ -125,6 +148,7 @@ const Maps = () => {
   // Add from map mutation
   const [addFromMap] = useAddFromMapMutation();
   const [getDayRoute] = useGetDayRouteMutation();
+  const [createReview] = useCreateReviewMutation();
 
   // Fetch businesses by text (fallback)
   const { data: businessData, isLoading: isLoadingSearch, refetch } = useGetBusinessesQuery({
@@ -480,6 +504,22 @@ const Maps = () => {
     } catch (error) {
       Alert.alert('Error', 'Could not get your location');
     }
+  };
+
+  const openReviewForPlace = (place) => {
+    if (!isAuthed) {
+      Alert.alert('Login required', 'Please sign in to post a review.');
+      return;
+    }
+
+    const isLocalRegisteredBusiness = Boolean(place?.businessId || (place?.id && !place?.placeId));
+    const tags = isLocalRegisteredBusiness ? ['local_registered_business'] : [];
+    setReviewSeed({
+      place: place?.name || '',
+      category: mapPlaceTypeToReviewCategory(place?.type || place?.category),
+      tags,
+    });
+    setShowCreateReviewModal(true);
   };
 
   // Explore nearby places (trip mode)
@@ -1378,8 +1418,23 @@ const Maps = () => {
                 title={activity.name}
                 description={activity.location?.address || activity.description || ''}
                 onPress={() => setSelectedActivity(activity)}
-                pinColor={getActivityMarkerColor(activity.type)}
-              />
+              >
+                <View
+                  style={{
+                    backgroundColor: getActivityMarkerColor(activity.type),
+                    borderRadius: 14,
+                    minWidth: 44,
+                    minHeight: 28,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingHorizontal: 6,
+                    borderWidth: 2,
+                    borderColor: '#ffffff',
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{getOrdinalLabel(index)}</Text>
+                </View>
+              </Marker>
             ))}
           </MapView>
 
@@ -1569,6 +1624,15 @@ const Maps = () => {
                               <Text className="text-white font-semibold">Navigate</Text>
                             </View>
                           </WanderButton>
+                          <WanderButton
+                            onPress={() => openReviewForPlace(selectedPlace)}
+                            style={{ flex: 1, backgroundColor: '#059669' }}
+                          >
+                            <View className="flex-row items-center gap-2">
+                              <Star size={16} color="#fff" />
+                              <Text className="text-white font-semibold">Give Review</Text>
+                            </View>
+                          </WanderButton>
                         </View>
                       </View>
                     </View>
@@ -1679,6 +1743,30 @@ const Maps = () => {
 
         {/* Add to Trip sheet */}
         {renderAddToTripSheet()}
+
+        <CreateReviewModal
+          visible={showCreateReviewModal}
+          onClose={() => setShowCreateReviewModal(false)}
+          initialPlace={reviewSeed.place}
+          initialCategory={reviewSeed.category}
+          initialTags={reviewSeed.tags}
+          onSubmit={async (newReview) => {
+            try {
+              await createReview({
+                place: newReview.place,
+                category: newReview.category,
+                rating: newReview.rating,
+                text: newReview.text,
+                images: [],
+                tags: Array.isArray(newReview.tags) ? newReview.tags : reviewSeed.tags,
+              }).unwrap();
+              setShowCreateReviewModal(false);
+              Alert.alert('Success', 'Review posted and will appear in Reviews.');
+            } catch (error) {
+              Alert.alert('Error', error?.data?.message || 'Could not post review.');
+            }
+          }}
+        />
       </View>
     </View>
   );

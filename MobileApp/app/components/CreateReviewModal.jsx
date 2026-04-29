@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -20,13 +20,31 @@ import Modal from './Modal';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../hooks/useTheme';
 
-export default function CreateReviewModal({ visible, onClose, onSubmit }) {
+const getInitialCategory = (category) => {
+  if (category === 'hotels' || category === 'food' || category === 'places') return category;
+  return 'food';
+};
+
+export default function CreateReviewModal({
+  visible,
+  onClose,
+  onSubmit,
+  initialPlace = '',
+  initialCategory = 'food',
+  initialTags = [],
+}) {
   const { colors } = useTheme();
   const [place, setPlace] = useState('');
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
-  const [category, setCategory] = useState('food');
+  const [category, setCategory] = useState(getInitialCategory(initialCategory));
   const [images, setImages] = useState([]); // array of { uri }
+
+  useEffect(() => {
+    if (!visible) return;
+    setPlace(initialPlace || '');
+    setCategory(getInitialCategory(initialCategory));
+  }, [visible, initialPlace, initialCategory]);
 
   const handleSubmit = () => {
     if (!place || rating === 0 || !text) {
@@ -46,7 +64,7 @@ export default function CreateReviewModal({ visible, onClose, onSubmit }) {
       rating,
       text,
       images: images.map(i => i.uri),
-      tags: [],
+      tags: initialTags,
       likes: 0,
       helpful: 0,
       replies: [],
@@ -57,7 +75,7 @@ export default function CreateReviewModal({ visible, onClose, onSubmit }) {
     setPlace('');
     setRating(0);
     setText('');
-    setCategory('food');
+    setCategory(getInitialCategory(initialCategory));
     setImages([]);
   };
 

@@ -29,7 +29,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ImageWithFallback from '../components/ImageWithFallback';
 import { useGetMenuItemsQuery, useGetDealsQuery } from '../../redux/api/businessItemsApi';
 import { 
-  useLazyGetActivitySuggestionsQuery, 
+  useGenerateItineraryMutation,
   useSaveManualItineraryMutation 
 } from '../../redux/api/itineraryApi';
 import { useTheme } from '../../hooks/useTheme';
@@ -89,6 +89,7 @@ export default function ManualTripBuilderScreen({
   const [filterType, setFilterType] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [manualPlacesData, setManualPlacesData] = useState(null);
 
   // Extract budget info
   const totalBudget = parseInt(budgetData?.budget) || 0;
@@ -98,7 +99,7 @@ export default function ManualTripBuilderScreen({
 
   // RTK Query mutations
   const [saveManualItinerary, { isLoading: isSaving }] = useSaveManualItineraryMutation();
-  const [fetchAISuggestions, { data: aiSuggestionsData, isLoading: isLoadingAI }] = useLazyGetActivitySuggestionsQuery();
+  const [generateItinerary, { isLoading: isLoadingManualPlaces }] = useGenerateItineraryMutation();
 
   // Fetch menu items from API
   const { 
@@ -116,19 +117,19 @@ export default function ManualTripBuilderScreen({
     refetch: refetchDeals
   } = useGetDealsQuery({ limit: 50 });
 
-  // Fetch AI suggestions when tripId is available
+  // Fetch manual-mode places (Google Maps + local businesses) when tripId is available
   useEffect(() => {
-    if (tripId) {
-      fetchAISuggestions(tripId);
-    }
-  }, [tripId, fetchAISuggestions]);
+    if (!tripId) return;
 
-  // Debug logging
-  console.log('[TripBuilder] Menu items data:', menuItemsData);
-  console.log('[TripBuilder] Deals data:', dealsData);
-  console.log('[TripBuilder] AI Suggestions data:', aiSuggestionsData);
-  console.log('[TripBuilder] Items error:', itemsError);
-  console.log('[TripBuilder] Deals error:', dealsError);
+    (async () => {
+      try {
+        const response = await generateItinerary({ tripId, mode: 'manual' }).unwrap();
+        setManualPlacesData(response);
+      } catch (error) {
+        console.warn('[TripBuilder] Manual places fetch failed:', error?.data?.message || error?.message);
+      }
+    })();
+  }, [tripId, generateItinerary]);
 
   // Transform API data to match expected format
   const businessItems = useMemo(() => {
@@ -197,37 +198,43 @@ export default function ManualTripBuilderScreen({
     return items;
   }, [menuItemsData, dealsData]);
 
-  // Transform AI suggestions to match expected format
-  const aiItems = useMemo(() => {
+  // Transform manual-mode map/business places to match expected format
+  const manualModeItems = useMemo(() => {
     const items = [];
     
-    if (aiSuggestionsData?.suggestions) {
-      aiSuggestionsData.suggestions.forEach((suggestion, idx) => {
+    if (manualPlacesData?.places) {
+      manualPlacesData.places.forEach((place, idx) => {
+        const locationText = place.address || place.location?.address || destination || 'Pakistan';
+        const placeCategory = place.category || place.type || 'attraction';
+
         items.push({
-          id: suggestion.id || `ai_${idx}`,
-          name: suggestion.title,
-          type: getCategoryType(suggestion.type || suggestion.category),
-          category: suggestion.category,
-          price: suggestion.estimatedCost || 0,
-          rating: 4.5,
+          id: place.placeId || place.id || `manual_${idx}`,
+          placeId: place.placeId || null,
+          name: place.name,
+          type: getCategoryType(placeCategory),
+          category: placeCategory,
+          price: place.estimatedCost || 0,
+          rating: place.rating || 4.5,
           image: 'https://images.unsplash.com/photo-1676471932681-45fa972d848a',
-          location: suggestion.location || destination,
-          businessName: suggestion.businessName,
-          description: suggestion.description,
-          source: suggestion.source || 'ai',
-          suggestedDay: suggestion.suggestedDay,
-          itemType: 'suggestion'
+          location: locationText,
+          businessName: place.businessName,
+          description: place.description,
+          source: place.source || (place.businessId ? 'business' : 'map_api'),
+          businessId: place.businessId || null,
+          latitude: place.latitude ?? place.location?.coordinates?.lat ?? null,
+          longitude: place.longitude ?? place.location?.coordinates?.lng ?? null,
+          itemType: 'manual-place',
         });
       });
     }
     
     return items;
-  }, [aiSuggestionsData, destination]);
+  }, [manualPlacesData, destination]);
 
-  // Combine business items and AI items - show all in one list
+  // Combine business items and manual-mode places - show all in one list
   const availableItems = useMemo(() => {
-    return [...businessItems, ...aiItems];
-  }, [businessItems, aiItems]);
+    return [...businessItems, ...manualModeItems];
+  }, [businessItems, manualModeItems]);
 
   const addItem = (item) => {
     if (!selectedItems.find(i => i.id === item.id)) {
@@ -267,14 +274,18 @@ export default function ManualTripBuilderScreen({
   const totalCost = selectedItems.reduce((sum, item) => sum + item.price, 0);
   const remainingBudget = totalBudget - totalCost;
   const isOverBudget = remainingBudget < 0;
-  const isLoading = isLoadingItems || isLoadingDeals || isLoadingAI;
+  const isLoading = isLoadingItems || isLoadingDeals || isLoadingManualPlaces;
 
   const handleRefresh = () => {
     refetchItems();
     refetchDeals();
-    if (tripId) {
-      fetchAISuggestions(tripId);
-    }
+    if (!tripId) return;
+    generateItinerary({ tripId, mode: 'manual' })
+      .unwrap()
+      .then((response) => setManualPlacesData(response))
+      .catch((error) => {
+        console.warn('[TripBuilder] Manual places refresh failed:', error?.data?.message || error?.message);
+      });
   };
 
   // Save itinerary to backend
@@ -307,8 +318,11 @@ export default function ManualTripBuilderScreen({
             estimatedCost: item.price,
             location: item.location || '',
             source: item.source || 'business',
-            businessId: item.id?.startsWith?.('ai_') ? null : item.id,
-            businessName: item.businessName
+                businessId: item.businessId || null,
+                businessName: item.businessName,
+                placeId: item.placeId || null,
+                latitude: item.latitude ?? null,
+                longitude: item.longitude ?? null,
           }))
         });
       }

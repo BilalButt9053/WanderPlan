@@ -14,7 +14,9 @@ import {
   ArrowLeft,
   Sparkles,
   Edit3,
-  Users
+  Users,
+  Car,
+  Bike
 } from 'lucide-react-native';
 import  WanderButton  from '../components/wander-button';
 import  WanderCard  from '../components/wander-card';
@@ -45,6 +47,7 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
   const [duration, setDuration] = useState('');
   const [travelers, setTravelers] = useState('1');
   const [travelStyle, setTravelStyle] = useState('moderate');
+  const [transportMode, setTransportMode] = useState('car');
   const [startDate, setStartDate] = useState(new Date()); // Default today
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCurrencies, setShowCurrencies] = useState(false);
@@ -80,6 +83,7 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
         totalBudget: budget,
         travelers: Number(travelers) || 1,
         travelStyle,
+        transportMode,
         startDate: startDate.toISOString(),
       });
     }
@@ -228,6 +232,59 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
                   </TouchableOpacity>
                 );
               })}
+            </View>
+          </View>
+        </WanderCard>
+
+        {/* Transport Input */}
+        <WanderCard>
+          <View style={{ marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Car size={18} color="#3B82F6" />
+              <Text style={{ fontSize: 16, fontWeight: '500' }}>Transport</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => setTransportMode('car')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 16,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 8,
+                  backgroundColor: transportMode === 'car' ? '#3B82F6' : '#F9FAFB',
+                  borderWidth: 1,
+                  borderColor: transportMode === 'car' ? '#3B82F6' : '#E5E7EB',
+                }}
+              >
+                <Car size={16} color={transportMode === 'car' ? '#fff' : '#111827'} />
+                <Text style={{ color: transportMode === 'car' ? '#fff' : '#111827', fontWeight: '600' }}>
+                  Car
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setTransportMode('bike')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 16,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 8,
+                  backgroundColor: transportMode === 'bike' ? '#3B82F6' : '#F9FAFB',
+                  borderWidth: 1,
+                  borderColor: transportMode === 'bike' ? '#3B82F6' : '#E5E7EB',
+                }}
+              >
+                <Bike size={16} color={transportMode === 'bike' ? '#fff' : '#111827'} />
+                <Text style={{ color: transportMode === 'bike' ? '#fff' : '#111827', fontWeight: '600' }}>
+                  Bike
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </WanderCard>
@@ -432,6 +489,7 @@ export default function BudgetInputScreen({ onGeneratePlan, onManualCreate, onBa
                 totalBudget: budget,
                 travelers: Number(travelers) || 1,
                 travelStyle,
+                transportMode,
                 startDate: startDate.toISOString(),
               });
             } else {
