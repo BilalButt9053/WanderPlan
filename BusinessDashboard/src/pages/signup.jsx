@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Mountain, Sun, Moon, Eye, EyeOff } from 'lucide-react'
 import { setPendingBusiness } from '@/redux/slices/businessAuthSlice'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useLazyCheckBusinessEmailQuery } from '@/redux/api/businessApi'
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -20,10 +21,13 @@ export default function SignupPage() {
   const dispatch = useDispatch()
   const { theme, toggleTheme } = useTheme()
   const [error, setError] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).+$/
+  const nameRegex = /^[A-Za-z][A-Za-z\s'-]*$/
+  const [checkBusinessEmail, { isFetching: isCheckingEmail }] = useLazyCheckBusinessEmailQuery()
 
   const handleChange = (e) => {
     setFormData({
@@ -31,6 +35,25 @@ export default function SignupPage() {
       [e.target.name]: e.target.value,
     })
     setError('')
+    if (e.target.name === 'email') setEmailError('')
+  }
+
+  const checkEmailAvailability = async (email) => {
+    if (!emailRegex.test(email)) return false
+
+    try {
+      const result = await checkBusinessEmail(email).unwrap()
+      if (result.exists) {
+        setEmailError('Email already exists.')
+        return false
+      }
+      setEmailError('')
+      return true
+    } catch (err) {
+      const message = err?.data?.message || 'Unable to check email right now.'
+      setEmailError(message)
+      return false
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -40,8 +63,8 @@ export default function SignupPage() {
     const ownerName = formData.ownerName.trim()
     const email = formData.email.trim().toLowerCase()
 
-    if (ownerName.length < 2) {
-      setError('Owner name must be at least 2 characters.')
+    if (ownerName.length < 2 || !nameRegex.test(ownerName)) {
+      setError('Owner name can only contain letters, spaces, hyphens, and apostrophes.')
       return
     }
 
@@ -49,6 +72,9 @@ export default function SignupPage() {
       setError('Please enter a valid email address.')
       return
     }
+
+    const isEmailAvailable = await checkEmailAvailability(email)
+    if (!isEmailAvailable) return
 
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters.')
@@ -117,8 +143,10 @@ export default function SignupPage() {
                 placeholder="business@example.com"
                 value={formData.email}
                 onChange={handleChange}
+                onBlur={(e) => checkEmailAvailability(e.target.value.trim().toLowerCase())}
                 required
               />
+              {emailError && <p className="text-xs text-destructive">{emailError}</p>}
             </div>
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium">Password</label>
@@ -180,8 +208,8 @@ export default function SignupPage() {
               </div>
             )}
 
-            <Button type="submit" className="w-full">
-              Continue to Business Details
+            <Button type="submit" className="w-full" disabled={isCheckingEmail || Boolean(emailError)}>
+              {isCheckingEmail ? 'Checking email...' : 'Continue to Business Details'}
             </Button>
           </form>
           <p className="text-center text-sm text-muted-foreground mt-4">

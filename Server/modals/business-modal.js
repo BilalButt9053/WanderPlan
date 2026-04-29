@@ -45,6 +45,13 @@ const BusinessSchema = new mongoose.Schema({
             lng: { type: Number, default: null }
         }
     },
+    location: {
+        address: String,
+        city: String,
+        country: String,
+        latitude: { type: Number, default: null },
+        longitude: { type: Number, default: null }
+    },
     // GeoJSON location for $geoNear queries (optional)
     geoLocation: {
         type: {
@@ -106,6 +113,40 @@ const BusinessSchema = new mongoose.Schema({
     rejectionReason: {
         type: String,
         default: null
+    },
+    suspensionReason: {
+        type: String,
+        default: null
+    },
+    suspendedAt: {
+        type: Date,
+        default: null
+    },
+    suspendedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    },
+    appealStatus: {
+        type: String,
+        enum: ['none', 'pending', 'approved', 'rejected'],
+        default: 'none'
+    },
+    appealMessage: {
+        type: String,
+        default: ''
+    },
+    appealedAt: {
+        type: Date,
+        default: null
+    },
+    appealReviewedAt: {
+        type: Date,
+        default: null
+    },
+    appealAdminResponse: {
+        type: String,
+        default: ''
     },
     isVerified: {
         type: Boolean,

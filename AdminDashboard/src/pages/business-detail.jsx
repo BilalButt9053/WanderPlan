@@ -3,8 +3,8 @@ import { useParams, useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Building2, Mail, Phone, User, Globe, CalendarDays, ShieldCheck } from "lucide-react"
-import { useGetBusinessByIdQuery } from "@/services/businessApi"
+import { ArrowLeft, Building2, Mail, Phone, User, Globe, CalendarDays, ShieldCheck, MapPin } from "lucide-react"
+import { useGetBusinessByIdQuery, useUnsuspendBusinessMutation, useRejectAppealMutation } from "@/services/businessApi"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 const statusVariant = {
@@ -21,6 +21,8 @@ export default function BusinessDetailPage() {
   const { data: business, isLoading, error } = useGetBusinessByIdQuery(id, {
     skip: !id,
   })
+  const [unsuspendBusiness, { isLoading: isUnsuspending }] = useUnsuspendBusinessMutation()
+  const [rejectAppeal, { isLoading: isRejectingAppeal }] = useRejectAppealMutation()
 
   const createdAt = useMemo(() => {
     if (!business?.createdAt) return "N/A"
@@ -31,6 +33,20 @@ export default function BusinessDetailPage() {
     if (!business?.updatedAt) return "N/A"
     return new Date(business.updatedAt).toLocaleString()
   }, [business?.updatedAt])
+
+  const latitude = business?.location?.latitude ?? business?.address?.coordinates?.lat
+  const longitude = business?.location?.longitude ?? business?.address?.coordinates?.lng
+  const hasCoordinates = latitude !== null && latitude !== undefined && longitude !== null && longitude !== undefined
+
+  const handleUnsuspend = async () => {
+    await unsuspendBusiness({ id: business._id }).unwrap()
+  }
+
+  const handleRejectAppeal = async () => {
+    const response = window.prompt('Enter appeal rejection response')
+    if (!response?.trim()) return
+    await rejectAppeal({ id: business._id, response }).unwrap()
+  }
 
   if (isLoading) {
     return (
@@ -166,6 +182,52 @@ export default function BusinessDetailPage() {
           <p className="text-sm text-muted-foreground">{business.description || "No description provided."}</p>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Business Location</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex items-start gap-2">
+            <MapPin className="mt-0.5 h-4 w-4 text-muted-foreground" />
+            <div>
+              <p>{business.location?.address || business.address?.street || "No street address provided."}</p>
+              <p className="text-muted-foreground">
+                {[business.location?.city || business.address?.city, business.location?.country || business.address?.country].filter(Boolean).join(', ') || 'City/country not provided'}
+              </p>
+            </div>
+          </div>
+          {hasCoordinates && (
+            <a className="text-blue-600 underline" href={`https://www.google.com/maps?q=${latitude},${longitude}`} target="_blank" rel="noreferrer">
+              Open in Google Maps
+            </a>
+          )}
+        </CardContent>
+      </Card>
+
+      {business.status === 'suspended' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Suspension & Appeal</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p><span className="font-medium">Suspension reason: </span>{business.suspensionReason || business.rejectionReason || 'N/A'}</p>
+            <p><span className="font-medium">Appeal status: </span>{business.appealStatus || 'none'}</p>
+            {business.appealMessage && <p><span className="font-medium">Appeal message: </span>{business.appealMessage}</p>}
+            {business.appealAdminResponse && <p><span className="font-medium">Admin response: </span>{business.appealAdminResponse}</p>}
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleUnsuspend} disabled={isUnsuspending}>
+                {isUnsuspending ? 'Unsuspending...' : 'Unsuspend Business'}
+              </Button>
+              {business.appealStatus === 'pending' && (
+                <Button variant="outline" onClick={handleRejectAppeal} disabled={isRejectingAppeal}>
+                  {isRejectingAppeal ? 'Rejecting...' : 'Reject Appeal'}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

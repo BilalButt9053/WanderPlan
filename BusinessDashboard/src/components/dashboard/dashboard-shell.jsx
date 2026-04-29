@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils'
 import { logout, selectCurrentBusiness } from '@/redux/slices/businessAuthSlice'
 import { useTheme } from '@/contexts/ThemeContext'
 import { NotificationDropdown } from './notification-dropdown'
+import TutorialTooltip from '@/components/tutorial/TutorialTooltip'
 
 const navigation = [
   { name: 'Dashboard & Analytics', href: '/dashboard', icon: LayoutDashboard },
@@ -82,6 +83,12 @@ export function DashboardShell({ children }) {
               <Link
                 key={item.name}
                 to={item.href}
+                data-tutorial={
+                  item.href === '/dashboard/profile' ? 'profile-nav' :
+                  item.href === '/dashboard/menu' ? 'menu-nav' :
+                  item.href === '/dashboard/reviews' ? 'reviews-nav' :
+                  undefined
+                }
                 className={cn(
                   'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                   isActive
@@ -210,10 +217,11 @@ export function DashboardShell({ children }) {
         )}
 
         {/* Page Content */}
-        <main className="p-6">
+        <main className="p-6" data-tutorial="dashboard-home">
           {children}
         </main>
       </div>
+      <TutorialTooltip />
     </div>
   )
 }

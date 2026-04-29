@@ -106,8 +106,9 @@ export function ProfileInfo() {
               <option value="hotel">Hotel</option>
               <option value="restaurant">Restaurant</option>
               <option value="attraction">Attraction</option>
-              <option value="entertainment">Entertainment</option>
-              <option value="shopping">Shopping</option>
+              <option value="tour">Tour</option>
+              <option value="activity">Activity</option>
+              <option value="transport">Transport</option>
               <option value="other">Other</option>
             </select>
           </div>

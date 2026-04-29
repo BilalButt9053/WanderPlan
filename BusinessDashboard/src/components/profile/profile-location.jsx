@@ -4,7 +4,8 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { MapPin, Loader2 } from 'lucide-react'
+import { MapPin, Loader2, ExternalLink } from 'lucide-react'
+import { toast } from 'sonner'
 
 export function ProfileLocation() {
   const { data: business, isLoading } = useGetBusinessProfileQuery()
@@ -16,6 +17,8 @@ export function ProfileLocation() {
     state: '',
     zipCode: '',
     country: '',
+    latitude: '',
+    longitude: '',
   })
 
   useEffect(() => {
@@ -26,6 +29,8 @@ export function ProfileLocation() {
         state: business.address.state || '',
         zipCode: business.address.zipCode || '',
         country: business.address.country || '',
+        latitude: business.location?.latitude ?? business.address?.coordinates?.lat ?? '',
+        longitude: business.location?.longitude ?? business.address?.coordinates?.lng ?? '',
       })
     }
   }, [business])
@@ -38,13 +43,26 @@ export function ProfileLocation() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      await updateProfile({ 
-        address: formData
+      await updateProfile({
+        address: {
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode,
+          country: formData.country,
+        },
+        location: {
+          address: formData.street,
+          city: formData.city,
+          country: formData.country,
+          latitude: formData.latitude === '' ? null : Number(formData.latitude),
+          longitude: formData.longitude === '' ? null : Number(formData.longitude),
+        }
       }).unwrap()
-      alert('Location updated successfully!')
+      toast.success('Location updated successfully')
     } catch (err) {
       console.error('Update failed:', err)
-      alert(err?.data?.message || 'Failed to update location')
+      toast.error(err?.data?.message || 'Failed to update location')
     }
   }
 
@@ -56,6 +74,8 @@ export function ProfileLocation() {
         state: business.address.state || '',
         zipCode: business.address.zipCode || '',
         country: business.address.country || '',
+        latitude: business.location?.latitude ?? business.address?.coordinates?.lat ?? '',
+        longitude: business.location?.longitude ?? business.address?.coordinates?.lng ?? '',
       })
     }
   }
@@ -88,6 +108,39 @@ export function ProfileLocation() {
               className="bg-secondary" 
             />
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="latitude">Latitude</Label>
+              <Input
+                id="latitude"
+                value={formData.latitude}
+                onChange={handleChange}
+                className="bg-secondary"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="longitude">Longitude</Label>
+              <Input
+                id="longitude"
+                value={formData.longitude}
+                onChange={handleChange}
+                className="bg-secondary"
+              />
+            </div>
+          </div>
+
+          {formData.latitude !== '' && formData.longitude !== '' && (
+            <a
+              href={`https://www.google.com/maps?q=${formData.latitude},${formData.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open in Google Maps
+            </a>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">

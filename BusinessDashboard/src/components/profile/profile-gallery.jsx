@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useGetBusinessProfileQuery, useUpdateBusinessProfileMutation, useUploadLogoMutation, useUploadGalleryImagesMutation } from '@/redux/api/businessApi'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Upload, X, ImageIcon, Loader2 } from 'lucide-react'
+import { Upload, X, ImageIcon, Loader2, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { toast } from 'sonner'
 
 export function ProfileGallery() {
   const { data: business, isLoading, refetch } = useGetBusinessProfileQuery()
@@ -12,6 +13,7 @@ export function ProfileGallery() {
   
   const [logo, setLogo] = useState(null)
   const [galleryImages, setGalleryImages] = useState([])
+  const [selectedIndex, setSelectedIndex] = useState(null)
 
   useEffect(() => {
     if (business) {
@@ -32,10 +34,10 @@ export function ProfileGallery() {
       await updateProfile({ logo: result.url }).unwrap()
       setLogo(result.url)
       refetch()
-      alert('Logo updated successfully!')
+      toast.success('Logo updated successfully')
     } catch (err) {
       console.error('Upload failed:', err)
-      alert('Failed to upload logo')
+      toast.error('Failed to upload logo')
     }
   }
 
@@ -58,10 +60,10 @@ export function ProfileGallery() {
       await updateProfile({ galleryImages: updatedGallery }).unwrap()
       setGalleryImages(updatedGallery)
       refetch()
-      alert('Gallery updated successfully!')
+      toast.success('Gallery updated successfully')
     } catch (err) {
       console.error('Upload failed:', err)
-      alert('Failed to upload gallery images')
+      toast.error('Failed to upload gallery images')
     }
   }
 
@@ -74,13 +76,28 @@ export function ProfileGallery() {
       refetch()
     } catch (err) {
       console.error('Remove failed:', err)
-      alert('Failed to remove image')
+      toast.error('Failed to remove image')
     }
   }
 
+  useEffect(() => {
+    if (selectedIndex === null) return undefined
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setSelectedIndex(null)
+      if (event.key === 'ArrowRight') setSelectedIndex((value) => Math.min(galleryImages.length - 1, value + 1))
+      if (event.key === 'ArrowLeft') setSelectedIndex((value) => Math.max(0, value - 1))
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedIndex, galleryImages.length])
+
+  const getImageUrl = (img) => typeof img === 'string' ? img : (img?.url || img?.path || '')
+
   if (isLoading) {
     return (
-      <Card className="p-6">
+      <Card className="p-6" data-tutorial="gallery-section">
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -171,28 +188,36 @@ export function ProfileGallery() {
           {galleryImages.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {galleryImages.map((img, index) => {
-                const imageUrl = typeof img === 'string' ? img : (img.url || img.path || '')
+                const imageUrl = getImageUrl(img)
                 return (
                 <div key={index} className="relative aspect-square rounded-lg bg-muted group overflow-hidden">
                   {imageUrl ? (
-                    <img 
-                      src={imageUrl} 
-                      alt="" 
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none'
-                        e.target.nextSibling?.classList?.remove('hidden')
-                      }}
-                    />
+                    <button type="button" className="h-full w-full cursor-pointer overflow-hidden" onClick={() => setSelectedIndex(index)}>
+                      <img
+                        src={imageUrl}
+                        alt={`Gallery image ${index + 1}`}
+                        className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                        onError={(e) => {
+                          e.target.style.display = 'none'
+                          e.target.parentElement?.nextSibling?.classList?.remove('hidden')
+                        }}
+                      />
+                    </button>
                   ) : null}
                   <div className={`absolute inset-0 flex items-center justify-center ${imageUrl ? 'hidden' : ''}`}>
                     <ImageIcon className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="pointer-events-none absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Eye className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button 
                       size="icon" 
                       variant="destructive" 
-                      onClick={() => handleRemoveImage(index)} 
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleRemoveImage(index)
+                      }}
                       className="rounded-full"
                       disabled={isUpdating}
                     >
@@ -225,6 +250,54 @@ export function ProfileGallery() {
           )}
         </div>
       </Card>
+
+      {selectedIndex !== null && getImageUrl(galleryImages[selectedIndex]) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setSelectedIndex(null)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-4 top-4 text-white hover:bg-white/10 hover:text-white"
+            onClick={() => setSelectedIndex(null)}
+          >
+            <X className="h-6 w-6" />
+          </Button>
+          {selectedIndex > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute left-4 text-white hover:bg-white/10 hover:text-white"
+              onClick={(event) => {
+                event.stopPropagation()
+                setSelectedIndex((value) => value - 1)
+              }}
+            >
+              <ChevronLeft className="h-7 w-7" />
+            </Button>
+          )}
+          <img
+            src={getImageUrl(galleryImages[selectedIndex])}
+            alt={`Gallery image ${selectedIndex + 1}`}
+            className="max-h-[80vh] max-w-[80vw] rounded-lg object-contain shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          />
+          {selectedIndex < galleryImages.length - 1 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-4 text-white hover:bg-white/10 hover:text-white"
+              onClick={(event) => {
+                event.stopPropagation()
+                setSelectedIndex((value) => value + 1)
+              }}
+            >
+              <ChevronRight className="h-7 w-7" />
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

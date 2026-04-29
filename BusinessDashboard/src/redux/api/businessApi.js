@@ -29,6 +29,10 @@ export const businessApi = createApi({
       }),
     }),
 
+    checkBusinessEmail: builder.query({
+      query: (email) => `/business/check-email?email=${encodeURIComponent(email)}`,
+    }),
+
     // Verify email with OTP
     verifyBusinessEmail: builder.mutation({
       query: ({ businessId, otp }) => ({
@@ -84,11 +88,20 @@ export const businessApi = createApi({
 
     // Resend OTP
     resendOTP: builder.mutation({
-      query: (businessId) => ({
-        url: '/otp/resend',
+      query: ({ email }) => ({
+        url: '/business/resend-otp',
         method: 'POST',
-        body: { userId: businessId },
+        body: { email },
       }),
+    }),
+
+    submitAppeal: builder.mutation({
+      query: ({ message }) => ({
+        url: '/business/appeal',
+        method: 'POST',
+        body: { message },
+      }),
+      invalidatesTags: ['Profile'],
     }),
 
     // Upload logo
@@ -365,6 +378,8 @@ export const businessApi = createApi({
 
 export const {
   useRegisterBusinessMutation,
+  useCheckBusinessEmailQuery,
+  useLazyCheckBusinessEmailQuery,
   useVerifyBusinessEmailMutation,
   useLoginBusinessMutation,
   useGetBusinessProfileQuery,
@@ -372,6 +387,7 @@ export const {
   useChangePasswordMutation,
   useUpdateNotificationSettingsMutation,
   useResendOTPMutation,
+  useSubmitAppealMutation,
   useUploadLogoMutation,
   useUploadGalleryImagesMutation,
   useUploadDocumentMutation,

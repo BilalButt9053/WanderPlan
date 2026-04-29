@@ -4,7 +4,8 @@ const EmailVerificationToken = require("../modals/EmailVerificationToken");
 
 const BUSINESS_TYPES = ['hotel', 'restaurant', 'tour', 'activity', 'attraction', 'transport', 'other'];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^\+?[0-9\s().-]{7,20}$/;
+const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]*$/;
+const PAKISTAN_PHONE_REGEX = /^(?:03\d{9}|\+923\d{9}|923\d{9})$/;
 
 class MailDeliveryError extends Error {
     constructor(message = "Verification email could not be sent right now. Please try again later.") {
@@ -168,7 +169,90 @@ const sendApprovalEmail = async (email, businessName, status, reason = null) => 
     }
 };
 
+const sendSuspensionEmail = async (email, businessName, reason) => {
+    try {
+        return await sendBusinessEmail({
+            to: email,
+            subject: "Your WanderPlan business account has been suspended",
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #b91c1c;">Account suspension notice</h2>
+                    <p>Dear ${businessName},</p>
+                    <p>Your WanderPlan business account has been suspended.</p>
+                    <p style="background-color: #fee2e2; padding: 15px; border-radius: 5px;"><strong>Reason:</strong> ${reason}</p>
+                    <p>You can sign in to your Business Dashboard to submit an appeal for admin review.</p>
+                    <p style="color: #666;">We review appeals carefully and will notify you when a decision is made.</p>
+                </div>
+            `,
+        });
+    } catch (err) {
+        logMailError('Error sending suspension email', err);
+        throw new MailDeliveryError("Suspension email could not be sent right now.");
+    }
+};
+
+const sendReactivationEmail = async (email, businessName) => {
+    try {
+        return await sendBusinessEmail({
+            to: email,
+            subject: "Your WanderPlan business account has been reactivated",
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #16a34a;">Account reactivated</h2>
+                    <p>Dear ${businessName},</p>
+                    <p>Your WanderPlan business account has been reactivated. You can now access your dashboard again.</p>
+                </div>
+            `,
+        });
+    } catch (err) {
+        logMailError('Error sending reactivation email', err);
+        throw new MailDeliveryError("Reactivation email could not be sent right now.");
+    }
+};
+
+const sendAppealRejectedEmail = async (email, businessName, response) => {
+    try {
+        return await sendBusinessEmail({
+            to: email,
+            subject: "WanderPlan appeal review update",
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+                    <h2>Appeal review update</h2>
+                    <p>Dear ${businessName},</p>
+                    <p>Your suspension appeal has been reviewed and was not approved at this time.</p>
+                    ${response ? `<p style="background-color: #f3f4f6; padding: 15px; border-radius: 5px;"><strong>Admin response:</strong> ${response}</p>` : ''}
+                </div>
+            `,
+        });
+    } catch (err) {
+        logMailError('Error sending appeal rejection email', err);
+        throw new MailDeliveryError("Appeal update email could not be sent right now.");
+    }
+};
+
 const normalizeString = (value) => typeof value === 'string' ? value.trim() : '';
+
+const normalizePakistanPhone = (value) => {
+    const compact = normalizeString(value).replace(/[\s().-]/g, '');
+    if (/^923\d{9}$/.test(compact)) return `+${compact}`;
+    return compact;
+};
+
+const normalizeLocation = (address = {}, bodyLocation = {}) => {
+    const latitude = bodyLocation.latitude ?? address.latitude ?? address.coordinates?.lat;
+    const longitude = bodyLocation.longitude ?? address.longitude ?? address.coordinates?.lng;
+
+    return {
+        address: normalizeString(bodyLocation.address || bodyLocation.street || address.street),
+        city: normalizeString(bodyLocation.city || address.city),
+        country: normalizeString(bodyLocation.country || address.country),
+        latitude: latitude === '' || latitude === null || latitude === undefined ? null : Number(latitude),
+        longitude: longitude === '' || longitude === null || longitude === undefined ? null : Number(longitude),
+    };
+};
+
+const isValidLatitude = (value) => value === null || (Number.isFinite(value) && value >= -90 && value <= 90);
+const isValidLongitude = (value) => value === null || (Number.isFinite(value) && value >= -180 && value <= 180);
 
 const isValidUrl = (value) => {
     if (!value) return true;
@@ -190,7 +274,7 @@ const validateBusinessRegistration = (body = {}) => {
         businessName: normalizeString(body.businessName),
         email: normalizeString(body.email).toLowerCase(),
         password: typeof body.password === 'string' ? body.password : '',
-        phone: normalizeString(body.phone),
+        phone: normalizePakistanPhone(body.phone),
         businessType: normalizeString(body.businessType),
         description: normalizeString(body.description),
         website: normalizeString(body.website),
@@ -205,17 +289,30 @@ const validateBusinessRegistration = (body = {}) => {
             country: normalizeString(address.country),
         },
     };
+    normalized.location = normalizeLocation(normalized.address, body.location || {});
 
-    if (normalized.ownerName.length < 2) errors.push("Owner name must be at least 2 characters.");
+    if (normalized.ownerName.length < 2 || !NAME_REGEX.test(normalized.ownerName)) {
+        errors.push("Owner name can only contain letters, spaces, hyphens, and apostrophes.");
+    }
     if (normalized.businessName.length < 2) errors.push("Business name must be at least 2 characters.");
     if (!EMAIL_REGEX.test(normalized.email)) errors.push("Please enter a valid email address.");
     if (normalized.password.length < 8) errors.push("Password must be at least 8 characters.");
-    if (!PHONE_REGEX.test(normalized.phone)) errors.push("Please enter a valid phone number.");
+    if (!PAKISTAN_PHONE_REGEX.test(normalized.phone)) {
+        errors.push("Enter a valid Pakistani phone number, e.g. 03001234567 or +923001234567.");
+    }
     if (!BUSINESS_TYPES.includes(normalized.businessType)) errors.push("Please select a valid business category.");
     if (normalized.description.length < 10) errors.push("Description must be at least 10 characters.");
     if (!normalized.address.street) errors.push("Street address is required.");
     if (!normalized.address.city) errors.push("City is required.");
     if (!normalized.address.country) errors.push("Country is required.");
+    if (!isValidLatitude(normalized.location.latitude)) errors.push("Latitude must be between -90 and 90.");
+    if (!isValidLongitude(normalized.location.longitude)) errors.push("Longitude must be between -180 and 180.");
+    if (normalized.location.latitude !== null && normalized.location.longitude !== null) {
+        normalized.address.coordinates = {
+            lat: normalized.location.latitude,
+            lng: normalized.location.longitude,
+        };
+    }
     if (!isValidUrl(normalized.website)) errors.push("Please enter a valid website URL.");
     if (!documents.some((doc) => doc?.type === 'license' && doc?.url && !String(doc.url).startsWith('blob:'))) {
         errors.push("Business license document is required.");
@@ -237,6 +334,22 @@ const validateBusinessLogin = (body = {}) => {
     return { errors, normalized };
 };
 
+const getBusinessPublicPayload = (business) => ({
+    _id: business._id,
+    businessName: business.businessName,
+    ownerName: business.ownerName,
+    email: business.email,
+    phone: business.phone,
+    businessType: business.businessType,
+    status: business.status,
+    logo: business.logo,
+    subscription: business.subscription,
+    suspensionReason: business.suspensionReason,
+    appealStatus: business.appealStatus,
+    appealMessage: business.appealMessage,
+    appealAdminResponse: business.appealAdminResponse,
+});
+
 // Business Registration
 const registerBusiness = async (req, res, next) => {
     try {
@@ -254,6 +367,7 @@ const registerBusiness = async (req, res, next) => {
             phone, 
             businessType, 
             address,
+            location,
             description,
             website,
             logo,
@@ -284,6 +398,7 @@ const registerBusiness = async (req, res, next) => {
             phone,
             businessType,
             address,
+            location,
             description,
             website,
             logo: logo || null,
@@ -369,9 +484,11 @@ const loginBusiness = async (req, res, next) => {
         }
 
         if (business.status === 'suspended') {
-            return res.status(403).json({ 
-                message: "Your business account has been suspended. Please contact support.",
-                status: 'suspended'
+            const token = await business.generateToken();
+            return res.status(200).json({
+                message: "Your business account has been suspended.",
+                token,
+                business: getBusinessPublicPayload(business)
             });
         }
 
@@ -381,21 +498,103 @@ const loginBusiness = async (req, res, next) => {
         res.status(200).json({
             message: "Login successful",
             token: token,
-            business: {
-                _id: business._id,
-                businessName: business.businessName,
-                ownerName: business.ownerName,
-                email: business.email,
-                phone: business.phone,
-                businessType: business.businessType,
-                status: business.status,
-                logo: business.logo,
-                subscription: business.subscription
-            }
+            business: getBusinessPublicPayload(business)
         });
 
     } catch (error) {
         console.error('[business-auth] Login error', error);
+        next(error);
+    }
+};
+
+const checkBusinessEmail = async (req, res, next) => {
+    try {
+        const email = normalizeString(req.query.email || req.body.email).toLowerCase();
+
+        if (!EMAIL_REGEX.test(email)) {
+            return res.status(400).json({ message: "Please enter a valid email address." });
+        }
+
+        const business = await Business.findOne({ email }).select('_id');
+        return res.status(200).json({ exists: Boolean(business) });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const resendBusinessOTP = async (req, res, next) => {
+    try {
+        const email = normalizeString(req.body.email).toLowerCase();
+
+        if (!EMAIL_REGEX.test(email)) {
+            return res.status(400).json({ message: "Please enter a valid email address." });
+        }
+
+        const business = await Business.findOne({ email });
+
+        if (!business) {
+            return res.status(404).json({ message: "Business not found" });
+        }
+
+        if (business.isVerified) {
+            return res.status(400).json({ message: "Email is already verified." });
+        }
+
+        await EmailVerificationToken.deleteMany({ owner: business._id });
+
+        const OTP = generateOTP();
+        await new EmailVerificationToken({
+            owner: business._id,
+            token: OTP,
+        }).save();
+
+        await sendOTPEmail(business.email, OTP, business.businessName);
+
+        res.status(200).json({
+            message: "OTP resent successfully. Please check your email.",
+            success: true,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const submitAppeal = async (req, res, next) => {
+    try {
+        const businessId = req.business?.business_id || req.body.businessId;
+        const message = normalizeString(req.body.message);
+
+        if (message.length < 20 || message.length > 1000) {
+            return res.status(400).json({ message: "Appeal message must be between 20 and 1000 characters." });
+        }
+
+        const business = await Business.findById(businessId);
+
+        if (!business) {
+            return res.status(404).json({ message: "Business not found" });
+        }
+
+        if (business.status !== 'suspended') {
+            return res.status(400).json({ message: "Only suspended businesses can submit an appeal." });
+        }
+
+        if (business.appealStatus === 'pending') {
+            return res.status(400).json({ message: "Your appeal is already under review." });
+        }
+
+        business.appealStatus = 'pending';
+        business.appealMessage = message;
+        business.appealedAt = new Date();
+        business.appealReviewedAt = null;
+        business.appealAdminResponse = '';
+
+        await business.save();
+
+        res.status(200).json({
+            message: "Your appeal has been submitted for review.",
+            business: getBusinessPublicPayload(business),
+        });
+    } catch (error) {
         next(error);
     }
 };
@@ -433,6 +632,7 @@ const updateBusinessProfile = async (req, res, next) => {
             'website',
             'businessType',
             'address',
+            'location',
             'logo',
             'galleryImages',
             'operatingHours'
@@ -445,6 +645,30 @@ const updateBusinessProfile = async (req, res, next) => {
                 filteredUpdates[key] = updates[key];
             }
         });
+
+        if (filteredUpdates.phone) {
+            filteredUpdates.phone = normalizePakistanPhone(filteredUpdates.phone);
+            if (!PAKISTAN_PHONE_REGEX.test(filteredUpdates.phone)) {
+                return res.status(400).json({ message: "Enter a valid Pakistani phone number, e.g. 03001234567 or +923001234567." });
+            }
+        }
+
+        if (filteredUpdates.location) {
+            const normalizedLocation = normalizeLocation(filteredUpdates.address || {}, filteredUpdates.location);
+            if (!isValidLatitude(normalizedLocation.latitude)) {
+                return res.status(400).json({ message: "Latitude must be between -90 and 90." });
+            }
+            if (!isValidLongitude(normalizedLocation.longitude)) {
+                return res.status(400).json({ message: "Longitude must be between -180 and 180." });
+            }
+            filteredUpdates.location = normalizedLocation;
+            if (normalizedLocation.latitude !== null && normalizedLocation.longitude !== null) {
+                filteredUpdates['address.coordinates'] = {
+                    lat: normalizedLocation.latitude,
+                    lng: normalizedLocation.longitude,
+                };
+            }
+        }
 
         const business = await Business.findByIdAndUpdate(
             businessId,
@@ -588,6 +812,12 @@ module.exports = {
     updateBusinessProfile,
     verifyBusinessEmail,
     sendApprovalEmail,
+    sendSuspensionEmail,
+    sendReactivationEmail,
+    sendAppealRejectedEmail,
+    resendBusinessOTP,
+    checkBusinessEmail,
+    submitAppeal,
     changePassword,
     updateNotificationSettings
 };

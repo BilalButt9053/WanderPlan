@@ -89,6 +89,24 @@ export const businessApi = createApi({
       }),
       invalidatesTags: ['Business', 'BusinessStats'],
     }),
+
+    unsuspendBusiness: builder.mutation({
+      query: ({ id, response }) => ({
+        url: `/admin/businesses/${id}/unsuspend`,
+        method: 'POST',
+        body: { response },
+      }),
+      invalidatesTags: ['Business', 'BusinessStats'],
+    }),
+
+    rejectAppeal: builder.mutation({
+      query: ({ id, response }) => ({
+        url: `/admin/businesses/${id}/appeal/reject`,
+        method: 'POST',
+        body: { response },
+      }),
+      invalidatesTags: ['Business', 'BusinessStats'],
+    }),
     
     // Update business
     updateBusiness: builder.mutation({
@@ -118,6 +136,8 @@ export const {
   useApproveBusinessMutation,
   useRejectBusinessMutation,
   useSuspendBusinessMutation,
+  useUnsuspendBusinessMutation,
+  useRejectAppealMutation,
   useUpdateBusinessMutation,
   useDeleteBusinessMutation,
 } = businessApi;

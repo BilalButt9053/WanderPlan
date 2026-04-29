@@ -30,6 +30,7 @@ import {
   useApproveBusinessMutation,
   useRejectBusinessMutation,
   useSuspendBusinessMutation,
+  useUnsuspendBusinessMutation,
   useDeleteBusinessMutation
 } from "@/services/businessApi"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -63,6 +64,7 @@ export default function BusinessesPage() {
   const [approveBusiness, { isLoading: isApproving }] = useApproveBusinessMutation()
   const [rejectBusiness, { isLoading: isRejecting }] = useRejectBusinessMutation()
   const [suspendBusiness, { isLoading: isSuspending }] = useSuspendBusinessMutation()
+  const [unsuspendBusiness, { isLoading: isUnsuspending }] = useUnsuspendBusinessMutation()
   const [deleteBusiness, { isLoading: isDeleting }] = useDeleteBusinessMutation()
 
   const handleApprove = async (businessId) => {
@@ -121,6 +123,17 @@ export default function BusinessesPage() {
         alert('Business deleted successfully!')
       } catch (err) {
         alert(err?.data?.message || 'Failed to delete business')
+      }
+    }
+  }
+
+  const handleUnsuspend = async (businessId) => {
+    if (window.confirm('Reactivate this business account?')) {
+      try {
+        await unsuspendBusiness({ id: businessId }).unwrap()
+        alert('Business unsuspended successfully!')
+      } catch (err) {
+        alert(err?.data?.message || 'Failed to unsuspend business')
       }
     }
   }
@@ -263,6 +276,7 @@ export default function BusinessesPage() {
                   <TableHead>Category</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Appeal</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -287,6 +301,9 @@ export default function BusinessesPage() {
                       <Badge variant={getStatusBadgeVariant(business.status)}>
                         {business.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">{business.appealStatus || 'none'}</span>
                     </TableCell>
                     <TableCell>
                       <span className="text-sm text-muted-foreground">{business.phone || 'N/A'}</span>
@@ -353,6 +370,18 @@ export default function BusinessesPage() {
                               >
                                 <Ban className="mr-2 h-4 w-4" />
                                 Suspend Business
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {business.status === "suspended" && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleUnsuspend(business._id)}
+                                disabled={isUnsuspending}
+                              >
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Unsuspend Business
                               </DropdownMenuItem>
                             </>
                           )}

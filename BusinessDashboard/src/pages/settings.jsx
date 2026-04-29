@@ -3,6 +3,7 @@ import { DashboardShell } from '@/components/dashboard/dashboard-shell'
 import AccountSettings from '@/components/settings/account-settings'
 import NotificationSettings from '@/components/settings/notification-settings'
 import SubscriptionSettings from '@/components/settings/subscription-settings'
+import { Button } from '@/components/ui/button'
 
 export default function SettingsPage() {
   const [tab, setTab] = useState('account')
@@ -14,6 +15,15 @@ export default function SettingsPage() {
           <h1 className="text-foreground text-3xl font-bold">Settings</h1>
           <p className="text-muted-foreground mt-1">Business and account settings.</p>
         </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="w-fit"
+          onClick={() => window.dispatchEvent(new Event('wanderplan:replay-business-tutorial'))}
+        >
+          Replay Tutorial
+        </Button>
 
         <div className="flex gap-2 border-b border-border">
           <button className={`px-4 py-2 ${tab === 'account' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`} onClick={() => setTab('account')}>Account</button>

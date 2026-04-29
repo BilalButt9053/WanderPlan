@@ -1,6 +1,7 @@
 import { useSelector } from 'react-redux'
 import { Navigate } from 'react-router-dom'
 import { selectIsAuthenticated, selectBusinessStatus } from '@/redux/slices/businessAuthSlice'
+import SuspendedAccount from './SuspendedAccount'
 
 export default function ProtectedRoute({ children }) {
   const isAuthenticated = useSelector(selectIsAuthenticated)
@@ -11,6 +12,10 @@ export default function ProtectedRoute({ children }) {
   }
 
   // Only allow access if business is approved
+  if (status === 'suspended') {
+    return <SuspendedAccount />
+  }
+
   if (status !== 'approved') {
     return <Navigate to="/login" replace />
   }

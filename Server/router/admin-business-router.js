@@ -22,6 +22,8 @@ router.route('/businesses/:id/reject').post(authMiddleware, adminMiddleware, adm
 
 // Suspend business
 router.route('/businesses/:id/suspend').post(authMiddleware, adminMiddleware, adminBusinessController.suspendBusiness);
+router.route('/businesses/:id/unsuspend').post(authMiddleware, adminMiddleware, adminBusinessController.unsuspendBusiness);
+router.route('/businesses/:id/appeal/reject').post(authMiddleware, adminMiddleware, adminBusinessController.rejectAppeal);
 
 // Update business
 router.route('/businesses/:id').patch(authMiddleware, adminMiddleware, adminBusinessController.updateBusiness);

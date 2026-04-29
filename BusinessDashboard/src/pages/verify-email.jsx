@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Mountain, Loader2, Sun, Moon } from 'lucide-react'
+import { toast } from 'sonner'
 import { 
   useVerifyBusinessEmailMutation,
   useResendOTPMutation 
@@ -21,6 +22,7 @@ export default function VerifyEmailPage() {
   const [otp, setOtp] = useState('')
   const [resendTimer, setResendTimer] = useState(60)
   const [canResend, setCanResend] = useState(false)
+  const [message, setMessage] = useState('')
   
   const navigate = useNavigate()
   const dispatch = useDispatch()
@@ -39,6 +41,7 @@ export default function VerifyEmailPage() {
 
   useEffect(() => {
     if (!businessId || !email) {
+      toast.error('Registration session expired. Please sign up again.')
       navigate('/signup')
     }
   }, [businessId, email, navigate])
@@ -54,9 +57,10 @@ export default function VerifyEmailPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setMessage('')
     
     if (otp.length !== 6) {
-      alert('Please enter a valid 6-digit OTP')
+      setMessage('Please enter a valid 6-digit OTP.')
       return
     }
 
@@ -66,23 +70,32 @@ export default function VerifyEmailPage() {
       dispatch(clearPendingBusiness())
       
       // Show success message and redirect to login
-      alert('Email verified successfully! Your account is now pending admin approval. You will be notified once approved.')
+      toast.success('Email verified successfully. Your account is pending admin approval.')
       navigate('/login')
     } catch (err) {
       console.error('Verification failed:', err)
-      alert(err?.data?.message || 'Verification failed. Please try again.')
+      setMessage(err?.data?.message || 'Verification failed. Please try again.')
     }
   }
 
   const handleResend = async () => {
+    setMessage('')
+    if (!email) {
+      toast.error('Registration session expired. Please sign up again.')
+      navigate('/signup')
+      return
+    }
+
     try {
-      await resendOTP(businessId).unwrap()
+      await resendOTP({ email }).unwrap()
       setResendTimer(60)
       setCanResend(false)
-      alert('OTP has been resent to your email')
+      toast.success('OTP resent successfully. Please check your email.')
     } catch (err) {
       console.error('Resend failed:', err)
-      alert(err?.data?.message || 'Failed to resend OTP')
+      const resendMessage = err?.data?.message || 'Unable to resend OTP right now. Please try again.'
+      setMessage(resendMessage)
+      toast.error(resendMessage)
     }
   }
 
@@ -125,6 +138,11 @@ export default function VerifyEmailPage() {
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
                 {error?.data?.message || 'Verification failed'}
+              </div>
+            )}
+            {message && (
+              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                {message}
               </div>
             )}
 

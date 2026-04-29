@@ -1,5 +1,10 @@
 const Business = require("../modals/business-modal");
-const { sendApprovalEmail } = require("../controllers/business-auth-controller");
+const {
+    sendApprovalEmail,
+    sendSuspensionEmail,
+    sendReactivationEmail,
+    sendAppealRejectedEmail
+} = require("../controllers/business-auth-controller");
 
 // Get all businesses
 const getAllBusinesses = async (req, res, next) => {
@@ -165,6 +170,11 @@ const suspendBusiness = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { reason } = req.body;
+        const suspensionReason = typeof reason === 'string' ? reason.trim() : '';
+
+        if (suspensionReason.length < 5) {
+            return res.status(400).json({ message: "Suspension reason is required" });
+        }
 
         const business = await Business.findById(id);
 
@@ -173,9 +183,23 @@ const suspendBusiness = async (req, res, next) => {
         }
 
         business.status = 'suspended';
-        business.rejectionReason = reason || 'Account suspended by admin';
+        business.suspensionReason = suspensionReason;
+        business.rejectionReason = suspensionReason;
+        business.suspendedAt = new Date();
+        business.suspendedBy = req.user?._id || null;
+        business.appealStatus = 'none';
+        business.appealMessage = '';
+        business.appealedAt = null;
+        business.appealReviewedAt = null;
+        business.appealAdminResponse = '';
 
         await business.save();
+
+        try {
+            await sendSuspensionEmail(business.email, business.businessName, suspensionReason);
+        } catch (emailError) {
+            console.error('[admin-business] Error sending suspension email', emailError);
+        }
 
         res.status(200).json({
             message: "Business suspended",
@@ -187,6 +211,80 @@ const suspendBusiness = async (req, res, next) => {
         });
     } catch (error) {
         console.error('[admin-business] Suspend business error', error);
+        next(error);
+    }
+};
+
+const unsuspendBusiness = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const business = await Business.findById(id);
+
+        if (!business) {
+            return res.status(404).json({ message: "Business not found" });
+        }
+
+        business.status = 'approved';
+        business.appealStatus = 'approved';
+        business.appealReviewedAt = new Date();
+        business.appealAdminResponse = req.body?.response || 'Business account reactivated by admin.';
+
+        await business.save();
+
+        try {
+            await sendReactivationEmail(business.email, business.businessName);
+        } catch (emailError) {
+            console.error('[admin-business] Error sending reactivation email', emailError);
+        }
+
+        res.status(200).json({
+            message: "Business unsuspended successfully",
+            business
+        });
+    } catch (error) {
+        console.error('[admin-business] Unsuspend business error', error);
+        next(error);
+    }
+};
+
+const rejectAppeal = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const response = typeof req.body?.response === 'string' ? req.body.response.trim() : '';
+
+        if (response.length < 5) {
+            return res.status(400).json({ message: "Admin response is required" });
+        }
+
+        const business = await Business.findById(id);
+
+        if (!business) {
+            return res.status(404).json({ message: "Business not found" });
+        }
+
+        if (business.status !== 'suspended') {
+            return res.status(400).json({ message: "Business is not suspended" });
+        }
+
+        business.appealStatus = 'rejected';
+        business.appealReviewedAt = new Date();
+        business.appealAdminResponse = response;
+
+        await business.save();
+
+        try {
+            await sendAppealRejectedEmail(business.email, business.businessName, response);
+        } catch (emailError) {
+            console.error('[admin-business] Error sending appeal rejection email', emailError);
+        }
+
+        res.status(200).json({
+            message: "Appeal rejected",
+            business
+        });
+    } catch (error) {
+        console.error('[admin-business] Reject appeal error', error);
         next(error);
     }
 };
@@ -278,6 +376,8 @@ module.exports = {
     approveBusiness,
     rejectBusiness,
     suspendBusiness,
+    unsuspendBusiness,
+    rejectAppeal,
     deleteBusiness,
     updateBusiness,
     getBusinessStats

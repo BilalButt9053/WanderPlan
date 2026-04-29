@@ -1,11 +1,37 @@
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { MapPin } from 'lucide-react';
+import { Button } from '../ui/button';
+import { MapPin, Loader2, LocateFixed } from 'lucide-react';
+import { useState } from 'react';
 
 export function OnboardingStepFour({ formData, updateFormData }) {
+  const [locationState, setLocationState] = useState({ loading: false, message: '', error: '' });
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     updateFormData({ [name]: value });
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationState({ loading: false, message: '', error: 'Location is not supported by this browser.' });
+      return;
+    }
+
+    setLocationState({ loading: true, message: '', error: '' });
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        updateFormData({
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6),
+        });
+        setLocationState({ loading: false, message: 'Location captured. You can still edit the address manually.', error: '' });
+      },
+      () => {
+        setLocationState({ loading: false, message: '', error: 'Location permission denied. You can enter your address manually.' });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   return (
@@ -78,6 +104,47 @@ export function OnboardingStepFour({ formData, updateFormData }) {
               onChange={handleChange}
             />
           </div>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label>GPS Coordinates</Label>
+              <p className="text-sm text-muted-foreground">Optional, but useful for maps and discovery.</p>
+            </div>
+            <Button type="button" variant="outline" onClick={handleUseCurrentLocation} disabled={locationState.loading}>
+              {locationState.loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LocateFixed className="mr-2 h-4 w-4" />}
+              Use Current Location
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="latitude">Latitude</Label>
+              <Input
+                id="latitude"
+                name="latitude"
+                placeholder="31.5204"
+                className="bg-secondary"
+                value={formData.latitude}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="longitude">Longitude</Label>
+              <Input
+                id="longitude"
+                name="longitude"
+                placeholder="74.3587"
+                className="bg-secondary"
+                value={formData.longitude}
+                onChange={handleChange}
+              />
+            </div>
+          </div>
+
+          {locationState.message && <p className="text-sm text-primary">{locationState.message}</p>}
+          {locationState.error && <p className="text-sm text-destructive">{locationState.error}</p>}
         </div>
 
         {/* Map Placeholder */}

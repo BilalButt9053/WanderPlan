@@ -28,7 +28,8 @@ const steps = [
 ];
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^\+?[0-9\s().-]{7,20}$/;
+const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]*$/;
+const PAKISTAN_PHONE_REGEX = /^(?:03\d{9}|\+923\d{9}|923\d{9})$/;
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).+$/;
 
 const isValidUrl = (value) => {
@@ -43,6 +44,17 @@ const isValidUrl = (value) => {
 };
 
 const hasUploadedUrl = (value) => Boolean(value?.url && !value.url.startsWith('blob:'));
+
+const normalizePakistanPhone = (value) => {
+  const compact = value.trim().replace(/[\s().-]/g, '');
+  return /^923\d{9}$/.test(compact) ? `+${compact}` : compact;
+};
+
+const isValidCoordinate = (value, min, max) => {
+  if (value === '' || value === null || value === undefined) return true;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue >= min && numberValue <= max;
+};
 
 const getFriendlyApiMessage = (message, fallback) => {
   if (!message || typeof message !== 'string') return fallback;
@@ -86,6 +98,8 @@ export default function Onboarding() {
     state: '',
     zipCode: '',
     country: '',
+    latitude: '',
+    longitude: '',
     
     // Step 5 - Verification
     businessLicense: null,
@@ -105,6 +119,7 @@ export default function Onboarding() {
     const password = tempData?.password || '';
 
     if (ownerName.length < 2) return 'Owner name must be at least 2 characters.';
+    if (!NAME_REGEX.test(ownerName)) return 'Owner name can only contain letters, spaces, hyphens, and apostrophes.';
     if (!EMAIL_REGEX.test(email)) return 'Please enter a valid email address.';
     if (password.length < 8 || !PASSWORD_REGEX.test(password)) {
       return 'Password must be at least 8 characters and include a letter and number.';
@@ -117,7 +132,9 @@ export default function Onboarding() {
     if (currentStep === 1) {
       if (!formData.businessName.trim()) return 'Business name is required.';
       if (!formData.description.trim()) return 'Description is required.';
-      if (!PHONE_REGEX.test(formData.phone.trim())) return 'Please enter a valid phone number.';
+      if (!PAKISTAN_PHONE_REGEX.test(normalizePakistanPhone(formData.phone))) {
+        return 'Enter a valid Pakistani phone number, e.g. 03001234567 or +923001234567.';
+      }
       if (!isValidUrl(formData.website.trim())) return 'Please enter a valid website URL.';
     }
 
@@ -137,6 +154,8 @@ export default function Onboarding() {
       if (!formData.address.trim()) return 'Street address is required.';
       if (!formData.city.trim()) return 'City is required.';
       if (!formData.country.trim()) return 'Country is required.';
+      if (!isValidCoordinate(formData.latitude, -90, 90)) return 'Latitude must be between -90 and 90.';
+      if (!isValidCoordinate(formData.longitude, -180, 180)) return 'Longitude must be between -180 and 180.';
     }
 
     if (currentStep === 5) {
@@ -198,7 +217,7 @@ export default function Onboarding() {
         // From onboarding
         businessName: formData.businessName.trim(),
         description: formData.description.trim(),
-        phone: formData.phone.trim(),
+        phone: normalizePakistanPhone(formData.phone),
         website: formData.website.trim(),
         businessType: formData.category || 'other',
         
@@ -209,6 +228,13 @@ export default function Onboarding() {
           state: formData.state.trim(),
           zipCode: formData.zipCode.trim(),
           country: formData.country.trim(),
+        },
+        location: {
+          address: formData.address.trim(),
+          city: formData.city.trim(),
+          country: formData.country.trim(),
+          latitude: formData.latitude === '' ? null : Number(formData.latitude),
+          longitude: formData.longitude === '' ? null : Number(formData.longitude),
         },
         
         // Media (extract URLs from file objects)
