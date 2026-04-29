@@ -11,7 +11,6 @@ import ProfilePage from './pages/profile'
 import DealsPage from './pages/deals'
 import ReviewsPage from './pages/reviews'
 import AnalyticsPage from './pages/analytics'
-import POSPage from './pages/pos'
 import MenuPage from './pages/menu'
 import ProtectedRoute from './components/ProtectedRoute'
 import { loadPendingBusiness, selectIsAuthenticated, selectIsLoading, selectCurrentToken, setCredentials, logout, setLoading } from './redux/slices/businessAuthSlice'
@@ -113,7 +112,7 @@ function App() {
         } />
         <Route path="/dashboard/pos" element={
           <ProtectedRoute>
-            <POSPage />
+            <Navigate to="/dashboard" replace />
           </ProtectedRoute>
         } />
         <Route path="/dashboard/reviews" element={
