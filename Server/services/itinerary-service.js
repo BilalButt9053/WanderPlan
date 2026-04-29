@@ -24,6 +24,7 @@ const openaiService = require('./openai-service');
 const dynamicBudgetService = require('./dynamic-budget-service');
 const {
     getActivityCoordinates,
+    resolveActivityCoordinates,
     enrichItineraryWithCoordinates
 } = require('./coordinate-service');
 const axios = require('axios');
@@ -34,7 +35,7 @@ const PLACES_BASE_URL = 'https://maps.googleapis.com/maps/api/place';
 
 // Configuration
 const CONFIG = {
-    maxAIActivitiesPerDay: 2,      // Limit AI activities per day
+    maxAIActivitiesPerDay: 4,      // Prefer complete day plans when real places are available
     maxStaticTemplates: 5,         // Max templates to fetch from DB
     similarityThreshold: 0.7,      // Threshold for duplicate detection
     defaultTravelStyle: 'moderate',
@@ -42,6 +43,19 @@ const CONFIG = {
     minRating: 3.5,                // Minimum rating for places
     maxPlacesPerCategory: 10       // Max places to fetch per category
 };
+
+const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const isValidLatLng = (lat, lng) =>
+    lat !== null &&
+    lng !== null &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180;
 
 /**
  * Get budget information from a trip
@@ -221,7 +235,7 @@ const fetchStaticItineraries = async (params) => {
  * @returns {Promise<Array>} Array of itinerary days with source: "ai"
  */
 const generateAIItinerary = async (params) => {
-    const { destination, days, travelStyle, travelers, budget, existingActivities = [] } = params;
+    const { destination, days, travelStyle, travelers, budget, existingActivities = [], destinationPlacePool = [] } = params;
 
     console.log(`[itinerary-service] Generating AI itinerary for ${destination}`);
 
@@ -243,14 +257,15 @@ const generateAIItinerary = async (params) => {
             budget,
             activitiesPerDay: CONFIG.maxAIActivitiesPerDay,
             excludeActivities,
-            costProfile: budget?.costProfile
+            costProfile: budget?.costProfile,
+            destinationPlacePool
         });
 
         // Process and limit activities per day
         const processedItinerary = aiItinerary.map(day => ({
             day: day.day,
             activities: day.activities
-                .slice(0, CONFIG.maxAIActivitiesPerDay)
+                .slice(0, destinationPlacePool.length ? 5 : CONFIG.maxAIActivitiesPerDay)
                 .map(activity => ({
                     ...activity,
                     source: 'ai'
@@ -296,6 +311,40 @@ const getCoordinateStats = (itinerary = []) => {
     }
 
     return { totalActivities, resolvedCoordinates, missingCoordinates };
+};
+
+const getDuplicatePlaceCount = (itinerary = []) => {
+    const days = Array.isArray(itinerary) ? itinerary : itinerary?.days || [];
+    const seen = new Set();
+    let duplicates = 0;
+
+    for (const day of days) {
+        for (const activity of day.activities || []) {
+            const placeId = activity.placeId || activity.location?.placeId;
+            if (!placeId) continue;
+            if (seen.has(placeId)) {
+                duplicates += 1;
+            } else {
+                seen.add(placeId);
+            }
+        }
+    }
+
+    return duplicates;
+};
+
+const logItineraryDiagnostics = (label, { destination, itinerary, placePool = [] }) => {
+    const stats = getCoordinateStats(itinerary);
+    const validPerDay = (Array.isArray(itinerary) ? itinerary : itinerary?.days || [])
+        .map((day) => `Day ${day.day}: ${(day.activities || []).filter(getActivityCoordinates).length}/${(day.activities || []).length}`)
+        .join(', ');
+
+    console.log(
+        `[itinerary-service] ${label}: destination=${destination}, googleCandidates=${placePool.length}, ` +
+        `candidatesWithCoordinates=${placePool.filter((place) => getActivityCoordinates(place)).length}, ` +
+        `generatedActivities=${stats.totalActivities}, duplicatePlaces=${getDuplicatePlaceCount(itinerary)}, ` +
+        `missingCoordinates=${stats.missingCoordinates}, validActivitiesPerDay=[${validPerDay}]`
+    );
 };
 
 /**
@@ -596,10 +645,17 @@ const saveItinerary = async (params) => {
         categoryCosts,
         budgetStatus,
         travelStyle,
-        generationTime
+        generationTime,
+        placePool = []
     } = params;
 
-    const enrichedDays = await enrichItineraryWithCoordinates(days || itinerary, destination);
+    const repairedDays = await validateAndRepairItinerary({
+        itinerary: days || itinerary,
+        placePool,
+        destination,
+        days: Array.isArray(days || itinerary) ? (days || itinerary).length : (days || itinerary)?.days?.length || 1
+    });
+    const enrichedDays = await enrichItineraryWithCoordinates(repairedDays, destination);
     const coordinateStats = getCoordinateStats(enrichedDays);
     console.log(
         `[itinerary-service] Coordinate enrichment: totalActivities=${coordinateStats.totalActivities}, ` +
@@ -692,6 +748,14 @@ const generateHybridItinerary = async (params) => {
             console.log(`[itinerary-service] Budget context loaded: ${budgetInfo.totalRemaining} PKR remaining`);
         }
 
+        const destinationPlacePool = await buildDestinationPlacePool({
+            destination,
+            budgetPlan: budgetInfo,
+            costProfile: budgetInfo?.costProfile,
+            days,
+            travelStyle
+        });
+
         // Step 2: Fetch static itineraries with budget filtering
         const staticItinerary = await fetchStaticItineraries({
             destination,
@@ -715,7 +779,8 @@ const generateHybridItinerary = async (params) => {
                 travelStyle,
                 travelers: budgetInfo?.travelers || travelers,
                 budget: budgetInfo,
-                existingActivities
+                existingActivities,
+                destinationPlacePool
             });
         } else {
             console.log('[itinerary-service] Sufficient static content, skipping AI generation');
@@ -751,7 +816,13 @@ const generateHybridItinerary = async (params) => {
         const validation = openaiService.validateCostsAgainstBudget(merged, budgetInfo);
 
         // Step 7: Enrich activity coordinates and calculate statistics
-        const enrichedMerged = await enrichItineraryWithCoordinates(merged, destination);
+        const repairedMerged = await validateAndRepairItinerary({
+            itinerary: merged,
+            placePool: destinationPlacePool,
+            destination,
+            days
+        });
+        const enrichedMerged = await enrichItineraryWithCoordinates(repairedMerged, destination);
         const coordinateStats = getCoordinateStats(enrichedMerged);
         console.log(
             `[itinerary-service] Generated itinerary coordinates: totalActivities=${coordinateStats.totalActivities}, ` +
@@ -774,7 +845,8 @@ const generateHybridItinerary = async (params) => {
                 categoryCosts,
                 budgetStatus,
                 travelStyle,
-                generationTime
+                generationTime,
+                placePool: destinationPlacePool
             });
         }
 
@@ -916,14 +988,14 @@ const mapGooglePlaceType = (types) => {
     const typeMapping = {
         restaurant: 'restaurant',
         food: 'restaurant',
-        cafe: 'restaurant',
+        cafe: 'cafe',
         bar: 'restaurant',
         bakery: 'restaurant',
         lodging: 'hotel',
         hotel: 'hotel',
         tourist_attraction: 'attraction',
         museum: 'attraction',
-        park: 'attraction',
+        park: 'activity',
         amusement_park: 'attraction',
         zoo: 'attraction',
         aquarium: 'attraction',
@@ -934,7 +1006,7 @@ const mapGooglePlaceType = (types) => {
         mosque: 'attraction',
         church: 'attraction',
         temple: 'attraction',
-        point_of_interest: 'attraction'
+        point_of_interest: 'activity'
     };
     
     for (const type of types) {
@@ -945,6 +1017,133 @@ const mapGooglePlaceType = (types) => {
     return 'attraction';
 };
 
+const normalizePlaceName = (name = '') =>
+    String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+
+const getGooglePlacesKey = () => process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+
+const mapPoolCategoryToActivityType = (category) => {
+    const normalized = String(category || '').toLowerCase();
+    if (normalized === 'hotel') return 'hotel';
+    if (normalized === 'restaurant' || normalized === 'cafe') return 'food';
+    if (normalized === 'shopping') return 'shopping';
+    return 'attraction';
+};
+
+const mapPoolCategoryToBudgetCategory = (category) => {
+    const type = mapPoolCategoryToActivityType(category);
+    return openaiService.getCategory(type);
+};
+
+const normalizeGooglePlaceCandidate = (place, requestedCategory, destination, travelStyle) => {
+    const lat = toNumber(place.geometry?.location?.lat);
+    const lng = toNumber(place.geometry?.location?.lng);
+    if (!place.place_id || !isValidLatLng(lat, lng)) return null;
+
+    const category = requestedCategory || mapGooglePlaceType(place.types);
+    const priceLevel = Number.isInteger(place.price_level) ? place.price_level : null;
+    const candidate = {
+        placeId: place.place_id,
+        name: place.name,
+        address: place.formatted_address || place.vicinity || destination,
+        category,
+        rating: toNumber(place.rating) || 0,
+        priceLevel,
+        price_level: priceLevel ?? 2,
+        location: {
+            name: place.name,
+            address: place.formatted_address || place.vicinity || destination,
+            placeId: place.place_id,
+            coordinates: { lat, lng }
+        },
+        source: 'google_places',
+        coordinateStatus: 'resolved',
+        types: place.types || []
+    };
+
+    candidate.estimatedCost = estimatePlaceCost(candidate, travelStyle);
+    return candidate;
+};
+
+const candidateToActivity = (candidate, { time = '', description = '', source = candidate?.source || 'google_places' } = {}) => {
+    const coordinates = getActivityCoordinates(candidate);
+    const type = mapPoolCategoryToActivityType(candidate.category);
+    const category = mapPoolCategoryToBudgetCategory(candidate.category);
+
+    return {
+        title: candidate.name,
+        description: description || `Visit ${candidate.name}.`,
+        type,
+        category,
+        time,
+        estimatedCost: candidate.estimatedCost || 0,
+        costConfidence: 'estimated',
+        source,
+        placeId: candidate.placeId || null,
+        businessId: candidate.businessId || null,
+        rating: candidate.rating || 0,
+        location: {
+            name: candidate.location?.name || candidate.name,
+            address: candidate.location?.address || candidate.address || '',
+            placeId: candidate.placeId || null,
+            coordinates: {
+                lat: coordinates?.lat ?? null,
+                lng: coordinates?.lng ?? null
+            }
+        },
+        latitude: coordinates?.lat ?? null,
+        longitude: coordinates?.lng ?? null,
+        lat: coordinates?.lat ?? null,
+        lng: coordinates?.lng ?? null,
+        coordinateStatus: coordinates ? 'resolved' : 'missing'
+    };
+};
+
+const GENERIC_ACTIVITY_TITLES = [
+    'city highlights tour',
+    'restaurant lunch',
+    'cultural experience',
+    'local sightseeing',
+    'street food tour',
+    'evening walk',
+    'private guided tour',
+    'fine dining',
+    'vip experience'
+];
+
+const isGenericActivity = (activity = {}) => {
+    const title = String(activity.title || activity.name || '').toLowerCase().trim();
+    return GENERIC_ACTIVITY_TITLES.some((generic) => title === generic || title.includes(generic));
+};
+
+const findMatchingCandidate = (activity = {}, placePool = []) => {
+    const placeId = activity.placeId || activity.location?.placeId;
+    if (placeId) {
+        const byPlaceId = placePool.find((place) => place.placeId === placeId);
+        if (byPlaceId) return byPlaceId;
+    }
+
+    const titleKey = normalizePlaceName(activity.title || activity.name);
+    if (!titleKey) return null;
+
+    return placePool.find((place) => normalizePlaceName(place.name) === titleKey) ||
+        placePool.find((place) => {
+            const candidateKey = normalizePlaceName(place.name);
+            return candidateKey.length > 5 && (candidateKey.includes(titleKey) || titleKey.includes(candidateKey));
+        }) ||
+        null;
+};
+
+const pickUnusedCandidate = (placePool, usedPlaceIds, preferredCategories = []) => {
+    const categories = preferredCategories.filter(Boolean);
+    const categoryMatch = (candidate) => categories.length === 0 || categories.includes(candidate.category);
+    return placePool.find((candidate) => categoryMatch(candidate) && !usedPlaceIds.has(candidate.placeId)) ||
+        placePool.find((candidate) => categoryMatch(candidate)) ||
+        placePool.find((candidate) => !usedPlaceIds.has(candidate.placeId)) ||
+        placePool[0] ||
+        null;
+};
+
 /**
  * Fetch places from Google Places API by text search
  * @param {string} destination - Destination city/location
@@ -952,15 +1151,18 @@ const mapGooglePlaceType = (types) => {
  * @returns {Promise<Array>} Normalized places
  */
 const fetchGooglePlaces = async (destination, category) => {
-    if (!GOOGLE_PLACES_API_KEY) {
+    const apiKey = getGooglePlacesKey();
+    if (!apiKey) {
         console.warn('[itinerary-service] Google Places API key not configured');
         return [];
     }
     
     const categoryQueries = {
         restaurant: `best restaurants in ${destination}`,
+        cafe: `best cafes in ${destination}`,
         attraction: `tourist attractions in ${destination}`,
         hotel: `hotels in ${destination}`,
+        shopping: `shopping malls markets in ${destination}`,
         activity: `things to do in ${destination}`
     };
     
@@ -970,8 +1172,9 @@ const fetchGooglePlaces = async (destination, category) => {
         const response = await axios.get(`${PLACES_BASE_URL}/textsearch/json`, {
             params: {
                 query,
-                key: GOOGLE_PLACES_API_KEY
-            }
+                key: apiKey
+            },
+            timeout: 10000
         });
         
         if (response.data.status !== 'OK' && response.data.status !== 'ZERO_RESULTS') {
@@ -980,27 +1183,25 @@ const fetchGooglePlaces = async (destination, category) => {
         }
         
         const places = (response.data.results || [])
-            .filter(place => {
-                // Filter: valid coordinates and minimum rating
-                const hasCoords = place.geometry?.location?.lat && place.geometry?.location?.lng;
-                const hasGoodRating = (place.rating || 0) >= CONFIG.minRating;
-                return hasCoords && hasGoodRating;
-            })
+            .map((place) => normalizeGooglePlaceCandidate(
+                place,
+                category === 'activity' ? mapGooglePlaceType(place.types) : category,
+                destination,
+                CONFIG.defaultTravelStyle
+            ))
+            .filter(Boolean)
+            .filter(place => (place.rating || 0) >= CONFIG.minRating || !place.rating)
             .slice(0, CONFIG.maxPlacesPerCategory)
             .map(place => ({
-                id: place.place_id,
-                placeId: place.place_id,
+                ...place,
+                id: place.placeId,
                 name: place.name,
-                latitude: place.geometry.location.lat,
-                longitude: place.geometry.location.lng,
-                category: mapGooglePlaceType(place.types),
-                type: mapGooglePlaceType(place.types),
-                price_level: place.price_level || 2,
-                rating: place.rating || 0,
-                address: place.formatted_address || place.vicinity || '',
+                latitude: place.location.coordinates.lat,
+                longitude: place.location.coordinates.lng,
+                type: place.category,
+                price_level: place.priceLevel ?? 2,
                 photo: null,
-                photoReference: place.photos?.[0]?.photo_reference || null,
-                source: 'google'
+                photoReference: place.photos?.[0]?.photo_reference || null
             }));
         
         console.log(`[itinerary-service] Fetched ${places.length} ${category} places from Google for ${destination}`);
@@ -1010,6 +1211,88 @@ const fetchGooglePlaces = async (destination, category) => {
         console.error('[itinerary-service] Error fetching Google Places:', error.message);
         return [];
     }
+};
+
+const deduplicatePlacePool = (places = []) => {
+    const seenPlaceIds = new Set();
+    const seenNames = new Set();
+    const deduped = [];
+
+    for (const place of places) {
+        if (!place || !getActivityCoordinates(place)) continue;
+        if (place.placeId && seenPlaceIds.has(place.placeId)) continue;
+
+        const nameKey = normalizePlaceName(place.name);
+        if (nameKey && seenNames.has(nameKey)) continue;
+
+        if (place.placeId) seenPlaceIds.add(place.placeId);
+        if (nameKey) seenNames.add(nameKey);
+        deduped.push(place);
+    }
+
+    return deduped;
+};
+
+const buildDestinationPlacePool = async ({
+    destination,
+    budgetPlan = null,
+    costProfile = null,
+    days = 1,
+    travelStyle = CONFIG.defaultTravelStyle
+}) => {
+    const apiKey = getGooglePlacesKey();
+    if (!apiKey) {
+        console.warn('[itinerary-service] Google Places API key not configured');
+        return [];
+    }
+
+    const searches = [
+        { googleType: 'tourist_attraction', category: 'attraction', query: `tourist attractions in ${destination}` },
+        { googleType: 'restaurant', category: 'restaurant', query: `restaurants in ${destination}` },
+        { googleType: 'cafe', category: 'cafe', query: `cafes in ${destination}` },
+        { googleType: 'lodging', category: 'hotel', query: `hotels lodging in ${destination}` },
+        { googleType: 'shopping_mall', category: 'shopping', query: `shopping malls markets in ${destination}` },
+        { googleType: 'park', category: 'activity', query: `parks nature places in ${destination}` },
+        { googleType: 'point_of_interest', category: 'activity', query: `points of interest things to do in ${destination}` }
+    ];
+
+    const responses = await Promise.all(searches.map(async (search) => {
+        try {
+            const response = await axios.get(`${PLACES_BASE_URL}/textsearch/json`, {
+                params: {
+                    query: search.query,
+                    type: search.googleType,
+                    key: apiKey
+                },
+                timeout: 10000
+            });
+
+            if (response.data?.status !== 'OK' && response.data?.status !== 'ZERO_RESULTS') {
+                console.warn(`[itinerary-service] Google Places ${search.googleType} status: ${response.data?.status}`);
+                return [];
+            }
+
+            return (response.data?.results || [])
+                .map((place) => normalizeGooglePlaceCandidate(place, search.category, destination, travelStyle))
+                .filter(Boolean)
+                .filter((place) => (place.rating || 0) >= CONFIG.minRating || !place.rating)
+                .slice(0, CONFIG.maxPlacesPerCategory);
+        } catch (error) {
+            console.warn(`[itinerary-service] Google Places ${search.googleType} failed: ${error.message}`);
+            return [];
+        }
+    }));
+
+    const placePool = deduplicatePlacePool(responses.flat())
+        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+        .slice(0, Math.max(40, Math.min(80, Number(days || 1) * 16)));
+
+    console.log(
+        `[itinerary-service] destination=${destination}, googleCandidates=${placePool.length}, ` +
+        `candidatesWithCoordinates=${placePool.filter((place) => getActivityCoordinates(place)).length}`
+    );
+
+    return placePool;
 };
 
 /**
@@ -1100,11 +1383,18 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
  * @returns {Array} Deduplicated places
  */
 const deduplicatePlaces = (places) => {
-    const seen = new Set();
+    const seenPlaceIds = new Set();
+    const seenNames = new Set();
     return places.filter(place => {
-        const key = place.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (seen.has(key)) return false;
-        seen.add(key);
+        if (!place?.name) return false;
+        if (!getActivityCoordinates(place)) return false;
+        if (place.placeId && seenPlaceIds.has(place.placeId)) return false;
+
+        const key = normalizePlaceName(place.name);
+        if (key && seenNames.has(key)) return false;
+
+        if (place.placeId) seenPlaceIds.add(place.placeId);
+        if (key) seenNames.add(key);
         return true;
     });
 };
@@ -1285,6 +1575,171 @@ const buildDayWiseItinerary = (places, days, travelStyle) => {
     return itinerary;
 };
 
+const assignUniquePlacesToDays = (placePool = [], days = 1) => {
+    const pool = deduplicatePlacePool(placePool);
+    const usedPlaceIds = new Set();
+    const itinerary = [];
+    const slots = [
+        { time: '09:00 AM', categories: ['attraction', 'activity'], description: (p) => `Start the day at ${p.name}.` },
+        { time: '01:00 PM', categories: ['restaurant', 'cafe'], description: (p) => `Have lunch at ${p.name}.` },
+        { time: '04:00 PM', categories: ['attraction', 'shopping', 'activity'], description: (p) => `Spend the afternoon exploring ${p.name}.` },
+        { time: '07:30 PM', categories: ['restaurant', 'cafe'], description: (p) => `End the day with dinner at ${p.name}.` }
+    ];
+
+    for (let day = 1; day <= days; day++) {
+        const activities = [];
+
+        for (const slot of slots) {
+            const candidate = pickUnusedCandidate(pool, usedPlaceIds, slot.categories);
+            if (!candidate) continue;
+            if (usedPlaceIds.has(candidate.placeId) && pool.length >= days * 2) continue;
+
+            if (candidate.placeId) usedPlaceIds.add(candidate.placeId);
+            activities.push(candidateToActivity(candidate, {
+                time: slot.time,
+                description: slot.description(candidate)
+            }));
+        }
+
+        itinerary.push({
+            day,
+            title: `Day ${day} - Local Discovery`,
+            activities,
+            estimatedDayCost: activities.reduce((sum, activity) => sum + (activity.estimatedCost || 0), 0)
+        });
+    }
+
+    return itinerary;
+};
+
+const validateAndRepairItinerary = async ({ itinerary, placePool = [], destination, days }) => {
+    const pool = deduplicatePlacePool(placePool);
+    const inputDays = Array.isArray(itinerary) ? itinerary : itinerary?.days || [];
+    const repaired = [];
+    const usedPlaceIds = new Set();
+    const allowReuse = pool.length < Math.max(1, Number(days || inputDays.length || 1)) * 2;
+
+    for (let dayNumber = 1; dayNumber <= days; dayNumber++) {
+        const sourceDay = inputDays.find((day) => Number(day.day) === dayNumber) || { day: dayNumber, activities: [] };
+        const activities = [];
+
+        for (const activity of sourceDay.activities || []) {
+            const match = findMatchingCandidate(activity, pool);
+            const activityPlaceId = match?.placeId || activity.placeId || activity.location?.placeId;
+            const duplicate = activityPlaceId && usedPlaceIds.has(activityPlaceId) && !allowReuse;
+            const invalid = !getActivityCoordinates(activity) || isGenericActivity(activity) || duplicate;
+            let nextActivity = null;
+
+            if (match && !duplicate) {
+                nextActivity = {
+                    ...candidateToActivity(match, {
+                        time: activity.time || '',
+                        description: activity.description || `Visit ${match.name}.`,
+                        source: activity.source === 'ai' ? 'ai' : 'google_places'
+                    }),
+                    title: match.name
+                };
+            } else if (!invalid) {
+                nextActivity = {
+                    ...activity,
+                    source: activity.source || 'ai',
+                    coordinateStatus: 'resolved'
+                };
+            } else {
+                const preferred = activity.type === 'food' || activity.category === 'food'
+                    ? ['restaurant', 'cafe']
+                    : activity.type === 'shopping'
+                        ? ['shopping', 'attraction', 'activity']
+                        : ['attraction', 'activity', 'shopping'];
+                const replacement = pickUnusedCandidate(pool, usedPlaceIds, preferred);
+                if (replacement) {
+                    nextActivity = candidateToActivity(replacement, {
+                        time: activity.time || '',
+                        description: `Visit ${replacement.name}.`
+                    });
+                }
+            }
+
+            if (!nextActivity && activity.title && !isGenericActivity(activity)) {
+                nextActivity = await resolveActivityCoordinates(activity, destination);
+            }
+
+            if (!nextActivity) continue;
+
+            const coordinates = getActivityCoordinates(nextActivity);
+            if (!coordinates) {
+                nextActivity.coordinateStatus = 'missing';
+            }
+
+            const placeId = nextActivity.placeId || nextActivity.location?.placeId;
+            if (placeId && usedPlaceIds.has(placeId) && !allowReuse) continue;
+            if (placeId) usedPlaceIds.add(placeId);
+
+            activities.push(nextActivity);
+        }
+
+        const hasAttraction = activities.some((activity) =>
+            ['attraction', 'shopping'].includes(activity.type) || activity.category === 'activities'
+        );
+        const hasFood = activities.some((activity) => activity.type === 'food' || activity.category === 'food');
+
+        if (!hasAttraction) {
+            const candidate = pickUnusedCandidate(pool, usedPlaceIds, ['attraction', 'activity', 'shopping']);
+            if (candidate) {
+                if (candidate.placeId) usedPlaceIds.add(candidate.placeId);
+                activities.unshift(candidateToActivity(candidate, {
+                    time: '09:00 AM',
+                    description: `Start the day at ${candidate.name}.`
+                }));
+            }
+        }
+
+        if (!hasFood) {
+            const candidate = pickUnusedCandidate(pool, usedPlaceIds, ['restaurant', 'cafe']);
+            if (candidate) {
+                if (candidate.placeId) usedPlaceIds.add(candidate.placeId);
+                activities.push(candidateToActivity(candidate, {
+                    time: activities.length ? '01:00 PM' : '12:30 PM',
+                    description: `Eat at ${candidate.name}.`
+                }));
+            }
+        }
+
+        while (activities.filter(getActivityCoordinates).length < 2) {
+            const candidate = pickUnusedCandidate(pool, usedPlaceIds, []);
+            if (!candidate || (candidate.placeId && usedPlaceIds.has(candidate.placeId) && !allowReuse)) break;
+            if (candidate.placeId) usedPlaceIds.add(candidate.placeId);
+            activities.push(candidateToActivity(candidate, {
+                time: activities.length ? '04:00 PM' : '10:00 AM',
+                description: `Explore ${candidate.name}.`
+            }));
+        }
+
+        repaired.push({
+            ...sourceDay,
+            day: dayNumber,
+            title: sourceDay.title || `Day ${dayNumber} - Local Discovery`,
+            activities,
+            estimatedDayCost: activities.reduce((sum, activity) => sum + (activity.estimatedCost || 0), 0)
+        });
+    }
+
+    return repaired;
+};
+
+const calculateCategoryCostsFromItinerary = (itinerary = []) => {
+    const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
+    for (const day of itinerary) {
+        for (const activity of day.activities || []) {
+            const category = activity.category || openaiService.getCategory(activity.type);
+            const cost = activity.estimatedCost || 0;
+            categoryCosts[category] = (categoryCosts[category] || 0) + cost;
+            categoryCosts.total += cost;
+        }
+    }
+    return categoryCosts;
+};
+
 /**
  * Estimate cost for a place based on price level and travel style
  * @param {Object} place - Place object
@@ -1349,21 +1804,21 @@ const generateRealDataItinerary = async (params) => {
             console.log(`[itinerary-service] Budget context loaded: ${budgetInfo.totalRemaining} PKR remaining`);
         }
         
-        // Step 2: Fetch places from Google Places API (parallel)
-        const [googleRestaurants, googleAttractions, googleHotels] = await Promise.all([
-            fetchGooglePlaces(destination, 'restaurant'),
-            fetchGooglePlaces(destination, 'attraction'),
-            fetchGooglePlaces(destination, 'hotel')
-        ]);
-        
+        // Step 2: Build a real Google Places candidate pool before AI planning
+        const destinationPlacePool = await buildDestinationPlacePool({
+            destination,
+            budgetPlan: budgetInfo,
+            costProfile: budgetInfo?.costProfile,
+            days,
+            travelStyle
+        });
+
         // Step 3: Fetch businesses from DB
         const dbBusinesses = await fetchDbBusinesses(destination);
         
         // Step 4: Merge all places
         const allPlaces = [
-            ...googleRestaurants,
-            ...googleAttractions,
-            ...googleHotels,
+            ...destinationPlacePool,
             ...dbBusinesses
         ];
         
@@ -1373,7 +1828,7 @@ const generateRealDataItinerary = async (params) => {
         const uniquePlaces = deduplicatePlaces(allPlaces);
         console.log(`[itinerary-service] After deduplication: ${uniquePlaces.length} places`);
         
-        // Step 6: If no places found, use fallback
+        // Step 6: If no places found, use fallback, then resolve coordinates before saving
         if (uniquePlaces.length === 0) {
             console.warn('[itinerary-service] No places found, using fallback itinerary');
             let fallbackItinerary = openaiService.generateFallbackItinerary(
@@ -1382,6 +1837,12 @@ const generateRealDataItinerary = async (params) => {
                 travelStyle,
                 budgetInfo?.costProfile
             );
+            fallbackItinerary = await validateAndRepairItinerary({
+                itinerary: fallbackItinerary,
+                placePool: [],
+                destination,
+                days
+            });
             fallbackItinerary = await enrichItineraryWithCoordinates(fallbackItinerary, destination);
             const coordinateStats = getCoordinateStats(fallbackItinerary);
             console.log(
@@ -1415,7 +1876,8 @@ const generateRealDataItinerary = async (params) => {
                     categoryCosts,
                     budgetStatus,
                     travelStyle,
-                    generationTime
+                    generationTime,
+                    placePool: []
                 });
             }
             
@@ -1444,14 +1906,42 @@ const generateRealDataItinerary = async (params) => {
             };
         }
         
-        // Step 7: Build day-wise itinerary with distance-based grouping
-        let itinerary = buildDayWiseItinerary(uniquePlaces, days, travelStyle);
+        // Step 7: Ask AI to choose from the candidate pool, then repair deterministically
+        let itinerary = [];
+        const aiAvailable = await openaiService.isServiceAvailable();
+        if (aiAvailable && destinationPlacePool.length > 0) {
+            try {
+                itinerary = await openaiService.generateItinerary({
+                    destination,
+                    days,
+                    travelers: budgetInfo?.travelers || travelers,
+                    travelStyle,
+                    budget: budgetInfo,
+                    activitiesPerDay: 4,
+                    costProfile: budgetInfo?.costProfile,
+                    destinationPlacePool
+                });
+            } catch (error) {
+                console.warn('[itinerary-service] AI place-pool generation failed, using deterministic assignment:', error.message);
+            }
+        }
+
+        if (!itinerary.length) {
+            itinerary = assignUniquePlacesToDays(uniquePlaces, days);
+        }
+
+        itinerary = await validateAndRepairItinerary({
+            itinerary,
+            placePool: uniquePlaces,
+            destination,
+            days
+        });
         itinerary = await enrichItineraryWithCoordinates(itinerary, destination);
-        const coordinateStats = getCoordinateStats(itinerary);
-        console.log(
-            `[itinerary-service] Generated itinerary coordinates: totalActivities=${coordinateStats.totalActivities}, ` +
-            `resolvedCoordinates=${coordinateStats.resolvedCoordinates}, missingCoordinates=${coordinateStats.missingCoordinates}`
-        );
+        logItineraryDiagnostics('Generated itinerary coordinates', {
+            destination,
+            itinerary,
+            placePool: destinationPlacePool
+        });
 
         // Step 7.5: Optionally enhance descriptions with AI before saving
         try {
@@ -1460,15 +1950,8 @@ const generateRealDataItinerary = async (params) => {
             console.warn('[itinerary-service] AI enhancement failed, using original descriptions:', err.message);
         }
         
-        // Step 8: Calculate costs by category
-        const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
-        for (const day of itinerary) {
-            for (const activity of day.activities) {
-                const category = activity.category || 'activities';
-                categoryCosts[category] += activity.estimatedCost || 0;
-                categoryCosts.total += activity.estimatedCost || 0;
-            }
-        }
+        // Step 8: Calculate costs by category after repair
+        const categoryCosts = calculateCategoryCostsFromItinerary(itinerary);
         
         // Step 9: Calculate budget status
         const budgetStatus = calculateBudgetStatus(categoryCosts, budgetInfo);
@@ -1497,7 +1980,8 @@ const generateRealDataItinerary = async (params) => {
                 categoryCosts,
                 budgetStatus,
                 travelStyle,
-                generationTime
+                generationTime,
+                placePool: uniquePlaces
             });
         }
         
@@ -1609,5 +2093,8 @@ module.exports = {
     generateRealDataItinerary,
     getAvailablePlaces,
     fetchGooglePlaces,
-    fetchDbBusinesses
+    fetchDbBusinesses,
+    buildDestinationPlacePool,
+    validateAndRepairItinerary,
+    assignUniquePlacesToDays
 };
