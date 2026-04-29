@@ -125,7 +125,7 @@ export default function GeneratedPlanScreen({
   const [updateItinerary, { isLoading: isUpdating }] = useUpdateItineraryMutation();
   const [startTrip, { isLoading: isStartingTrip }] = useStartTripMutation();
   const [getDayRoute] = useGetDayRouteMutation();
-  const { data: tripData } = useGetTripQuery(tripId, { skip: !tripId });
+  const { data: tripData, refetch: refetchTrip } = useGetTripQuery(tripId, { skip: !tripId });
 
   // Extract data from itineraryData or use budgetData as fallback
   // Handle both generate response (root level) and fetch response (in itinerary document)
@@ -196,7 +196,7 @@ export default function GeneratedPlanScreen({
     }));
   }, [currentDays]);
 
-  // Calculate estimated costs dynamically
+  // Calculate estimated costs dynamically from the visible itinerary.
   const calculatedCosts = useMemo(() => {
     const costs = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
     
@@ -214,8 +214,25 @@ export default function GeneratedPlanScreen({
     return costs;
   }, [currentDays]);
 
-  const estimatedCosts = calculatedCosts;
   const plannedBreakdown = tripData?.trip?.budgetBreakdown || null;
+
+  const estimatedCosts = useMemo(() => {
+    const costs = { ...calculatedCosts };
+
+    for (const key of ['accommodation', 'food', 'transport', 'activities']) {
+      const backendSpent = Number(plannedBreakdown?.[key]?.spent);
+      if (Number.isFinite(backendSpent) && backendSpent > 0) {
+        costs[key] = backendSpent;
+      }
+    }
+
+    costs.total = ['accommodation', 'food', 'transport', 'activities'].reduce(
+      (sum, key) => sum + (Number(costs[key]) || 0),
+      0
+    );
+
+    return costs;
+  }, [calculatedCosts, plannedBreakdown]);
 
   const categoryBreakdown = useMemo(() => {
     const categories = [
@@ -506,6 +523,7 @@ export default function GeneratedPlanScreen({
           onPress: async () => {
             try {
               await commitBudget(tripId).unwrap();
+              await refetchTrip?.();
               Alert.alert('Success', 'Budget committed to trip!');
               onRefresh?.();
             } catch (error) {

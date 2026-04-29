@@ -22,6 +22,7 @@ const ReviewSchema = new mongoose.Schema(
       role: { type: String },
     },
     place: { type: String, required: true },
+    relatedBusiness: { type: mongoose.Schema.Types.ObjectId, ref: 'Business', default: null },
     category: { type: String, enum: ['food', 'places', 'hotels'], required: true },
     rating: { type: Number, min: 0, max: 5, required: true },
     text: { type: String, required: true },

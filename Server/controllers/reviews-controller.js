@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Review = require('../modals/review-models');
+const Business = require('../modals/business-modal');
 const gamificationService = require('../services/gamification-service');
 
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(process.cwd(), 'server', 'uploads');
@@ -15,13 +16,36 @@ const buildUserPayload = (user) => ({
 
 exports.create = async (req, res, next) => {
   try {
-    const { place, category, rating, text, images = [], tags = [] } = req.body;
+    const { place, businessId, category, rating, text, images = [], tags = [] } = req.body;
     if (!place || !category || typeof rating !== 'number' || !text) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
+
+    let relatedBusiness = null;
+    let reviewPlace = place;
+
+    if (businessId) {
+      if (!/^[0-9a-fA-F]{24}$/.test(String(businessId))) {
+        return res.status(400).json({ message: 'Please select a valid registered business' });
+      }
+
+      relatedBusiness = await Business.findOne({
+        _id: businessId,
+        isVerified: true,
+        status: 'approved',
+      }).select('_id businessName');
+
+      if (!relatedBusiness) {
+        return res.status(400).json({ message: 'Please select a valid registered business' });
+      }
+
+      reviewPlace = relatedBusiness.businessName;
+    }
+
     const doc = await Review.create({
       user: buildUserPayload(req.user),
-      place,
+      place: reviewPlace,
+      relatedBusiness: relatedBusiness?._id || null,
       category,
       rating,
       text,
@@ -57,6 +81,7 @@ exports.list = async (req, res, next) => {
                              { createdAt: -1 };
 
     const docs = await Review.find(q)
+      .populate('relatedBusiness', 'businessName logo businessType address')
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(Number(limit));

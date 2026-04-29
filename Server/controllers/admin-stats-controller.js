@@ -27,8 +27,8 @@ const getDashboardStats = async (req, res, next) => {
 
             const [business, totalReviews, flaggedReviews, activeDeals, totalDeals] = await Promise.all([
                 Business.findById(businessId).select('businessName status isVerified createdAt'),
-                Review.countDocuments({ place: businessId }),
-                Review.countDocuments({ place: businessId, status: 'flagged' }),
+                Review.countDocuments({ $or: [{ relatedBusiness: businessId }, { place: businessId }] }),
+                Review.countDocuments({ $or: [{ relatedBusiness: businessId }, { place: businessId }], status: 'flagged' }),
                 Deal.countDocuments({ business: businessId, status: 'active' }),
                 Deal.countDocuments({ business: businessId }),
             ]);

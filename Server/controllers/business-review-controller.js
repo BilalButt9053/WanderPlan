@@ -25,8 +25,9 @@ const getBusinessReviews = async (req, res, next) => {
             limit = 20
         } = req.query;
 
-        // Build filter
-        const filter = { place: businessId };
+        // Build filter. New reviews store a real business reference; keep the
+        // place fallback so older reviews still appear in the dashboard.
+        const filter = { $or: [{ relatedBusiness: businessId }, { place: businessId }] };
 
         if (status) {
             filter.status = status;
@@ -91,7 +92,10 @@ const getReviewById = async (req, res, next) => {
         const businessId = getAuthBusinessId(req);
         const { id } = req.params;
 
-        const review = await Review.findOne({ _id: id, place: businessId });
+        const review = await Review.findOne({
+            _id: id,
+            $or: [{ relatedBusiness: businessId }, { place: businessId }]
+        });
 
         if (!review) {
             return res.status(404).json({
@@ -126,7 +130,10 @@ const replyToReview = async (req, res, next) => {
             });
         }
 
-        const review = await Review.findOne({ _id: id, place: businessId });
+        const review = await Review.findOne({
+            _id: id,
+            $or: [{ relatedBusiness: businessId }, { place: businessId }]
+        });
 
         if (!review) {
             return res.status(404).json({
@@ -171,7 +178,10 @@ const updateReply = async (req, res, next) => {
             });
         }
 
-        const review = await Review.findOne({ _id: id, place: businessId });
+        const review = await Review.findOne({
+            _id: id,
+            $or: [{ relatedBusiness: businessId }, { place: businessId }]
+        });
 
         if (!review) {
             return res.status(404).json({
@@ -212,7 +222,10 @@ const deleteReply = async (req, res, next) => {
         const businessId = getAuthBusinessId(req);
         const { id } = req.params;
 
-        const review = await Review.findOne({ _id: id, place: businessId });
+        const review = await Review.findOne({
+            _id: id,
+            $or: [{ relatedBusiness: businessId }, { place: businessId }]
+        });
 
         if (!review) {
             return res.status(404).json({
@@ -243,7 +256,9 @@ const getReviewStats = async (req, res, next) => {
     try {
         const businessId = getAuthBusinessId(req);
 
-        const reviews = await Review.find({ place: businessId }).lean();
+        const reviews = await Review.find({
+            $or: [{ relatedBusiness: businessId }, { place: businessId }]
+        }).lean();
 
         const totalReviews = reviews.length;
         const averageRating = totalReviews > 0

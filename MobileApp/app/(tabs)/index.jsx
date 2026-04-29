@@ -5,17 +5,16 @@ import {
   View, 
   TouchableOpacity, 
   ScrollView, 
-  TextInput,
   Image,
   Dimensions,
   ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import { useSelector, useDispatch } from 'react-redux';
 import { toggleTheme } from '../../redux/slices/themeSlice';
 import { useTheme } from '../../hooks/useTheme';
 import { 
-  Search, 
   MapPin, 
   Star, 
   TrendingUp, 
@@ -30,74 +29,78 @@ import ImageWithFallback from '../components/ImageWithFallback';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WanderCard from '../components/wander-card';
 import WanderChip from '../components/wander-chip';
-import { WanderButton } from '../components/wander-button';
 import Progress from '../components/ui/progress';
-import { useGetDealsQuery } from '../../redux/api/businessItemsApi';
-import { useGetCompletedTripsQuery } from '../../redux/api/businessItemsApi';
+import {
+  useGetCompletedTripsQuery,
+  useGetDealsQuery,
+  useGetNearbyBusinessesQuery,
+} from '../../redux/api/businessItemsApi';
+import { useGetRewardsQuery } from '../../redux/api/userProfileApi';
 
 const { width } = Dimensions.get('window');
 
-const staticDeals = [
-  {
-    id: 1,
-    title: 'Khan Baba Restaurant',
-    discount: '25% OFF',
-    image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwYWtpc3RhbmklMjBmb29kJTIwYmlyeWFuaXxlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    type: 'restaurant',
-  },
-  {
-    id: 2,
-    title: 'Pearl Continental Hotel',
-    discount: '35% OFF',
-    image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxob3RlbCUyMGx1eHVyeSUyMHJvb218ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    type: 'hotel',
-  },
-];
+const getImageUrl = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value === 'string') return value;
+  return value.url || value.uri || fallback;
+};
 
-const hiddenGems = [
-  {
-    id: 1,
-    name: 'Dilpasand Cafe',
-    rating: 4.7,
-    distance: '1.2 km',
-    category: 'Cafe',
-    image: 'https://images.unsplash.com/photo-1559305616-3b2b9c8e6e3c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYWZlJTIwaW50ZXJpb3J8ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
-  },
-  {
-    id: 2,
-    name: 'Haveli Restaurant',
-    rating: 4.8,
-    distance: '2.3 km',
-    category: 'Restaurant',
-    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwaW50ZXJpb3J8ZW58MXx8fHwxNzMyNjEyMDAwfDA&ixlib=rb-4.1.0&q=80&w=1080',
-  },
-  {
-    id: 3,
-    name: 'Liberty Market',
-    rating: 4.6,
-    distance: '3.5 km',
-    category: 'Shopping',
-    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtYXJrZXQlMjBzaG9wcGluZ3xlbnwxfHx8fDE3MzI2MTIwMDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-  },
-];
+const getBusinessCoordinates = (business) => ({
+  lat: business?.address?.coordinates?.lat ?? business?.geoLocation?.coordinates?.[1] ?? null,
+  lng: business?.address?.coordinates?.lng ?? business?.geoLocation?.coordinates?.[0] ?? null,
+});
 
 export default function Page() {
   const router = useRouter();
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth?.user || null);
+  const isAuthenticated = useSelector((state) => Boolean(state.auth?.isAuthenticated));
   const { isDarkMode, colors } = useTheme();
-  const reviewProgress = 60;
+  const [userLocation, setUserLocation] = React.useState(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const location = await Location.getCurrentPositionAsync({});
+        setUserLocation({
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        });
+      } catch (error) {
+        console.log('Home location unavailable:', error?.message);
+      }
+    })();
+  }, []);
 
   // Fetch deals from API
-  const { data: dealsData, isLoading: dealsLoading, error: dealsError } = useGetDealsQuery(
+  const { data: dealsData, isLoading: dealsLoading } = useGetDealsQuery(
     { limit: 10 },
     { pollingInterval: 15000, refetchOnFocus: true, refetchOnReconnect: true }
+  );
+  const { data: rewardsData, isLoading: rewardsLoading } = useGetRewardsQuery('all', {
+    skip: !isAuthenticated,
+    pollingInterval: 20000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
+  const { data: nearbyBusinessesData, isLoading: hiddenGemsLoading } = useGetNearbyBusinessesQuery(
+    userLocation
+      ? {
+          lat: userLocation.lat,
+          lng: userLocation.lng,
+          radiusKm: 10,
+          limit: 6,
+        }
+      : undefined,
+    { skip: !userLocation, pollingInterval: 20000, refetchOnFocus: true, refetchOnReconnect: true }
   );
 
   // Transform API deals to match expected format
   const deals = React.useMemo(() => {
     if (!dealsData?.deals || dealsData.deals.length === 0) {
-      return staticDeals; // Fallback to static deals
+      return [];
     }
     return dealsData.deals.map(deal => {
       const discountText = deal.discountType === 'percentage' 
@@ -105,17 +108,10 @@ export default function Page() {
         : `Rs ${deal.discountValue} OFF`;
       
       // Extract image URL from various formats
-      let imageUrl = 'https://images.unsplash.com/photo-1585937421612-70a008356fbe';
-      if (deal.image) {
-        if (typeof deal.image === 'string') {
-          imageUrl = deal.image;
-        } else if (deal.image.url) {
-          imageUrl = deal.image.url;
-        }
-      } else if (deal.menuItems?.[0]?.images?.[0]) {
-        const menuImg = deal.menuItems[0].images[0];
-        imageUrl = typeof menuImg === 'string' ? menuImg : menuImg.url || imageUrl;
-      }
+      const imageUrl = getImageUrl(
+        deal.image,
+        getImageUrl(deal.menuItems?.[0]?.images?.[0], 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=1080')
+      );
       
       return {
         id: deal._id,
@@ -125,6 +121,7 @@ export default function Page() {
         type: deal.type || 'deal',
         businessName: deal.business?.businessName,
         description: deal.description,
+        endsAt: deal.endDate,
       };
     });
   }, [dealsData]);
@@ -156,9 +153,36 @@ export default function Page() {
         image: imageUrl,
         rating: 4.8,
         reviews: 0,
+        budget: `${trip.currency || 'PKR'} ${Number(trip.totalBudget || 0).toLocaleString()}`,
+        duration: `${trip.durationDays || 1} day${(trip.durationDays || 1) > 1 ? 's' : ''}`,
       };
     });
   }, [tripsData]);
+
+  const hiddenGems = React.useMemo(() => {
+    return (nearbyBusinessesData?.businesses || [])
+      .map((business) => {
+        const coordinates = getBusinessCoordinates(business);
+        return {
+          id: business._id,
+          name: business.businessName,
+          rating: business.rating || 0,
+          distance: business.distanceKm != null ? `${business.distanceKm} km` : 'Nearby',
+          category: business.businessType || 'Place',
+          image: getImageUrl(business.logo, getImageUrl(business.galleryImages?.[0], 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1080')),
+          lat: coordinates.lat,
+          lng: coordinates.lng,
+        };
+      })
+      .filter((gem) => gem.lat != null && gem.lng != null)
+      .slice(0, 3);
+  }, [nearbyBusinessesData]);
+
+  const rewardProgress = rewardsData?.nextReward?.progress || 0;
+  const reviewsNeeded = rewardsData?.nextReward?.reviewsNeeded ?? 0;
+  const reviewsForNextReward = 5;
+  const reviewsDone = isAuthenticated ? Math.max(0, reviewsForNextReward - reviewsNeeded) : 0;
+  const rewardRequirement = rewardsData?.nextReward?.requirement || 'Write reviews to unlock rewards';
 
   const handleToggleTheme = () => {
     dispatch(toggleTheme());
@@ -292,7 +316,7 @@ export default function Page() {
                       <Text style={{ color: colors.textSecondary }} className="text-sm">{exp.location}</Text>
                     </View>
                     <Text style={{ color: colors.textTertiary }} className="text-xs mt-2">
-                      Completed trip
+                      {exp.duration} • {exp.budget}
                     </Text>
                   </View>
                 </WanderCard>
@@ -316,12 +340,22 @@ export default function Page() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 12 }}
           >
-            {deals.map((deal) => (
+            {!dealsLoading && deals.length === 0 ? (
+              <View style={{ width: width * 0.75 }}>
+                <WanderCard className="p-4">
+                  <Text style={{ color: colors.text }} className="text-base font-semibold mb-1">No deals right now</Text>
+                  <Text style={{ color: colors.textSecondary }} className="text-sm">Active business deals will appear here.</Text>
+                </WanderCard>
+              </View>
+            ) : deals.map((deal) => (
               <TouchableOpacity
                 key={deal.id}
                 style={{ width: width * 0.75 }}
                 activeOpacity={0.9}
-                onPress={() => router.push('/(tabs)/maps')}
+                onPress={() => router.push({
+                  pathname: '/screens/deal-detail-screen',
+                  params: { dealId: deal.id },
+                })}
               >
                 <WanderCard padding="none" className="overflow-hidden" hover>
                   <View className="flex-row items-center gap-3 p-3">
@@ -343,6 +377,11 @@ export default function Page() {
                       <Text style={{ color: colors.textSecondary }} className="text-xs capitalize">
                         {deal.businessName || deal.type}
                       </Text>
+                      {deal.endsAt ? (
+                        <Text style={{ color: colors.textTertiary }} className="text-xs mt-1">
+                          Ends {new Date(deal.endsAt).toLocaleDateString()}
+                        </Text>
+                      ) : null}
                     </View>
                   </View>
                 </WanderCard>
@@ -389,8 +428,31 @@ export default function Page() {
           </View>
 
           <View className="gap-3">
-            {hiddenGems.map((gem) => (
-              <TouchableOpacity key={gem.id} activeOpacity={0.9} onPress={() => router.push('/(tabs)/maps')}>
+            {hiddenGemsLoading && hiddenGems.length === 0 ? (
+              <WanderCard>
+                <ActivityIndicator size="small" color="#3B82F6" />
+              </WanderCard>
+            ) : hiddenGems.length === 0 ? (
+              <WanderCard>
+                <Text style={{ color: colors.text }} className="text-base font-semibold mb-1">No nearby gems yet</Text>
+                <Text style={{ color: colors.textSecondary }} className="text-sm">
+                  Enable location to see registered businesses near you.
+                </Text>
+              </WanderCard>
+            ) : hiddenGems.map((gem) => (
+              <TouchableOpacity
+                key={gem.id}
+                activeOpacity={0.9}
+                onPress={() => router.push({
+                  pathname: '/(tabs)/maps',
+                  params: {
+                    focusPlaceId: gem.id,
+                    focusLat: gem.lat,
+                    focusLng: gem.lng,
+                    focusName: gem.name,
+                  },
+                })}
+              >
                 <WanderCard padding="none" className="overflow-hidden" hover>
                   <View className="flex-row items-center gap-3 p-3">
                     <View className="w-16 h-16 rounded-xl overflow-hidden">
@@ -435,11 +497,13 @@ export default function Page() {
               <View className="flex-1">
                 <View className="flex-row items-center justify-between mb-2">
                   <Text style={{ color: colors.text }} className="text-base font-bold">Earn Rewards</Text>
-                  <Text className="text-sm text-green-600">3/5</Text>
+                  <Text className="text-sm text-green-600">
+                    {rewardsLoading ? '...' : `${reviewsDone}/${reviewsForNextReward}`}
+                  </Text>
                 </View>
-                <Progress value={reviewProgress} className="h-2 mb-2" />
+                <Progress value={rewardProgress} className="h-2 mb-2" />
                 <Text style={{ color: colors.textSecondary }} className="text-xs">
-                  3 reviews to earn a coupon
+                  {isAuthenticated ? rewardRequirement : 'Sign in to track your rewards'}
                 </Text>
               </View>
             </View>

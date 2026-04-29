@@ -7,8 +7,20 @@ const Business = require("../modals/business-modal");
 const MenuItem = require("../modals/menu-item-modal");
 const Deal = require("../modals/deal-modal");
 const Review = require("../modals/review-models");
+const mongoose = require("mongoose");
 
 const getAuthBusinessId = (req) => req.business?.business_id || req.businessId || req.business?._id;
+const businessReviewFilter = (businessId, extra = {}) => ({
+    $or: [{ relatedBusiness: businessId }, { place: businessId }],
+    ...extra
+});
+const businessReviewAggregateOr = (businessId) => {
+    const conditions = [{ place: String(businessId) }];
+    if (mongoose.Types.ObjectId.isValid(businessId)) {
+        conditions.unshift({ relatedBusiness: new mongoose.Types.ObjectId(businessId) });
+    }
+    return conditions;
+};
 
 /**
  * Get comprehensive business dashboard analytics
@@ -30,7 +42,7 @@ const getDashboardAnalytics = async (req, res, next) => {
             MenuItem.countDocuments({ business: businessId }),
             Deal.countDocuments({ business: businessId, status: 'active' }),
             Deal.countDocuments({ business: businessId }),
-            Review.find({ place: businessId }).lean(),
+            Review.find(businessReviewFilter(businessId)).lean(),
             Deal.aggregate([
                 { $match: { business: businessId } },
                 {
@@ -236,7 +248,7 @@ const getReviewAnalytics = async (req, res, next) => {
         startDate.setDate(startDate.getDate() - days);
 
         // All reviews
-        const allReviews = await Review.find({ place: businessId }).lean();
+        const allReviews = await Review.find(businessReviewFilter(businessId)).lean();
 
         // Reviews in period
         const periodReviews = allReviews.filter(r => new Date(r.createdAt) >= startDate);
@@ -245,7 +257,7 @@ const getReviewAnalytics = async (req, res, next) => {
         const reviewsByDay = await Review.aggregate([
             {
                 $match: {
-                    place: businessId,
+                    $or: businessReviewAggregateOr(businessId),
                     createdAt: { $gte: startDate }
                 }
             },

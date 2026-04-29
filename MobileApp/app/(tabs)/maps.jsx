@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as Location from 'expo-location';
+import { useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import {
   Search,
@@ -113,6 +114,7 @@ const mapPlaceTypeToReviewCategory = (type = '') => {
 
 const Maps = () => {
   const { colors } = useTheme();
+  const { focusPlaceId, focusLat, focusLng, focusName } = useLocalSearchParams();
   const dispatch = useDispatch();
   const mapRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -464,6 +466,38 @@ const Maps = () => {
     .sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance))
     .slice(0, 5);
 
+  useEffect(() => {
+    if (viewMode !== 'explore') return;
+
+    const paramLat = Number(focusLat);
+    const paramLng = Number(focusLng);
+    const hasParamCoordinate = Number.isFinite(paramLat) && Number.isFinite(paramLng);
+    const focusedPlace = focusPlaceId
+      ? placesWithDistance.find((place) => String(place.id) === String(focusPlaceId))
+      : null;
+
+    const place = focusedPlace || (hasParamCoordinate ? {
+      id: String(focusPlaceId || 'focused-place'),
+      name: String(focusName || 'Selected location'),
+      type: 'attraction',
+      lat: paramLat,
+      lng: paramLng,
+      distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, paramLat, paramLng) : null,
+    } : null);
+
+    if (!place) return;
+
+    setSelectedPlace(place);
+    const region = {
+      latitude: Number(place.lat),
+      longitude: Number(place.lng),
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
+    };
+    setMapRegion(region);
+    mapRef.current?.animateToRegion(region, 700);
+  }, [focusLat, focusLng, focusName, focusPlaceId, placesWithDistance, userLocation, viewMode]);
+
   const getPinColor = (type) => {
     return categoryMap[type]?.color || '#4F4F4F';
   };
@@ -516,6 +550,7 @@ const Maps = () => {
     const tags = isLocalRegisteredBusiness ? ['local_registered_business'] : [];
     setReviewSeed({
       place: place?.name || '',
+      businessId: isLocalRegisteredBusiness ? (place?.businessId || place?.id) : null,
       category: mapPlaceTypeToReviewCategory(place?.type || place?.category),
       tags,
     });
@@ -1748,12 +1783,14 @@ const Maps = () => {
           visible={showCreateReviewModal}
           onClose={() => setShowCreateReviewModal(false)}
           initialPlace={reviewSeed.place}
+          initialBusinessId={reviewSeed.businessId}
           initialCategory={reviewSeed.category}
           initialTags={reviewSeed.tags}
           onSubmit={async (newReview) => {
             try {
               await createReview({
                 place: newReview.place,
+                businessId: newReview.businessId,
                 category: newReview.category,
                 rating: newReview.rating,
                 text: newReview.text,

@@ -19,10 +19,18 @@ import { WanderButton } from './wander-button';
 import Modal from './Modal';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../hooks/useTheme';
+import { useGetBusinessesQuery } from '../../redux/api/businessItemsApi';
 
 const getInitialCategory = (category) => {
   if (category === 'hotels' || category === 'food' || category === 'places') return category;
   return 'food';
+};
+
+const getCategoryForBusinessType = (businessType) => {
+  const type = businessType?.toLowerCase();
+  if (['hotel', 'guest_house', 'resort', 'hostel', 'accommodation'].includes(type)) return 'hotels';
+  if (['restaurant', 'cafe', 'food', 'bakery'].includes(type)) return 'food';
+  return 'places';
 };
 
 export default function CreateReviewModal({
@@ -32,21 +40,40 @@ export default function CreateReviewModal({
   initialPlace = '',
   initialCategory = 'food',
   initialTags = [],
+  initialBusinessId = null,
 }) {
   const { colors } = useTheme();
   const [place, setPlace] = useState('');
+  const [selectedBusiness, setSelectedBusiness] = useState(null);
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
   const [category, setCategory] = useState(getInitialCategory(initialCategory));
   const [images, setImages] = useState([]); // array of { uri }
+  const { data: businessesData } = useGetBusinessesQuery(
+    { search: place, limit: 10 },
+    { skip: !visible || place.trim().length < 2 }
+  );
+  const businessSuggestions = businessesData?.businesses || [];
 
   useEffect(() => {
     if (!visible) return;
     setPlace(initialPlace || '');
+    setSelectedBusiness(initialBusinessId ? { _id: initialBusinessId, businessName: initialPlace } : null);
     setCategory(getInitialCategory(initialCategory));
-  }, [visible, initialPlace, initialCategory]);
+  }, [visible, initialPlace, initialCategory, initialBusinessId]);
+
+  const handleSelectBusiness = (business) => {
+    setSelectedBusiness(business);
+    setPlace(business.businessName || '');
+    setCategory(getCategoryForBusinessType(business.businessType));
+  };
 
   const handleSubmit = () => {
+    if (!selectedBusiness?._id) {
+      Alert.alert('Select a business', 'Please choose a registered business from the list.');
+      return;
+    }
+
     if (!place || rating === 0 || !text) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -60,6 +87,7 @@ export default function CreateReviewModal({
         isVerified: false,
       },
       place,
+      businessId: selectedBusiness._id,
       category,
       rating,
       text,
@@ -73,6 +101,7 @@ export default function CreateReviewModal({
 
     onSubmit(newReview);
     setPlace('');
+    setSelectedBusiness(null);
     setRating(0);
     setText('');
     setCategory(getInitialCategory(initialCategory));
@@ -117,19 +146,6 @@ export default function CreateReviewModal({
     }
   };
 
-  const showImageOptions = () => {
-    Alert.alert(
-      'Add Photo',
-      'Choose an option',
-      [
-        { text: 'Take Photo', onPress: takePhotoWithCamera },
-        { text: 'Choose from Gallery', onPress: pickImageFromGallery },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-      { cancelable: true }
-    );
-  };
-
   return (
     <Modal visible={visible} onClose={onClose} title="Write a Review">
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -139,14 +155,41 @@ export default function CreateReviewModal({
           <View className="flex-row items-center gap-2 rounded-xl px-4 py-3" style={{ backgroundColor: colors.input }}>
             <MapPin size={20} color={colors.textSecondary} />
             <TextInput
-              placeholder="Search for a place..."
+              placeholder="Search registered business..."
               placeholderTextColor={colors.textTertiary}
               value={place}
-              onChangeText={setPlace}
+              onChangeText={(value) => {
+                setPlace(value);
+                setSelectedBusiness(null);
+              }}
               className="flex-1"
               style={{ color: colors.text }}
             />
           </View>
+          {businessSuggestions.length > 0 && !selectedBusiness?._id && (
+            <View className="mt-2 rounded-xl overflow-hidden" style={{ borderWidth: 1, borderColor: colors.border }}>
+              {businessSuggestions.map((business) => (
+                <TouchableOpacity
+                  key={business._id}
+                  onPress={() => handleSelectBusiness(business)}
+                  className="px-4 py-3"
+                  style={{ backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }}
+                >
+                  <Text className="font-medium" style={{ color: colors.text }}>
+                    {business.businessName}
+                  </Text>
+                  <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                    {[business.businessType, business.address?.city].filter(Boolean).join(' • ')}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {selectedBusiness?._id && (
+            <Text className="text-xs mt-2" style={{ color: '#059669' }}>
+              Reviewing registered business: {selectedBusiness.businessName || place}
+            </Text>
+          )}
         </View>
 
         {/* Category */}

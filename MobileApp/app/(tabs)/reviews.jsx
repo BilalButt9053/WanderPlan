@@ -302,6 +302,7 @@ const Reviews = () => {
 
               await createReview({
                 place: newReview.place,
+                businessId: newReview.businessId,
                 category: newReview.category,
                 rating: newReview.rating,
                 text: newReview.text,
