@@ -29,7 +29,7 @@ const BusinessSchema = new mongoose.Schema({
     },
     businessType: {
         type: String,
-        enum: ['hotel', 'restaurant', 'tour', 'activity', 'transport', 'other'],
+        enum: ['hotel', 'restaurant', 'tour', 'activity', 'attraction', 'transport', 'other'],
         default: 'other'
     },
     address: {
@@ -83,6 +83,7 @@ const BusinessSchema = new mongoose.Schema({
             enum: ['license', 'permit', 'certificate', 'other']
         },
         url: String,
+        publicId: String,
         uploadedAt: {
             type: Date,
             default: Date.now
