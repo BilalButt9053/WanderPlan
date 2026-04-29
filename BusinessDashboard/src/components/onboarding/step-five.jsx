@@ -15,18 +15,26 @@ export function OnboardingStepFive({ formData, updateFormData }) {
           label="Business License or Registration"
           description="Upload business license (PDF, JPG, or PNG up to 10MB)"
           value={formData.businessLicense}
-          onChange={(url) => updateFormData({ businessLicense: url })}
+          onChange={(document) => updateFormData({ businessLicense: document })}
           multiple={false}
           accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf"
+          uploadEndpoint="/business/upload/documents"
+          extraFormData={{ type: 'license' }}
+          maxSizeMb={10}
+          buttonText="Select Document"
         />
 
         <ImageUpload
           label="Proof of Address (Optional)"
           description="Upload utility bill or lease (PDF, JPG, or PNG up to 10MB)"
           value={formData.proofOfAddress}
-          onChange={(url) => updateFormData({ proofOfAddress: url })}
+          onChange={(document) => updateFormData({ proofOfAddress: document })}
           multiple={false}
           accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf"
+          uploadEndpoint="/business/upload/documents"
+          extraFormData={{ type: 'other' }}
+          maxSizeMb={10}
+          buttonText="Select Document"
         />
 
         <div className="bg-muted/50 border border-border rounded-lg p-4">
