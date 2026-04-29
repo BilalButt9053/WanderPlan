@@ -193,6 +193,13 @@ const normalizeItineraryResponse = (rawActivities, travelStyle = 'moderate', cos
             const type = normalizeActivityType(activity.type || activity.category);
             const category = getCategory(type);
             const estimatedCost = estimateActivityCost(activity, travelStyle, costProfile);
+            const rawLocation = activity.location && typeof activity.location === 'object'
+                ? activity.location
+                : null;
+            const coordinates = rawLocation?.coordinates || activity.coordinates || {};
+            const locationLabel = rawLocation
+                ? rawLocation.name || rawLocation.address || ''
+                : activity.location || activity.address || activity.place || '';
 
             return {
                 title: String(activity.title || activity.name || 'Untitled Activity').trim(),
@@ -200,7 +207,18 @@ const normalizeItineraryResponse = (rawActivities, travelStyle = 'moderate', cos
                 type,
                 category,
                 time: String(activity.time || activity.timing || '').trim(),
-                location: String(activity.location || activity.address || activity.place || '').trim(),
+                placeId: activity.placeId || rawLocation?.placeId || null,
+                location: rawLocation
+                    ? {
+                        name: rawLocation.name || activity.title || activity.name || '',
+                        address: rawLocation.address || activity.address || '',
+                        placeId: rawLocation.placeId || activity.placeId || null,
+                        coordinates: {
+                            lat: coordinates.lat ?? coordinates.latitude ?? null,
+                            lng: coordinates.lng ?? coordinates.longitude ?? null
+                        }
+                    }
+                    : String(locationLabel).trim(),
                 estimatedCost,
                 costConfidence: activity.estimatedCost ? 'estimated' : 'approximate',
                 source: 'ai'
@@ -355,7 +373,8 @@ const buildBudgetAwarePrompt = (params) => {
         activitiesPerDay = 2,
         budget = null,
         excludeActivities = [],
-        costProfile = null
+        costProfile = null,
+        destinationPlacePool = []
     } = params;
     const profile = getCostProfile({ destination, travelStyle, costProfile: costProfile || budget?.costProfile });
 
@@ -388,37 +407,71 @@ Budget Rules:
         ? `\n\nEXCLUDE these activities (already in itinerary):\n${excludeActivities.map(a => `- ${a}`).join('\n')}`
         : '';
 
+    const placePool = Array.isArray(destinationPlacePool) ? destinationPlacePool : [];
+    const placePoolText = placePool.length > 0
+        ? `\n\nDESTINATION PLACE POOL (USE ONLY THESE REAL GOOGLE PLACES):
+${JSON.stringify(placePool.slice(0, 80).map((place) => ({
+    placeId: place.placeId,
+    name: place.name,
+    address: place.address,
+    category: place.category,
+    rating: place.rating,
+    priceLevel: place.priceLevel,
+    estimatedCost: place.estimatedCost,
+    location: place.location
+})), null, 2)}
+
+STRICT PLACE RULES:
+- Use only places from DESTINATION PLACE POOL.
+- Do not invent place names, placeIds, addresses, or coordinates.
+- Do not create generic activities like "City Highlights Tour", "Restaurant Lunch", or "Cultural Experience" unless the title and placeId match one provided candidate.
+- Avoid repeating the same placeId across days.
+- Every activity must include placeId and the full location object from the chosen candidate.`
+        : '';
+
     // Main prompt
     const prompt = `Generate a ${days}-day travel itinerary for ${destination} for ${travelers} traveler(s).
 Travel Style: ${travelStyle.toUpperCase()}
 ${budgetConstraints}
+${placePoolText}
 
-For each day, provide exactly ${activitiesPerDay} unique activities.
+For each day, provide ${placePool.length ? '3 to 5' : `exactly ${activitiesPerDay}`} unique activities.
 
-Return ONLY a valid JSON array with this EXACT structure:
-[
-  {
-    "day": 1,
-    "activities": [
-      {
-        "title": "Activity Name",
-        "description": "Brief description (2-3 sentences)",
-        "type": "hotel" | "food" | "attraction" | "transport",
-        "time": "Suggested time (e.g., 09:00 AM)",
-        "location": "Specific location/address",
-        "estimatedCost": 1500
-      }
-    ]
-  }
-]
+Return ONLY valid JSON in this EXACT shape:
+{
+  "days": [
+    {
+      "day": 1,
+      "title": "Day 1 - Local Discovery",
+      "activities": [
+        {
+          "time": "09:00 AM",
+          "title": "Exact candidate place name",
+          "description": "Brief description (1-2 sentences)",
+          "category": "attraction",
+          "type": "activity",
+          "estimatedCost": 1500,
+          "placeId": "google_place_id",
+          "location": {
+            "name": "Exact candidate place name",
+            "address": "Candidate address",
+            "placeId": "google_place_id",
+            "coordinates": { "lat": 33.9, "lng": 73.4 }
+          }
+        }
+      ]
+    }
+  ]
+}
 
 REQUIREMENTS:
 1. Activities must be real places specific to ${destination}
-2. Include a mix of accommodation, food, and attractions
+2. Include a balanced daily plan: morning attraction/activity, lunch restaurant/cafe, afternoon attraction/shopping/activity, and dinner restaurant/cafe where possible
 3. estimatedCost MUST be a NUMBER in PKR (not a string)
 4. Costs must be realistic for ${travelStyle} travel in Pakistan
 5. Time suggestions should be realistic
 6. Each activity needs a specific location
+7. Each day must be different; do not repeat the same day plan
 ${exclusionText}
 
 COST GUIDELINES for ${travelStyle} style:
@@ -478,7 +531,8 @@ const generateItinerary = async (params) => {
         budget = null,
         activitiesPerDay = 2,
         excludeActivities = [],
-        costProfile = null
+        costProfile = null,
+        destinationPlacePool = []
     } = params;
     const profile = getCostProfile({ destination, travelStyle, costProfile: costProfile || budget?.costProfile });
 
@@ -496,7 +550,8 @@ const generateItinerary = async (params) => {
         budget,
         activitiesPerDay,
         excludeActivities,
-        costProfile: profile
+        costProfile: profile,
+        destinationPlacePool
     });
 
     let lastError = null;
@@ -545,8 +600,11 @@ You understand budget constraints and never suggest activities exceeding the ava
                     .trim();
                 
                 // Try to extract JSON array if response has extra text
+                const objectMatch = cleanedResponse.match(/\{[\s\S]*\}/);
                 const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
-                if (jsonMatch) {
+                if (objectMatch && objectMatch[0].includes('"days"')) {
+                    cleanedResponse = objectMatch[0];
+                } else if (jsonMatch) {
                     cleanedResponse = jsonMatch[0];
                 }
                 
