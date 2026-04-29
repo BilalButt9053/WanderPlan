@@ -4,15 +4,22 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Mountain, Loader2, AlertCircle, Clock, XCircle, Sun, Moon } from 'lucide-react'
+import { Mountain, Loader2, AlertCircle, Clock, XCircle, Sun, Moon, Eye, EyeOff } from 'lucide-react'
 import { useLoginBusinessMutation } from '@/redux/api/businessApi'
 import { setCredentials, selectIsAuthenticated, setPendingBusiness } from '@/redux/slices/businessAuthSlice'
 import { useTheme } from '@/contexts/ThemeContext'
+
+const getFriendlyApiMessage = (message, fallback) => {
+  if (!message || typeof message !== 'string') return fallback
+  const looksTechnical = /(smtp|gmail|nodemailer|stack|exception|invalid login|webloginrequired)/i.test(message)
+  return looksTechnical || message.length > 160 ? fallback : message
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [statusMessage, setStatusMessage] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
   
   const navigate = useNavigate()
   const dispatch = useDispatch()
@@ -20,6 +27,7 @@ export default function LoginPage() {
   const { theme, toggleTheme } = useTheme()
   
   const [loginBusiness, { isLoading, error }] = useLoginBusinessMutation()
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -31,8 +39,27 @@ export default function LoginPage() {
     e.preventDefault()
     setStatusMessage(null)
 
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!emailRegex.test(normalizedEmail)) {
+      setStatusMessage({
+        type: 'error',
+        message: 'Please enter a valid email address.',
+        icon: AlertCircle
+      })
+      return
+    }
+
+    if (!password) {
+      setStatusMessage({
+        type: 'error',
+        message: 'Password is required.',
+        icon: AlertCircle
+      })
+      return
+    }
+
     try {
-      const response = await loginBusiness({ email, password }).unwrap()
+      const response = await loginBusiness({ email: normalizedEmail, password }).unwrap()
       
       // If login successful (status is approved)
       dispatch(setCredentials({
@@ -48,7 +75,7 @@ export default function LoginPage() {
       if (err?.data?.businessId && err?.status === 403) {
         dispatch(setPendingBusiness({
           businessId: err.data.businessId,
-          email: email
+          email: normalizedEmail
         }))
         navigate('/verify-email')
         return
@@ -56,7 +83,7 @@ export default function LoginPage() {
       
       // Handle different status responses
       const status = err?.data?.status
-      const message = err?.data?.message
+      const message = getFriendlyApiMessage(err?.data?.message, 'Login failed. Please try again.')
       const reason = err?.data?.reason
       
       if (status === 'pending') {
@@ -121,15 +148,29 @@ export default function LoginPage() {
             </div>
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium">Password</label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                  onClick={() => setShowPassword((value) => !value)}
+                  disabled={isLoading}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
 
             {statusMessage && (
@@ -151,7 +192,7 @@ export default function LoginPage() {
 
             {error && !statusMessage && (
               <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                {error?.data?.message || 'Login failed. Please try again.'}
+                {getFriendlyApiMessage(error?.data?.message, 'Login failed. Please try again.')}
               </div>
             )}
 
