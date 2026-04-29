@@ -104,9 +104,6 @@ export default function DealDetailModal({ deal, open, onClose, onEdit }) {
             <Badge variant={getStatusVariant(deal.status)}>
               {getStatusLabel(deal.status)}
             </Badge>
-            {deal.isFeatured && (
-              <Badge variant="secondary">Featured</Badge>
-            )}
             {getDiscountDisplay() && (
               <Badge variant="success">
                 {getDiscountDisplay()}

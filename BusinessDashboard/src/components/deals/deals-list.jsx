@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { toast } from 'sonner'
 import { 
   useGetDealsQuery, 
   useDeleteDealMutation, 
@@ -71,10 +72,11 @@ export function DealsList() {
     if (!deleteConfirm) return
     try {
       await deleteDeal(deleteConfirm._id).unwrap()
+      toast.success('Deal deleted')
       setDeleteConfirm(null)
     } catch (err) {
       console.error('Delete failed:', err)
-      alert('Failed to delete deal')
+      toast.error(err?.data?.message || 'Failed to delete deal')
     }
   }
 
@@ -82,9 +84,10 @@ export function DealsList() {
     const newStatus = deal.status === 'active' ? 'paused' : 'active'
     try {
       await toggleStatus({ id: deal._id, status: newStatus }).unwrap()
+      toast.success(newStatus === 'paused' ? 'Deal paused' : 'Deal activated')
     } catch (err) {
       console.error('Toggle failed:', err)
-      alert(err?.data?.message || 'Failed to update status')
+      toast.error(err?.data?.message || 'Failed to update status')
     }
   }
 
@@ -239,9 +242,6 @@ export function DealsList() {
                       <Badge variant={getStatusVariant(deal.status)}>
                         {getStatusLabel(deal.status)}
                       </Badge>
-                      {deal.isFeatured && (
-                        <Badge variant="secondary">Featured</Badge>
-                      )}
                     </div>
                     <h3 className="text-lg font-semibold truncate">{deal.title}</h3>
                     {deal.description && (

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
+import { useSelector } from 'react-redux'
 import { 
   useCreateDealMutation, 
   useUpdateDealMutation, 
@@ -10,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { 
   Select,
   SelectContent,
@@ -20,12 +21,16 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft, Loader2, X, ImageIcon, Tag, Megaphone, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { selectCurrentBusiness } from '@/redux/slices/businessAuthSlice'
+import { businessTypeGroup } from '@/lib/business-features'
 
 export default function DealForm({ deal, onClose }) {
+  const business = useSelector(selectCurrentBusiness)
+  const shouldLoadMenuItems = businessTypeGroup(business?.businessType) === 'restaurant'
   const [createDeal, { isLoading: isCreating }] = useCreateDealMutation()
   const [updateDeal, { isLoading: isUpdating }] = useUpdateDealMutation()
   const [uploadImages, { isLoading: isUploading }] = useUploadGalleryImagesMutation()
-  const { data: menuItemsData } = useGetMenuItemsQuery({})
+  const { data: menuItemsData } = useGetMenuItemsQuery({}, { skip: !shouldLoadMenuItems })
 
   const isEditing = !!deal
   const isLoading = isCreating || isUpdating
@@ -44,7 +49,6 @@ export default function DealForm({ deal, onClose }) {
     terms: '',
     usageLimit: '',
     code: '',
-    isFeatured: false,
   })
 
   useEffect(() => {
@@ -55,14 +59,13 @@ export default function DealForm({ deal, onClose }) {
         type: deal.type || 'deal',
         discountType: deal.discountType || 'percentage',
         discountValue: deal.discountValue?.toString() || '',
-        menuItems: deal.menuItems?.map(m => m._id || m) || [],
+        menuItems: shouldLoadMenuItems ? deal.menuItems?.map(m => m._id || m) || [] : [],
         image: deal.image || null,
         startDate: deal.startDate ? formatDateForInput(deal.startDate) : '',
         endDate: deal.endDate ? formatDateForInput(deal.endDate) : '',
         terms: deal.terms || '',
         usageLimit: deal.usageLimit?.toString() || '',
         code: deal.code || '',
-        isFeatured: deal.isFeatured || false,
       })
     }
   }, [deal])
@@ -98,7 +101,7 @@ export default function DealForm({ deal, onClose }) {
       }
     } catch (err) {
       console.error('Upload failed:', err)
-      alert('Failed to upload image')
+      toast.error('Failed to upload image')
     }
   }
 
@@ -119,17 +122,17 @@ export default function DealForm({ deal, onClose }) {
     e.preventDefault()
 
     if (!formData.title.trim()) {
-      alert('Title is required')
+      toast.error('Title is required')
       return
     }
 
     if (!formData.startDate || !formData.endDate) {
-      alert('Start date and end date are required')
+      toast.error('Start date and end date are required')
       return
     }
 
     if (new Date(formData.endDate) <= new Date(formData.startDate)) {
-      alert('End date must be after start date')
+      toast.error('End date must be after start date')
       return
     }
 
@@ -139,28 +142,27 @@ export default function DealForm({ deal, onClose }) {
       type: formData.type,
       discountType: formData.discountType,
       discountValue: formData.discountValue ? parseFloat(formData.discountValue) : 0,
-      menuItems: formData.menuItems,
+      menuItems: shouldLoadMenuItems ? formData.menuItems : [],
       image: formData.image,
       startDate: formData.startDate,
       endDate: formData.endDate,
       terms: formData.terms.trim(),
       usageLimit: formData.usageLimit ? parseInt(formData.usageLimit) : null,
       code: formData.code.trim() || null,
-      isFeatured: formData.isFeatured,
     }
 
     try {
       if (isEditing) {
         await updateDeal({ id: deal._id, ...payload }).unwrap()
-        alert('Deal updated successfully!')
+        toast.success('Deal updated successfully')
       } else {
         await createDeal(payload).unwrap()
-        alert('Deal created successfully!')
+        toast.success('Deal created successfully')
       }
       onClose()
     } catch (err) {
       console.error('Save failed:', err)
-      alert(err?.data?.message || 'Failed to save deal')
+      toast.error(err?.data?.message || 'Failed to save deal')
     }
   }
 
@@ -432,20 +434,6 @@ export default function DealForm({ deal, onClose }) {
             onChange={handleChange}
             placeholder="e.g., Valid for dine-in only. Cannot be combined with other offers."
             rows={2}
-          />
-        </div>
-
-        {/* Featured */}
-        <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
-          <div>
-            <p className="font-medium">Featured Deal</p>
-            <p className="text-sm text-muted-foreground">
-              Show this deal prominently on your business page
-            </p>
-          </div>
-          <Switch
-            checked={formData.isFeatured}
-            onCheckedChange={(checked) => handleSelectChange('isFeatured', checked)}
           />
         </div>
 

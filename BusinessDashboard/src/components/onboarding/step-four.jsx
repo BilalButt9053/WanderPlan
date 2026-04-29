@@ -1,8 +1,7 @@
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Button } from '../ui/button';
-import { MapPin, Loader2, LocateFixed } from 'lucide-react';
 import { useState } from 'react';
+import MapPreview from '@/components/location/map-preview';
 
 export function OnboardingStepFour({ formData, updateFormData }) {
   const [locationState, setLocationState] = useState({ loading: false, message: '', error: '' });
@@ -106,56 +105,16 @@ export function OnboardingStepFour({ formData, updateFormData }) {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <Label>GPS Coordinates</Label>
-              <p className="text-sm text-muted-foreground">Optional, but useful for maps and discovery.</p>
-            </div>
-            <Button type="button" variant="outline" onClick={handleUseCurrentLocation} disabled={locationState.loading}>
-              {locationState.loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LocateFixed className="mr-2 h-4 w-4" />}
-              Use Current Location
-            </Button>
-          </div>
+        
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="latitude">Latitude</Label>
-              <Input
-                id="latitude"
-                name="latitude"
-                placeholder="31.5204"
-                className="bg-secondary"
-                value={formData.latitude}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="longitude">Longitude</Label>
-              <Input
-                id="longitude"
-                name="longitude"
-                placeholder="74.3587"
-                className="bg-secondary"
-                value={formData.longitude}
-                onChange={handleChange}
-              />
-            </div>
-          </div>
-
-          {locationState.message && <p className="text-sm text-primary">{locationState.message}</p>}
-          {locationState.error && <p className="text-sm text-destructive">{locationState.error}</p>}
-        </div>
-
-        {/* Map Placeholder */}
         <div className="space-y-2">
           <Label>Location on Map</Label>
-          <div className="w-full h-64 rounded-lg bg-muted flex items-center justify-center border border-border">
-            <div className="text-center space-y-2">
-              <MapPin className="h-12 w-12 text-muted-foreground mx-auto" />
-              <p className="text-sm text-muted-foreground">Map will appear here</p>
-            </div>
-          </div>
+          <MapPreview
+            latitude={formData.latitude}
+            longitude={formData.longitude}
+            onUseCurrentLocation={handleUseCurrentLocation}
+            isLocating={locationState.loading}
+          />
         </div>
       </div>
     </div>

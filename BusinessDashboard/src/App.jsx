@@ -12,11 +12,14 @@ import DealsPage from './pages/deals'
 import ReviewsPage from './pages/reviews'
 import AnalyticsPage from './pages/analytics'
 import MenuPage from './pages/menu'
+import RoomsPage from './pages/rooms'
+import ActivitiesPage from './pages/activities'
 import ProtectedRoute from './components/ProtectedRoute'
 import { loadPendingBusiness, selectIsAuthenticated, selectIsLoading, selectCurrentToken, setCredentials, logout, setLoading } from './redux/slices/businessAuthSlice'
 import { useGetBusinessProfileQuery } from './redux/api/businessApi'
 import './App.css'
 import SettingsPage from './pages/settings'
+import { ACTIVITY_TYPES, HOTEL_TYPES, RESTAURANT_TYPES } from './lib/business-features'
 
 function App() {
   const dispatch = useDispatch()
@@ -101,8 +104,18 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/dashboard/menu" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedTypes={RESTAURANT_TYPES}>
             <MenuPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/dashboard/rooms" element={
+          <ProtectedRoute allowedTypes={HOTEL_TYPES}>
+            <RoomsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/dashboard/activities" element={
+          <ProtectedRoute allowedTypes={ACTIVITY_TYPES}>
+            <ActivitiesPage />
           </ProtectedRoute>
         } />
         <Route path="/dashboard/deals" element={

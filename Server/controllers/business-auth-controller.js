@@ -630,7 +630,6 @@ const updateBusinessProfile = async (req, res, next) => {
             'description',
             'phone',
             'website',
-            'businessType',
             'address',
             'location',
             'logo',

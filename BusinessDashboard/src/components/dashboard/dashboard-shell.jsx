@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Button } from '@/components/ui/button'
@@ -13,10 +13,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  LayoutDashboard,
-  Building2,
-  Tag,
-  Star,
   Settings,
   Search,
   Menu,
@@ -26,22 +22,13 @@ import {
   User,
   Sun,
   Moon,
-  ShoppingBag,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logout, selectCurrentBusiness } from '@/redux/slices/businessAuthSlice'
 import { useTheme } from '@/contexts/ThemeContext'
 import { NotificationDropdown } from './notification-dropdown'
 import TutorialTooltip from '@/components/tutorial/TutorialTooltip'
-
-const navigation = [
-  { name: 'Dashboard & Analytics', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Business Profile', href: '/dashboard/profile', icon: Building2 },
-  { name: 'Menu Items', href: '/dashboard/menu', icon: ShoppingBag },
-  { name: 'Deals & Ads', href: '/dashboard/deals', icon: Tag },
-  { name: 'Reviews', href: '/dashboard/reviews', icon: Star },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-]
+import { getBusinessNavigation } from '@/lib/business-features'
 
 export function DashboardShell({ children }) {
   const location = useLocation()
@@ -50,6 +37,7 @@ export function DashboardShell({ children }) {
   const business = useSelector(selectCurrentBusiness)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
+  const navigation = getBusinessNavigation(business?.businessType)
 
   const handleLogout = () => {
     dispatch(logout())

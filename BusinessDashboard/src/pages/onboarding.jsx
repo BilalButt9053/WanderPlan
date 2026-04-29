@@ -228,6 +228,10 @@ export default function Onboarding() {
           state: formData.state.trim(),
           zipCode: formData.zipCode.trim(),
           country: formData.country.trim(),
+          coordinates: {
+            lat: formData.latitude === '' ? null : Number(formData.latitude),
+            lng: formData.longitude === '' ? null : Number(formData.longitude),
+          },
         },
         location: {
           address: formData.address.trim(),

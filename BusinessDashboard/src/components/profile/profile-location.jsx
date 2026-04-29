@@ -4,8 +4,9 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { MapPin, Loader2, ExternalLink } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import MapPreview from '@/components/location/map-preview'
 
 export function ProfileLocation() {
   const { data: business, isLoading } = useGetBusinessProfileQuery()
@@ -20,6 +21,7 @@ export function ProfileLocation() {
     latitude: '',
     longitude: '',
   })
+  const [isLocating, setIsLocating] = useState(false)
 
   useEffect(() => {
     if (business?.address) {
@@ -50,6 +52,10 @@ export function ProfileLocation() {
           state: formData.state,
           zipCode: formData.zipCode,
           country: formData.country,
+          coordinates: {
+            lat: formData.latitude === '' ? null : Number(formData.latitude),
+            lng: formData.longitude === '' ? null : Number(formData.longitude),
+          },
         },
         location: {
           address: formData.street,
@@ -64,6 +70,31 @@ export function ProfileLocation() {
       console.error('Update failed:', err)
       toast.error(err?.data?.message || 'Failed to update location')
     }
+  }
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Location is not supported by this browser')
+      return
+    }
+
+    setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFormData((prev) => ({
+          ...prev,
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6),
+        }))
+        toast.success('Business location pinned')
+        setIsLocating(false)
+      },
+      () => {
+        toast.error('Location permission denied. You can enter coordinates manually.')
+        setIsLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
   }
 
   const handleCancel = () => {
@@ -130,18 +161,6 @@ export function ProfileLocation() {
             </div>
           </div>
 
-          {formData.latitude !== '' && formData.longitude !== '' && (
-            <a
-              href={`https://www.google.com/maps?q=${formData.latitude},${formData.longitude}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-            >
-              <ExternalLink className="h-4 w-4" />
-              Open in Google Maps
-            </a>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="city">City</Label>
@@ -186,15 +205,12 @@ export function ProfileLocation() {
 
           <div className="space-y-2">
             <Label>Map Preview</Label>
-            <div className="w-full h-64 rounded-lg bg-muted flex items-center justify-center border border-border">
-              <div className="text-center space-y-3">
-                <MapPin className="h-12 w-12 text-muted-foreground mx-auto" />
-                <div>
-                  <p className="font-medium">Map Integration</p>
-                  <p className="text-sm text-muted-foreground">Coming soon</p>
-                </div>
-              </div>
-            </div>
+            <MapPreview
+              latitude={formData.latitude}
+              longitude={formData.longitude}
+              onUseCurrentLocation={handleUseCurrentLocation}
+              isLocating={isLocating}
+            />
           </div>
         </div>
 

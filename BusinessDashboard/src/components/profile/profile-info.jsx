@@ -1,12 +1,23 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useGetBusinessProfileQuery, useUpdateBusinessProfileMutation } from '@/redux/api/businessApi'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import Switch from '@/components/ui/switch'
 import { Loader2 } from 'lucide-react'
+import { businessTypeGroup } from '@/lib/business-features'
+
+const categoryLabels = {
+  hotel: 'Hotel',
+  restaurant: 'Restaurant',
+  attraction: 'Attraction',
+  tour: 'Tour',
+  activity: 'Activity',
+  transport: 'Transport',
+  other: 'Other',
+}
 
 export function ProfileInfo() {
   const { data: business, isLoading, error } = useGetBusinessProfileQuery()
@@ -41,11 +52,12 @@ export function ProfileInfo() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      await updateProfile(formData).unwrap()
-      alert('Profile updated successfully!')
+      const { businessType, ...updates } = formData
+      await updateProfile(updates).unwrap()
+      toast.success('Profile updated successfully')
     } catch (err) {
       console.error('Update failed:', err)
-      alert(err?.data?.message || 'Failed to update profile')
+      toast.error(err?.data?.message || 'Failed to update profile')
     }
   }
 
@@ -97,20 +109,13 @@ export function ProfileInfo() {
 
           <div className="space-y-2">
             <Label htmlFor="businessType">Category</Label>
-            <select 
+            <Input
               id="businessType"
-              value={formData.businessType}
-              onChange={handleChange}
-              className="w-full bg-secondary p-2 rounded border border-input"
-            >
-              <option value="hotel">Hotel</option>
-              <option value="restaurant">Restaurant</option>
-              <option value="attraction">Attraction</option>
-              <option value="tour">Tour</option>
-              <option value="activity">Activity</option>
-              <option value="transport">Transport</option>
-              <option value="other">Other</option>
-            </select>
+              value={categoryLabels[formData.businessType] || categoryLabels[businessTypeGroup(formData.businessType)] || 'Other'}
+              disabled
+              className="bg-secondary opacity-80"
+            />
+            <p className="text-xs text-muted-foreground">Category is fixed from registration and cannot be changed here.</p>
           </div>
 
           <div className="space-y-2">
