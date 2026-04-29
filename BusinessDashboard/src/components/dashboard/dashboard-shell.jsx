@@ -17,8 +17,6 @@ import {
   Building2,
   Tag,
   Star,
-  CreditCard,
-  Bell,
   Settings,
   Search,
   Menu,
@@ -41,7 +39,6 @@ const navigation = [
   { name: 'Menu Items', href: '/dashboard/menu', icon: ShoppingBag },
   { name: 'Deals & Ads', href: '/dashboard/deals', icon: Tag },
   { name: 'Reviews', href: '/dashboard/reviews', icon: Star },
-  { name: 'POS Integration', href: '/dashboard/pos', icon: CreditCard },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 
