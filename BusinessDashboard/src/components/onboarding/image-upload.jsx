@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
+import { toast } from 'sonner';
 import { Upload, X, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 
@@ -11,9 +12,13 @@ export function ImageUpload({
   accept = 'image/*',
   description,
   uploadEndpoint = null, // Optional: API endpoint for immediate upload
+  extraFormData = {},
+  maxSizeMb = 10,
+  buttonText,
 }) {
   const [uploading, setUploading] = useState(false);
   const [previews, setPreviews] = useState([]);
+  const uploadId = useId();
 
   // Initialize previews from value prop
   useEffect(() => {
@@ -32,12 +37,29 @@ export function ImageUpload({
 
     // Validate file count
     if (multiple && previews.length + files.length > maxFiles) {
-      alert(`You can only upload up to ${maxFiles} images`);
+      toast.error(`You can upload up to ${maxFiles} files`);
+      e.target.value = '';
       return;
     }
 
     if (!multiple && files.length > 1) {
-      alert('You can only upload one image');
+      toast.error('Please upload one file');
+      e.target.value = '';
+      return;
+    }
+
+    const invalidFile = files.find((file) => {
+      const isTooLarge = file.size > maxSizeMb * 1024 * 1024;
+      const acceptsImages = accept.includes('image/*');
+      const acceptsPdf = accept.includes('application/pdf') || accept.includes('.pdf');
+      const isAcceptedImage = acceptsImages && file.type.startsWith('image/');
+      const isAcceptedPdf = acceptsPdf && file.type === 'application/pdf';
+      return isTooLarge || !(isAcceptedImage || isAcceptedPdf);
+    });
+
+    if (invalidFile) {
+      toast.error(`Please upload a valid file up to ${maxSizeMb}MB`);
+      e.target.value = '';
       return;
     }
 
@@ -55,6 +77,9 @@ export function ImageUpload({
           } else {
             formData.append(uploadEndpoint.includes('logo') ? 'logo' : 'document', file);
           }
+          Object.entries(extraFormData).forEach(([key, value]) => {
+            formData.append(key, value);
+          });
 
           const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}${uploadEndpoint}`, {
             method: 'POST',
@@ -72,6 +97,7 @@ export function ImageUpload({
           uploadedItems.push({
             url: multiple ? data.images?.[0]?.url : data.url,
             publicId: multiple ? data.images?.[0]?.publicId : data.publicId,
+            type: data.type,
             name: file.name,
           });
         }
@@ -106,9 +132,10 @@ export function ImageUpload({
       }
     } catch (error) {
       console.error('File upload error:', error);
-      alert('Failed to upload file. Please try again.');
+      toast.error('Upload failed. Please try again.');
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -157,7 +184,7 @@ export function ImageUpload({
           type="button"
           variant="outline"
           disabled={uploading || (!multiple && previews.length > 0)}
-          onClick={() => document.getElementById(multiple ? 'multi-file-upload' : 'single-file-upload').click()}
+          onClick={() => document.getElementById(uploadId).click()}
           className="w-full sm:w-auto"
         >
           {uploading ? (
@@ -168,13 +195,13 @@ export function ImageUpload({
           ) : (
             <>
               <Upload className="mr-2 h-4 w-4" />
-              {multiple ? 'Select Images' : 'Select Image'}
+              {buttonText || (multiple ? 'Select Images' : 'Select File')}
             </>
           )}
         </Button>
 
         <input
-          id={multiple ? 'multi-file-upload' : 'single-file-upload'}
+          id={uploadId}
           type="file"
           accept={accept}
           multiple={multiple}
