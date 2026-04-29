@@ -254,8 +254,8 @@ const Maps = () => {
   const routeTravelMode = activeDayRoute?.travelMode || requestedTravelMode;
   const shouldShowRouteWarning =
     viewMode === 'trip' &&
-    dayActivities.length > 0 &&
-    (!hasRealRoute || routeStatus === 'failed' || activeDayRoute?.routeUnavailable);
+    activitiesWithCoords.length >= 2 &&
+    (routeStatus === 'failed' || activeDayRoute?.isApproximate || activeDayRoute?.routeUnavailable);
 
   const fallbackRouteDistance = useMemo(() => {
     if (displayedRouteCoordinates.length < 2) return 0;
@@ -321,9 +321,17 @@ const Maps = () => {
     const shouldFetchRoute =
       viewMode === 'trip' &&
       activeTrip?._id &&
-      dayActivities.length > 0;
+      activitiesWithCoords.length >= 2;
 
-    if (!shouldFetchRoute) return;
+    if (!shouldFetchRoute) {
+      if (viewMode === 'trip') {
+        routeFetchKeyRef.current = null;
+        dispatch(setActiveDayRoute(null));
+        dispatch(setRouteStatus('idle'));
+        dispatch(setRouteError(null));
+      }
+      return;
+    }
 
     const routeFetchKey = `${activeTrip._id}:${selectedDay}:${requestedTravelMode}:${viewMode}`;
     if (routeFetchKeyRef.current === routeFetchKey) return;
@@ -352,7 +360,7 @@ const Maps = () => {
     })();
   }, [
     activeTrip?._id,
-    dayActivities.length,
+    activitiesWithCoords.length,
     dispatch,
     getDayRoute,
     requestedTravelMode,
@@ -756,7 +764,7 @@ const Maps = () => {
         >
           <AlertTriangle size={16} color="#92400E" />
           <Text style={{ flex: 1, color: '#92400E', fontSize: 12, fontWeight: '600' }}>
-            Road route unavailable. Showing approximate route.
+            {routeError || activeDayRoute?.warning || 'Road route unavailable. Showing approximate route.'}
           </Text>
         </View>
       </View>
@@ -784,8 +792,7 @@ const Maps = () => {
             className="text-sm mt-2 text-center"
             style={{ color: colors.textSecondary }}
           >
-            Activities without coordinates will not appear on the map. Explore nearby
-            places to add locations.
+            No mapped places found for this day. Regenerate itinerary or choose another day.
           </Text>
           <WanderButton onPress={handleExploreNearby} className="mt-4">
             <View className="flex-row items-center gap-2">
@@ -793,6 +800,24 @@ const Maps = () => {
               <Text className="text-white font-semibold">Explore Nearby</Text>
             </View>
           </WanderButton>
+        </View>
+      </View>
+    );
+  };
+
+  const renderTripCoordinateNotice = () => {
+    if (viewMode !== 'trip' || displayedActivitiesWithCoords.length !== 1) return null;
+
+    return (
+      <View className="absolute top-28 left-4 right-4 z-10">
+        <View
+          className="flex-row items-center gap-2 rounded-xl px-3 py-2"
+          style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#3B82F6' }}
+        >
+          <MapPin size={16} color="#1D4ED8" />
+          <Text style={{ flex: 1, color: '#1D4ED8', fontSize: 12, fontWeight: '600' }}>
+            At least two mapped places are needed to create a route.
+          </Text>
         </View>
       </View>
     );
@@ -1387,6 +1412,7 @@ const Maps = () => {
 
           {/* Trip empty state */}
           {renderTripEmptyState()}
+          {renderTripCoordinateNotice()}
 
           {/* Transport card (trip mode) */}
           {renderTransportCard()}
