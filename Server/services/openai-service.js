@@ -191,7 +191,7 @@ const normalizeItineraryResponse = (rawActivities, travelStyle = 'moderate', cos
         
         const activities = rawActivitiesArray.map(activity => {
             const type = normalizeActivityType(activity.type || activity.category);
-            const category = getCategory(type);
+            const category = getCategory(activity.category || type);
             const estimatedCost = estimateActivityCost(activity, travelStyle, costProfile);
             const rawLocation = activity.location && typeof activity.location === 'object'
                 ? activity.location
@@ -751,7 +751,7 @@ const validateCostsAgainstBudget = (itinerary, budget) => {
     // Calculate total costs per category
     for (const day of itinerary) {
         for (const activity of day.activities) {
-            const category = activity.category || 'activities';
+            const category = getCategory(activity.category || activity.type);
             categoryCosts[category] += activity.estimatedCost || 0;
         }
     }

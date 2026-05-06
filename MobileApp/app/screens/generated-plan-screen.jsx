@@ -101,6 +101,37 @@ const categoryColors = {
   activities: '#9B51E0',
 };
 
+const normalizeBudgetCategory = (category, type) => {
+  const normalizedCategory = String(category || '').toLowerCase().trim();
+  if (categoryColors[normalizedCategory]) return normalizedCategory;
+
+  const normalizedType = String(type || '').toLowerCase().trim();
+  const typeMap = {
+    hotel: 'accommodation',
+    accommodation: 'accommodation',
+    stay: 'accommodation',
+    lodging: 'accommodation',
+    resort: 'accommodation',
+    hostel: 'accommodation',
+    food: 'food',
+    restaurant: 'food',
+    dining: 'food',
+    meal: 'food',
+    breakfast: 'food',
+    lunch: 'food',
+    dinner: 'food',
+    cafe: 'food',
+    transport: 'transport',
+    taxi: 'transport',
+    bus: 'transport',
+    train: 'transport',
+    flight: 'transport',
+    car: 'transport',
+  };
+
+  return typeMap[normalizedType] || 'activities';
+};
+
 export default function GeneratedPlanScreen({ 
   budgetData, 
   itineraryData, 
@@ -189,7 +220,7 @@ export default function GeneratedPlanScreen({
           locationText: locationLabel,
           price: activity.actualCost ?? activity.estimatedCost ?? 0,
           source: activity.source || 'ai',
-          category: activity.category || 'activities',
+          category: normalizeBudgetCategory(activity.category, activity.type),
           description: activity.description || '',
         };
       }) || [],
@@ -202,7 +233,7 @@ export default function GeneratedPlanScreen({
     
     for (const day of currentDays) {
       for (const activity of (day.activities || [])) {
-        const category = activity.category || 'activities';
+        const category = normalizeBudgetCategory(activity.category, activity.type);
         // Activity-driven spending:
         // Use actualCost if present, otherwise estimatedCost.
         const cost = activity.actualCost ?? activity.estimatedCost ?? activity.price ?? 0;
@@ -284,6 +315,12 @@ export default function GeneratedPlanScreen({
   const overByAmount = isOverBudget ? Math.abs(remainingBudget) : 0;
   const underByAmount = !isOverBudget ? remainingBudget : 0;
 
+  const calculateDaysTotal = (days = []) => days.reduce((daySum, day) => (
+    daySum + (day.activities || []).reduce((activitySum, activity) => (
+      activitySum + Number(activity.actualCost ?? activity.estimatedCost ?? activity.price ?? 0)
+    ), 0)
+  ), 0);
+
   // Start button is available for both upcoming and ongoing trips.
   const tripStatus = tripData?.trip?.status;
   const canStartFromPlan = ['upcoming', 'planning', 'confirmed', 'ongoing'].includes(tripStatus);
@@ -347,6 +384,15 @@ export default function GeneratedPlanScreen({
   const handleSaveEdit = async () => {
     if (!tripId || !editedDays) return;
 
+    const editedTotal = calculateDaysTotal(editedDays);
+    if (totalBudget > 0 && editedTotal > totalBudget) {
+      Alert.alert(
+        'Budget limit reached',
+        `Your itinerary exceeds your budget by ${currency} ${(editedTotal - totalBudget).toLocaleString()}. Remove some activities or lower costs before saving.`
+      );
+      return;
+    }
+
     try {
       await updateItinerary({ tripId, days: editedDays }).unwrap();
       Alert.alert('Success', 'Itinerary updated successfully!');
@@ -377,11 +423,12 @@ export default function GeneratedPlanScreen({
   const handleUpdateActivityCost = (dayNum, activityIndex, newCost) => {
     if (!editedDays) return;
 
+    const parsedCost = parseInt(newCost) || 0;
     const newDays = editedDays.map(day => {
       if (day.day === dayNum) {
         const newActivities = day.activities.map((activity, idx) => {
           if (idx === activityIndex) {
-            return { ...activity, estimatedCost: parseInt(newCost) || 0 };
+            return { ...activity, estimatedCost: parsedCost };
           }
           return activity;
         });
@@ -389,6 +436,16 @@ export default function GeneratedPlanScreen({
       }
       return day;
     });
+
+    const editedTotal = calculateDaysTotal(newDays);
+    if (totalBudget > 0 && editedTotal > totalBudget) {
+      Alert.alert(
+        'Budget limit reached',
+        `This cost would exceed your budget by ${currency} ${(editedTotal - totalBudget).toLocaleString()}.`
+      );
+      return;
+    }
+
     setEditedDays(newDays);
   };
 
@@ -420,6 +477,15 @@ export default function GeneratedPlanScreen({
       }
       return day;
     });
+
+    const editedTotal = calculateDaysTotal(newDays);
+    if (totalBudget > 0 && editedTotal > totalBudget) {
+      Alert.alert(
+        'Budget limit reached',
+        `Adding this activity would exceed your budget by ${currency} ${(editedTotal - totalBudget).toLocaleString()}.`
+      );
+      return;
+    }
 
     setEditedDays(newDays);
     setShowAddModal(false);

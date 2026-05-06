@@ -237,6 +237,17 @@ export default function ManualTripBuilderScreen({
   }, [businessItems, manualModeItems]);
 
   const addItem = (item) => {
+    const itemCost = Number(item.price) || 0;
+    const nextTotalCost = selectedItems.reduce((sum, selected) => sum + (Number(selected.price) || 0), 0) + itemCost;
+
+    if (totalBudget > 0 && nextTotalCost > totalBudget) {
+      Alert.alert(
+        'Budget limit reached',
+        `Adding this item would exceed your budget by ${currency} ${(nextTotalCost - totalBudget).toLocaleString()}.`
+      );
+      return;
+    }
+
     if (!selectedItems.find(i => i.id === item.id)) {
       setSelectedItems([...selectedItems, { ...item, assignedDay: selectedDay }]);
     }
@@ -271,7 +282,7 @@ export default function ManualTripBuilderScreen({
     return matchesSearch && matchesType && matchesPrice;
   });
 
-  const totalCost = selectedItems.reduce((sum, item) => sum + item.price, 0);
+  const totalCost = selectedItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
   const remainingBudget = totalBudget - totalCost;
   const isOverBudget = remainingBudget < 0;
   const isLoading = isLoadingItems || isLoadingDeals || isLoadingManualPlaces;
@@ -301,6 +312,14 @@ export default function ManualTripBuilderScreen({
       return;
     }
 
+    if (totalBudget > 0 && totalCost > totalBudget) {
+      Alert.alert(
+        'Budget limit reached',
+        `Your itinerary exceeds your budget by ${currency} ${(totalCost - totalBudget).toLocaleString()}. Remove some activities before saving.`
+      );
+      return;
+    }
+
     try {
       // Organize activities by their assigned day
       const days = [];
@@ -315,7 +334,7 @@ export default function ManualTripBuilderScreen({
             description: item.description || '',
             type: item.type === 'restaurant' ? 'food' : item.type,
             category: item.category || 'activities',
-            estimatedCost: item.price,
+            estimatedCost: Number(item.price) || 0,
             location: item.location || '',
             source: item.source || 'business',
                 businessId: item.businessId || null,
@@ -595,7 +614,7 @@ export default function ManualTripBuilderScreen({
                   
                   {dayItems.length === 0 ? (
                     <Text style={{ fontSize: 13, color: colors.textSecondary, fontStyle: 'italic', paddingVertical: 8 }}>
-                      No activities yet. Select "Day {day}" above and add items.
+                      No activities yet. Select Day {day} above and add items.
                     </Text>
                   ) : (
                     <View style={{ gap: 8 }}>
@@ -825,16 +844,16 @@ export default function ManualTripBuilderScreen({
         }}>
           <TouchableOpacity
             onPress={handleSaveItinerary}
-            disabled={isSaving}
+            disabled={isSaving || isOverBudget}
             style={{
-              backgroundColor: isOverBudget ? '#DC2626' : '#3B82F6',
+              backgroundColor: isOverBudget ? '#9CA3AF' : '#3B82F6',
               paddingVertical: 16,
               borderRadius: 16,
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              opacity: isSaving ? 0.7 : 1
+              opacity: (isSaving || isOverBudget) ? 0.7 : 1
             }}
           >
             {isSaving ? (

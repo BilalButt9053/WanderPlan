@@ -13,6 +13,39 @@
 
 const mongoose = require("mongoose");
 
+const BUDGET_CATEGORY_BY_TYPE = {
+    hotel: 'accommodation',
+    accommodation: 'accommodation',
+    stay: 'accommodation',
+    lodging: 'accommodation',
+    resort: 'accommodation',
+    hostel: 'accommodation',
+    food: 'food',
+    restaurant: 'food',
+    dining: 'food',
+    meal: 'food',
+    breakfast: 'food',
+    lunch: 'food',
+    dinner: 'food',
+    cafe: 'food',
+    transport: 'transport',
+    taxi: 'transport',
+    bus: 'transport',
+    train: 'transport',
+    flight: 'transport',
+    car: 'transport'
+};
+
+const resolveBudgetCategory = (category, type) => {
+    const normalizedCategory = String(category || '').toLowerCase().trim();
+    if (['accommodation', 'food', 'transport', 'activities'].includes(normalizedCategory)) {
+        return normalizedCategory;
+    }
+
+    const normalizedType = String(type || '').toLowerCase().trim();
+    return BUDGET_CATEGORY_BY_TYPE[normalizedType] || 'activities';
+};
+
 /**
  * Activity Schema - Individual activity with cost estimation
  */
@@ -391,7 +424,8 @@ SavedItinerarySchema.methods.recalculateCosts = function() {
         let dayCost = 0;
         for (const activity of day.activities) {
             const cost = activity.estimatedCost || 0;
-            costs[activity.category] += cost;
+            const category = resolveBudgetCategory(activity.category, activity.type);
+            costs[category] += cost;
             costs.total += cost;
             dayCost += cost;
         }

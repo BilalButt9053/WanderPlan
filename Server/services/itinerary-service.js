@@ -33,6 +33,135 @@ const axios = require('axios');
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 const PLACES_BASE_URL = 'https://maps.googleapis.com/maps/api/place';
 
+const resolveBudgetCategory = (category, type) => {
+    const normalizedCategory = String(category || '').toLowerCase().trim();
+    if (['accommodation', 'food', 'transport', 'activities'].includes(normalizedCategory)) {
+        return normalizedCategory;
+    }
+
+    return openaiService.getCategory(type);
+};
+
+const getCategoryBudgetRemaining = (budgetInfo, category) => {
+    const data = budgetInfo?.[category];
+    const remaining = Number(data?.remaining ?? ((data?.amount || 0) - (data?.spent || 0)));
+    return Number.isFinite(remaining) && remaining > 0 ? remaining : 0;
+};
+
+const estimateCoreBudgetCost = ({ budgetInfo, costProfile, category, days, fallbackMultiplier = 1 }) => {
+    const remaining = getCategoryBudgetRemaining(budgetInfo, category);
+    if (remaining > 0) return Math.round(remaining);
+
+    const average = Number(costProfile?.[category]?.avg || costProfile?.[category]?.min || 0);
+    if (average > 0) return Math.round(average * fallbackMultiplier);
+
+    const safeDays = Math.max(1, Number(days) || 1);
+    const defaults = {
+        accommodation: 3500 * safeDays,
+        transport: 700
+    };
+    return defaults[category] || 0;
+};
+
+const ensureCoreBudgetItems = ({ itinerary = [], destination, days, budgetInfo, travelStyle }) => {
+    const safeDays = Math.max(1, Number(days) || itinerary.length || 1);
+    const costProfile = budgetInfo?.costProfile || dynamicBudgetService.getDynamicCostProfile({ destination, travelStyle });
+    const normalizedDays = [...itinerary]
+        .sort((a, b) => Number(a.day || 0) - Number(b.day || 0))
+        .map((day, index) => {
+            const plainDay = day?.toObject ? day.toObject() : day;
+            return {
+                ...plainDay,
+                day: Number(plainDay.day) || index + 1,
+                activities: Array.isArray(plainDay.activities)
+                    ? plainDay.activities.map((activity) => activity?.toObject ? activity.toObject() : activity)
+                    : []
+            };
+        });
+
+    while (normalizedDays.length < safeDays) {
+        normalizedDays.push({ day: normalizedDays.length + 1, title: `Day ${normalizedDays.length + 1} - Local Discovery`, activities: [] });
+    }
+
+    const hasAccommodation = normalizedDays.some((day) =>
+        day.activities.some((activity) => resolveBudgetCategory(activity.category, activity.type) === 'accommodation')
+    );
+    const hasTransport = normalizedDays.some((day) =>
+        day.activities.some((activity) => resolveBudgetCategory(activity.category, activity.type) === 'transport')
+    );
+
+    if (!hasAccommodation && (getCategoryBudgetRemaining(budgetInfo, 'accommodation') > 0 || safeDays > 1)) {
+        const accommodationCost = estimateCoreBudgetCost({
+            budgetInfo,
+            costProfile,
+            category: 'accommodation',
+            days: safeDays,
+            fallbackMultiplier: safeDays
+        });
+
+        if (accommodationCost > 0) {
+            normalizedDays[0].activities.unshift({
+                title: `${destination} Accommodation`,
+                description: `Estimated stay cost for ${destination}.`,
+                type: 'hotel',
+                category: 'accommodation',
+                time: safeDays > 1 ? 'Check-in' : 'Stay',
+                location: {
+                    name: `${destination} Accommodation`,
+                    address: destination,
+                    coordinates: { lat: null, lng: null }
+                },
+                estimatedCost: accommodationCost,
+                costConfidence: 'estimated',
+                source: 'ai',
+                coordinateStatus: 'missing'
+            });
+        }
+    }
+
+    if (!hasTransport && getCategoryBudgetRemaining(budgetInfo, 'transport') > 0) {
+        const totalTransportCost = estimateCoreBudgetCost({
+            budgetInfo,
+            costProfile,
+            category: 'transport',
+            days: safeDays
+        });
+        const perDayTransportCost = Math.max(0, Math.round(totalTransportCost / safeDays));
+        let allocatedTransport = 0;
+
+        normalizedDays.slice(0, safeDays).forEach((day, index) => {
+            const cost = index === safeDays - 1
+                ? totalTransportCost - allocatedTransport
+                : perDayTransportCost;
+            allocatedTransport += cost;
+            if (cost <= 0) return;
+
+            day.activities.push({
+                title: `Day ${day.day} Local Transport`,
+                description: `Estimated local transport around ${destination}.`,
+                type: 'transport',
+                category: 'transport',
+                time: 'Throughout day',
+                location: {
+                    name: `Local Transport - Day ${day.day}`,
+                    address: destination,
+                    coordinates: { lat: null, lng: null }
+                },
+                estimatedCost: cost,
+                costConfidence: 'estimated',
+                source: 'ai',
+                coordinateStatus: 'missing'
+            });
+        });
+    }
+
+    normalizedDays.forEach((day) => {
+        day.estimatedDayCost = day.activities.reduce((sum, activity) => sum + (activity.estimatedCost || 0), 0);
+    });
+
+    return normalizedDays;
+};
+
 // Configuration
 const CONFIG = {
     maxAIActivitiesPerDay: 4,      // Prefer complete day plans when real places are available
@@ -411,7 +540,7 @@ const mergeItineraries = (staticItinerary, aiItinerary, totalDays, budget = null
             for (const activity of day.activities) {
                 // Check if adding this would exceed category budget
                 if (categoryRemaining) {
-                    const category = activity.category || 'activities';
+                    const category = resolveBudgetCategory(activity.category, activity.type);
                     if (categoryCosts[category] + activity.estimatedCost > categoryRemaining[category]) {
                         console.log(`[itinerary-service] Skipping ${activity.title}: would exceed ${category} budget`);
                         continue;
@@ -421,7 +550,7 @@ const mergeItineraries = (staticItinerary, aiItinerary, totalDays, budget = null
                 existing.activities.push(activity);
                 existing.estimatedDayCost += activity.estimatedCost || 0;
                 
-                const category = activity.category || 'activities';
+                const category = resolveBudgetCategory(activity.category, activity.type);
                 categoryCosts[category] += activity.estimatedCost || 0;
                 categoryCosts.total += activity.estimatedCost || 0;
             }
@@ -443,7 +572,7 @@ const mergeItineraries = (staticItinerary, aiItinerary, totalDays, budget = null
 
                 // Check budget
                 if (categoryRemaining) {
-                    const category = aiActivity.category || 'activities';
+                    const category = resolveBudgetCategory(aiActivity.category, aiActivity.type);
                     if (categoryCosts[category] + aiActivity.estimatedCost > categoryRemaining[category]) {
                         console.log(`[itinerary-service] Skipping AI ${aiActivity.title}: would exceed ${category} budget`);
                         continue;
@@ -453,7 +582,7 @@ const mergeItineraries = (staticItinerary, aiItinerary, totalDays, budget = null
                 existing.activities.push(aiActivity);
                 existing.estimatedDayCost += aiActivity.estimatedCost || 0;
                 
-                const category = aiActivity.category || 'activities';
+                const category = resolveBudgetCategory(aiActivity.category, aiActivity.type);
                 categoryCosts[category] += aiActivity.estimatedCost || 0;
                 categoryCosts.total += aiActivity.estimatedCost || 0;
             }
@@ -649,13 +778,53 @@ const saveItinerary = async (params) => {
         placePool = []
     } = params;
 
+    const saveBudgetInfo = trip ? {
+        totalBudget: trip.totalBudget || 0,
+        totalRemaining: (trip.totalBudget || 0) - (trip.totalSpent || 0),
+        currency: trip.currency || 'PKR',
+        costProfile: trip.costProfile || dynamicBudgetService.getDynamicCostProfile({
+            destination,
+            travelStyle
+        }),
+        accommodation: {
+            allocated: trip.budgetBreakdown?.accommodation?.amount || 0,
+            spent: trip.budgetBreakdown?.accommodation?.spent || 0,
+            remaining: (trip.budgetBreakdown?.accommodation?.amount || 0) - (trip.budgetBreakdown?.accommodation?.spent || 0)
+        },
+        food: {
+            allocated: trip.budgetBreakdown?.food?.amount || 0,
+            spent: trip.budgetBreakdown?.food?.spent || 0,
+            remaining: (trip.budgetBreakdown?.food?.amount || 0) - (trip.budgetBreakdown?.food?.spent || 0)
+        },
+        transport: {
+            allocated: trip.budgetBreakdown?.transport?.amount || 0,
+            spent: trip.budgetBreakdown?.transport?.spent || 0,
+            remaining: (trip.budgetBreakdown?.transport?.amount || 0) - (trip.budgetBreakdown?.transport?.spent || 0)
+        },
+        activities: {
+            allocated: trip.budgetBreakdown?.activities?.amount || 0,
+            spent: trip.budgetBreakdown?.activities?.spent || 0,
+            remaining: (trip.budgetBreakdown?.activities?.amount || 0) - (trip.budgetBreakdown?.activities?.spent || 0)
+        }
+    } : null;
+
     const repairedDays = await validateAndRepairItinerary({
         itinerary: days || itinerary,
         placePool,
         destination,
         days: Array.isArray(days || itinerary) ? (days || itinerary).length : (days || itinerary)?.days?.length || 1
     });
-    const enrichedDays = await enrichItineraryWithCoordinates(repairedDays, destination);
+    const budgetCompleteDays = ensureCoreBudgetItems({
+        itinerary: repairedDays,
+        destination,
+        days: Array.isArray(days || itinerary) ? (days || itinerary).length : (days || itinerary)?.days?.length || 1,
+        budgetInfo: saveBudgetInfo,
+        travelStyle
+    });
+    const budgetLimited = enforceGeneratedBudgetLimit(budgetCompleteDays, saveBudgetInfo);
+    const enrichedDays = await enrichItineraryWithCoordinates(budgetLimited.itinerary, destination);
+    const finalCategoryCosts = budgetLimited.categoryCosts || categoryCosts;
+    const finalBudgetStatus = calculateBudgetStatus(finalCategoryCosts, saveBudgetInfo) || budgetStatus;
     const coordinateStats = getCoordinateStats(enrichedDays);
     console.log(
         `[itinerary-service] Coordinate enrichment: totalActivities=${coordinateStats.totalActivities}, ` +
@@ -668,8 +837,8 @@ const saveItinerary = async (params) => {
     if (savedItinerary) {
         // Update existing
         savedItinerary.days = enrichedDays;
-        savedItinerary.estimatedCosts = categoryCosts;
-        savedItinerary.budgetStatus = budgetStatus;
+        savedItinerary.estimatedCosts = finalCategoryCosts;
+        savedItinerary.budgetStatus = finalBudgetStatus;
         savedItinerary.version += 1;
         savedItinerary.generationDetails.regeneratedCount += 1;
         savedItinerary.generationDetails.generatedAt = new Date();
@@ -699,8 +868,8 @@ const saveItinerary = async (params) => {
             },
             days: enrichedDays,
             totalDays: enrichedDays.length,
-            estimatedCosts: categoryCosts,
-            budgetStatus,
+            estimatedCosts: finalCategoryCosts,
+            budgetStatus: finalBudgetStatus,
             generationDetails: {
                 travelStyle,
                 generatedAt: new Date(),
@@ -802,18 +971,12 @@ const generateHybridItinerary = async (params) => {
         }
 
         // Step 4: Merge itineraries with budget validation
-        const { merged, categoryCosts } = mergeItineraries(
+        const { merged } = mergeItineraries(
             staticItinerary, 
             aiItinerary, 
             days, 
             budgetInfo
         );
-
-        // Step 5: Calculate budget status
-        const budgetStatus = calculateBudgetStatus(categoryCosts, budgetInfo);
-
-        // Step 6: Validate costs
-        const validation = openaiService.validateCostsAgainstBudget(merged, budgetInfo);
 
         // Step 7: Enrich activity coordinates and calculate statistics
         const repairedMerged = await validateAndRepairItinerary({
@@ -822,7 +985,19 @@ const generateHybridItinerary = async (params) => {
             destination,
             days
         });
-        const enrichedMerged = await enrichItineraryWithCoordinates(repairedMerged, destination);
+        const budgetCompleteMerged = ensureCoreBudgetItems({
+            itinerary: repairedMerged,
+            destination,
+            days,
+            budgetInfo,
+            travelStyle
+        });
+        const budgetLimited = enforceGeneratedBudgetLimit(budgetCompleteMerged, budgetInfo);
+        const budgetLimitedMerged = budgetLimited.itinerary;
+        const categoryCosts = budgetLimited.categoryCosts;
+        const budgetStatus = calculateBudgetStatus(categoryCosts, budgetInfo);
+        const validation = openaiService.validateCostsAgainstBudget(budgetLimitedMerged, budgetInfo);
+        const enrichedMerged = await enrichItineraryWithCoordinates(budgetLimitedMerged, destination);
         const coordinateStats = getCoordinateStats(enrichedMerged);
         console.log(
             `[itinerary-service] Generated itinerary coordinates: totalActivities=${coordinateStats.totalActivities}, ` +
@@ -868,7 +1043,13 @@ const generateHybridItinerary = async (params) => {
                 currency: budgetInfo.currency
             } : null,
             stats,
-            warnings: [...budgetStatus.warnings, ...validation.warnings],
+            warnings: [
+                ...budgetStatus.warnings,
+                ...validation.warnings,
+                ...(budgetLimited.wasReduced
+                    ? [`Removed ${budgetLimited.removedCount} high-cost item(s) so the AI plan stays below your remaining budget.`]
+                    : [])
+            ],
             savedItineraryId: savedItinerary?._id || null,
             generatedAt: new Date().toISOString(),
             generationTime
@@ -930,6 +1111,77 @@ const getSavedItinerary = async (tripId) => {
         return null;
     }
     return itinerary;
+};
+
+const ensureSavedItineraryCoreBudgetItems = async (savedItinerary, trip) => {
+    if (!savedItinerary || !trip || savedItinerary.budgetCommitted) {
+        return savedItinerary;
+    }
+
+    const destination = savedItinerary.destination?.name || trip.destination?.name || trip.destination?.city || 'Destination';
+    const daysCount = savedItinerary.totalDays || savedItinerary.days?.length || trip.durationDays || 1;
+    const budgetInfo = {
+        costProfile: trip.costProfile || dynamicBudgetService.getDynamicCostProfile({
+            destination,
+            travelStyle: trip.travelStyle || mapTripTypeToStyle(trip.tripType)
+        }),
+        accommodation: {
+            amount: trip.budgetBreakdown?.accommodation?.amount || 0,
+            spent: trip.budgetBreakdown?.accommodation?.spent || 0,
+            remaining: (trip.budgetBreakdown?.accommodation?.amount || 0) - (trip.budgetBreakdown?.accommodation?.spent || 0)
+        },
+        food: {
+            amount: trip.budgetBreakdown?.food?.amount || 0,
+            spent: trip.budgetBreakdown?.food?.spent || 0,
+            remaining: (trip.budgetBreakdown?.food?.amount || 0) - (trip.budgetBreakdown?.food?.spent || 0)
+        },
+        transport: {
+            amount: trip.budgetBreakdown?.transport?.amount || 0,
+            spent: trip.budgetBreakdown?.transport?.spent || 0,
+            remaining: (trip.budgetBreakdown?.transport?.amount || 0) - (trip.budgetBreakdown?.transport?.spent || 0)
+        },
+        activities: {
+            amount: trip.budgetBreakdown?.activities?.amount || 0,
+            spent: trip.budgetBreakdown?.activities?.spent || 0,
+            remaining: (trip.budgetBreakdown?.activities?.amount || 0) - (trip.budgetBreakdown?.activities?.spent || 0)
+        }
+    };
+
+    const beforeCounts = {
+        accommodation: savedItinerary.days.some((day) =>
+            (day.activities || []).some((activity) => resolveBudgetCategory(activity.category, activity.type) === 'accommodation')
+        ),
+        transport: savedItinerary.days.some((day) =>
+            (day.activities || []).some((activity) => resolveBudgetCategory(activity.category, activity.type) === 'transport')
+        )
+    };
+
+    const nextDays = ensureCoreBudgetItems({
+        itinerary: savedItinerary.days,
+        destination,
+        days: daysCount,
+        budgetInfo,
+        travelStyle: trip.travelStyle || mapTripTypeToStyle(trip.tripType)
+    });
+
+    const afterCounts = {
+        accommodation: nextDays.some((day) =>
+            (day.activities || []).some((activity) => resolveBudgetCategory(activity.category, activity.type) === 'accommodation')
+        ),
+        transport: nextDays.some((day) =>
+            (day.activities || []).some((activity) => resolveBudgetCategory(activity.category, activity.type) === 'transport')
+        )
+    };
+
+    if (beforeCounts.accommodation === afterCounts.accommodation && beforeCounts.transport === afterCounts.transport) {
+        return savedItinerary;
+    }
+
+    savedItinerary.days = nextDays;
+    savedItinerary.estimatedCosts = calculateCategoryCostsFromItinerary(nextDays);
+    savedItinerary.budgetStatus = calculateBudgetStatus(savedItinerary.estimatedCosts, budgetInfo);
+    await savedItinerary.save();
+    return savedItinerary;
 };
 
 /**
@@ -1731,13 +1983,64 @@ const calculateCategoryCostsFromItinerary = (itinerary = []) => {
     const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
     for (const day of itinerary) {
         for (const activity of day.activities || []) {
-            const category = activity.category || openaiService.getCategory(activity.type);
+            const category = resolveBudgetCategory(activity.category, activity.type);
             const cost = activity.estimatedCost || 0;
             categoryCosts[category] = (categoryCosts[category] || 0) + cost;
             categoryCosts.total += cost;
         }
     }
     return categoryCosts;
+};
+
+const enforceGeneratedBudgetLimit = (itinerary = [], budgetInfo = null) => {
+    const limit = Number(budgetInfo?.totalRemaining ?? budgetInfo?.totalBudget);
+    if (!Number.isFinite(limit) || limit <= 0) {
+        return {
+            itinerary,
+            categoryCosts: calculateCategoryCostsFromItinerary(itinerary),
+            removedCount: 0,
+            wasReduced: false
+        };
+    }
+
+    let nextItinerary = itinerary.map((day) => ({
+        ...day,
+        activities: [...(day.activities || [])]
+    }));
+    let categoryCosts = calculateCategoryCostsFromItinerary(nextItinerary);
+    const target = Math.max(0, limit - 1);
+    let removedCount = 0;
+
+    while (categoryCosts.total > target) {
+        let candidate = null;
+
+        nextItinerary.forEach((day, dayIndex) => {
+            (day.activities || []).forEach((activity, activityIndex) => {
+                const cost = Number(activity.estimatedCost || 0);
+                if (!candidate || cost > candidate.cost) {
+                    candidate = { dayIndex, activityIndex, cost };
+                }
+            });
+        });
+
+        if (!candidate || candidate.cost <= 0) break;
+
+        nextItinerary[candidate.dayIndex].activities.splice(candidate.activityIndex, 1);
+        removedCount += 1;
+        categoryCosts = calculateCategoryCostsFromItinerary(nextItinerary);
+    }
+
+    nextItinerary = nextItinerary.map((day) => ({
+        ...day,
+        estimatedDayCost: (day.activities || []).reduce((sum, activity) => sum + (activity.estimatedCost || 0), 0)
+    }));
+
+    return {
+        itinerary: nextItinerary,
+        categoryCosts,
+        removedCount,
+        wasReduced: removedCount > 0
+    };
 };
 
 /**
@@ -1843,6 +2146,13 @@ const generateRealDataItinerary = async (params) => {
                 destination,
                 days
             });
+            fallbackItinerary = ensureCoreBudgetItems({
+                itinerary: fallbackItinerary,
+                destination,
+                days,
+                budgetInfo,
+                travelStyle
+            });
             fallbackItinerary = await enrichItineraryWithCoordinates(fallbackItinerary, destination);
             const coordinateStats = getCoordinateStats(fallbackItinerary);
             console.log(
@@ -1850,15 +2160,10 @@ const generateRealDataItinerary = async (params) => {
                 `resolvedCoordinates=${coordinateStats.resolvedCoordinates}, missingCoordinates=${coordinateStats.missingCoordinates}`
             );
             
-            // Calculate costs
-            const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
-            for (const day of fallbackItinerary) {
-                for (const activity of day.activities) {
-                    const category = activity.category || 'activities';
-                    categoryCosts[category] += activity.estimatedCost || 0;
-                    categoryCosts.total += activity.estimatedCost || 0;
-                }
-            }
+            // Calculate costs and keep the generated plan below the user's budget.
+            const budgetLimited = enforceGeneratedBudgetLimit(fallbackItinerary, budgetInfo);
+            fallbackItinerary = budgetLimited.itinerary;
+            const categoryCosts = budgetLimited.categoryCosts;
             
             const budgetStatus = calculateBudgetStatus(categoryCosts, budgetInfo);
             const stats = calculateItineraryStats(fallbackItinerary);
@@ -1897,7 +2202,12 @@ const generateRealDataItinerary = async (params) => {
                     currency: budgetInfo.currency
                 } : null,
                 stats,
-                warnings: ['Using fallback itinerary - no real places found for this destination'],
+                warnings: [
+                    'Using fallback itinerary - no real places found for this destination',
+                    ...(budgetLimited.wasReduced
+                        ? [`Removed ${budgetLimited.removedCount} high-cost item(s) so the AI plan stays below your remaining budget.`]
+                        : [])
+                ],
                 savedItineraryId: savedItinerary?._id || null,
                 generatedAt: new Date().toISOString(),
                 generationTime,
@@ -1936,6 +2246,13 @@ const generateRealDataItinerary = async (params) => {
             destination,
             days
         });
+        itinerary = ensureCoreBudgetItems({
+            itinerary,
+            destination,
+            days,
+            budgetInfo,
+            travelStyle
+        });
         itinerary = await enrichItineraryWithCoordinates(itinerary, destination);
         logItineraryDiagnostics('Generated itinerary coordinates', {
             destination,
@@ -1950,8 +2267,10 @@ const generateRealDataItinerary = async (params) => {
             console.warn('[itinerary-service] AI enhancement failed, using original descriptions:', err.message);
         }
         
-        // Step 8: Calculate costs by category after repair
-        const categoryCosts = calculateCategoryCostsFromItinerary(itinerary);
+        // Step 8: Calculate costs by category after repair and keep the plan below budget.
+        const budgetLimited = enforceGeneratedBudgetLimit(itinerary, budgetInfo);
+        itinerary = budgetLimited.itinerary;
+        const categoryCosts = budgetLimited.categoryCosts;
         
         // Step 9: Calculate budget status
         const budgetStatus = calculateBudgetStatus(categoryCosts, budgetInfo);
@@ -1960,6 +2279,9 @@ const generateRealDataItinerary = async (params) => {
         const warnings = [...budgetStatus.warnings];
         if (budgetInfo && categoryCosts.total > budgetInfo.totalRemaining) {
             warnings.push(`Estimated total (${categoryCosts.total} PKR) exceeds remaining budget (${budgetInfo.totalRemaining} PKR)`);
+        }
+        if (budgetLimited.wasReduced) {
+            warnings.push(`Removed ${budgetLimited.removedCount} high-cost item(s) so the AI plan stays below your remaining budget.`);
         }
         
         // Step 11: Calculate statistics
@@ -2085,6 +2407,7 @@ module.exports = {
     calculateBudgetStatus,
     saveItinerary,
     getSavedItinerary,
+    ensureSavedItineraryCoreBudgetItems,
     getUserItineraries,
     getSuggestedDestinations,
     calculateItineraryStats,

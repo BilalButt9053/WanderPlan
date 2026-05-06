@@ -480,7 +480,7 @@ const getTripItinerary = async (req, res, next) => {
         }
 
         // Get saved itinerary
-        const itinerary = await itineraryService.getSavedItinerary(tripId);
+        let itinerary = await itineraryService.getSavedItinerary(tripId);
         
         if (!itinerary) {
             return res.status(404).json({
@@ -488,6 +488,8 @@ const getTripItinerary = async (req, res, next) => {
                 message: 'No itinerary found for this trip. Generate one using POST /api/itineraries/trip/:tripId/generate'
             });
         }
+
+        itinerary = await itineraryService.ensureSavedItineraryCoreBudgetItems(itinerary, trip);
 
         res.status(200).json({
             success: true,
@@ -916,7 +918,7 @@ const saveManualItinerary = async (req, res, next) => {
                 title: activity.title || 'Untitled Activity',
                 description: activity.description || '',
                 type: openaiService.normalizeActivityType(activity.type || activity.category),
-                category: openaiService.getCategory(activity.type || activity.category),
+                category: openaiService.getCategory(activity.category || activity.type),
                 time: activity.time || '',
                 location: activity.location || '',
                 latitude: activity.latitude ?? activity.lat ?? activity.coordinates?.latitude ?? activity.coordinates?.lat ?? null,
@@ -954,10 +956,24 @@ const saveManualItinerary = async (req, res, next) => {
         const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
         for (const day of normalizedDays) {
             for (const activity of day.activities) {
-                const category = activity.category || 'activities';
+                const category = openaiService.getCategory(activity.category || activity.type);
                 categoryCosts[category] = (categoryCosts[category] || 0) + (activity.estimatedCost || 0);
                 categoryCosts.total += activity.estimatedCost || 0;
             }
+        }
+
+        if (budgetInfo && categoryCosts.total > budgetInfo.totalRemaining) {
+            return res.status(400).json({
+                success: false,
+                message: `Itinerary cost exceeds your remaining budget by ${categoryCosts.total - budgetInfo.totalRemaining} ${budgetInfo.currency}. Remove some activities or choose lower-cost options.`,
+                estimatedCosts: categoryCosts,
+                budgetInfo: {
+                    totalBudget: budgetInfo.totalBudget,
+                    totalRemaining: budgetInfo.totalRemaining,
+                    afterItinerary: budgetInfo.totalRemaining - categoryCosts.total,
+                    currency: budgetInfo.currency
+                }
+            });
         }
 
         // Calculate budget status
@@ -1109,7 +1125,7 @@ const updateItinerary = async (req, res, next) => {
                 title: activity.title || 'Untitled Activity',
                 description: activity.description || '',
                 type: openaiService.normalizeActivityType(activity.type || activity.category),
-                category: openaiService.getCategory(activity.type || activity.category),
+                category: openaiService.getCategory(activity.category || activity.type),
                 time: activity.time || '',
                 location: activity.location || '',
                 latitude: activity.latitude ?? activity.lat ?? activity.coordinates?.latitude ?? activity.coordinates?.lat ?? null,
@@ -1147,10 +1163,24 @@ const updateItinerary = async (req, res, next) => {
         const categoryCosts = { accommodation: 0, food: 0, transport: 0, activities: 0, total: 0 };
         for (const day of normalizedDays) {
             for (const activity of day.activities) {
-                const category = activity.category || 'activities';
+                const category = openaiService.getCategory(activity.category || activity.type);
                 categoryCosts[category] = (categoryCosts[category] || 0) + (activity.estimatedCost || 0);
                 categoryCosts.total += activity.estimatedCost || 0;
             }
+        }
+
+        if (budgetInfo && categoryCosts.total > budgetInfo.totalRemaining) {
+            return res.status(400).json({
+                success: false,
+                message: `Itinerary cost exceeds your remaining budget by ${categoryCosts.total - budgetInfo.totalRemaining} ${budgetInfo.currency}. Remove some activities or choose lower-cost options.`,
+                estimatedCosts: categoryCosts,
+                budgetInfo: {
+                    totalBudget: budgetInfo.totalBudget,
+                    totalRemaining: budgetInfo.totalRemaining,
+                    afterItinerary: budgetInfo.totalRemaining - categoryCosts.total,
+                    currency: budgetInfo.currency
+                }
+            });
         }
 
         // Calculate budget status

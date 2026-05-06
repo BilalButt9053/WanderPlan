@@ -1397,6 +1397,15 @@ const addFromMap = async (req, res, next) => {
             cafe: 'food',
             lodging: 'hotel',
             hotel: 'hotel',
+            accommodation: 'hotel',
+            resort: 'hotel',
+            hostel: 'hotel',
+            transport: 'transport',
+            taxi: 'transport',
+            bus: 'transport',
+            train: 'transport',
+            flight: 'transport',
+            car: 'transport',
             tourist_attraction: 'attraction',
             attraction: 'attraction',
             shopping_mall: 'shopping',
@@ -1408,12 +1417,16 @@ const addFromMap = async (req, res, next) => {
         const categoryMapping = {
             food: 'food',
             hotel: 'accommodation',
+            accommodation: 'accommodation',
+            transport: 'transport',
             attraction: 'activities',
             shopping: 'activities'
         };
 
-        const activityType = typeMapping[type] || 'attraction';
-        const budgetCategory = categoryMapping[activityType] || 'activities';
+        const requestedType = String(type || '').toLowerCase().trim();
+        const requestedCategory = String(category || '').toLowerCase().trim();
+        const activityType = typeMapping[requestedType] || 'attraction';
+        const budgetCategory = categoryMapping[requestedCategory] || categoryMapping[activityType] || 'activities';
 
         const activity = normalizeActivityLocation({
             title: name,
